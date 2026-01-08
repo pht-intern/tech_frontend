@@ -1,0 +1,257 @@
+:root{
+            --blue: #2f8ee6;
+            --blue-dark: #2675c5;
+            --accent: #50E3C2;
+            --muted: #9aa4ad;
+            --bg: #f5f7fa;
+            --card: #ffffff;
+            --border: #e6ebf0;
+            --danger: #e35050;
+            --shadow: 0 6px 18px rgba(20,30,50,0.06);
+            --radius: 10px;
+        }
+        *{box-sizing:border-box}
+        body{
+            margin:0;
+            font-family: "Segoe UI", Roboto, Arial, sans-serif;
+            background:var(--bg);
+            color:#223;
+            min-height:100vh;
+            display:flex;
+            -webkit-font-smoothing:antialiased;
+            -moz-osx-font-smoothing:grayscale;
+        }
+
+        /* ====== SIDEBAR ====== */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 240px;
+            height: 100vh;
+            background: #fff;
+            border-right: 1px solid var(--border);
+            padding: 18px 16px;
+            display:flex;
+            flex-direction:column;
+            gap:12px;
+            overflow: hidden;
+            z-index: 1000;
+        }
+        .brand {
+            display:flex;
+            align-items:center;
+            gap:10px;
+            color:var(--blue);
+            font-weight:800;
+            font-size:18px;
+        }
+        .brand i { font-size:20px; }
+
+        .nav {
+            margin-top:10px;
+            display:flex;
+            flex-direction:column;
+            gap:6px;
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            min-height: 0;
+        }
+        .nav a {
+            display:flex;
+            align-items:center;
+            gap:12px;
+            padding:10px;
+            border-radius:8px;
+            color:#556;
+            text-decoration:none;
+            transition: all .12s;
+            font-size:14px;
+        }
+        .nav a i { width:20px; text-align:center; color:var(--muted) }
+        .nav a:hover { background:#f2f6fb; color:var(--blue) }
+        .nav a.active {
+            background: linear-gradient(180deg,var(--blue),var(--blue-dark));
+            color:#fff;
+            font-weight:700;
+            box-shadow: 0 6px 18px rgba(47,142,230,0.12);
+        }
+        .nav a.active i { color:#fff }
+
+        .sidebar .user {
+            margin-top:auto;
+            padding-top:10px;
+            border-top:1px solid var(--border);
+            display:flex;
+            gap:10px;
+            align-items:center;
+            flex-shrink: 0;
+        }
+        .avatar {
+            width:42px;height:42px;border-radius:10px;background:var(--accent);
+            color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;
+        }
+        .user .meta { font-size:13px }
+        .user .meta small { display:block;color:var(--muted);font-size:12px }
+        
+        .sidebar #logoutBtn {
+            flex-shrink: 0;
+        }
+
+        /* ====== MAIN ====== */
+        .main {
+            margin-left: 240px;
+            flex:1;
+            padding: 28px 32px;
+            overflow:auto;
+            display: flex; 
+            flex-direction: column; 
+        }
+        .header { margin-bottom:18px }
+        .header h1 { margin:0; font-size:28px; color:#243040 }
+        .header p { margin:6px 0 0; color:var(--muted) }
+
+        .content-section {
+            flex-grow: 1; 
+            display: flex;
+            flex-direction: column;
+        }
+
+
+        /* ====== TOP TABS (inside main sections) ====== */
+        .section-tabs {
+            display:flex;
+            gap:10px;
+            margin-bottom:18px;
+            flex-wrap:wrap;
+        }
+        .tab-btn{
+            background:#fff;
+            border:1px solid var(--border);
+            padding:8px 14px;
+            border-radius:8px;
+            cursor:pointer;
+            font-weight:600;
+            color:#444;
+        }
+        .tab-btn.active{
+            background:var(--blue);
+            color:#fff;
+            border-color:var(--blue);
+            box-shadow:0 6px 18px rgba(47,142,230,0.12);
+        }
+
+        /* ====== CARD ====== */
+        .card {
+            background:var(--card);
+            border-radius:var(--radius);
+            padding:18px;
+            border:1px solid var(--border);
+            box-shadow:var(--shadow);
+            margin-bottom:18px;
+        }
+        .card h2 { margin:0 0 12px 0; font-size:16px }
+
+        /* ====== TABLE ====== */
+        .data-table { width:100%; border-collapse:collapse; font-size:14px }
+        .data-table thead th {
+            text-align:left;padding:12px 14px;background:#fbfdff;border-bottom:1px solid var(--border);
+            color:#556;font-weight:700;font-size:12px;text-transform:uppercase;
+        }
+        .data-table td { padding:12px 14px;border-bottom:1px solid #f2f6fb; vertical-align:middle; color:#333 }
+        .item-photo { width:48px;height:48px;border-radius:6px;background:#eee;object-fit:cover }
+
+        /* ====== FORM ====== */
+        .form-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px }
+        .form-field label { display:block; margin-bottom:6px; font-weight:700; color:#334 }
+        .form-field input, .form-field textarea, .form-field select {
+            width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:#fff;
+        }
+        .form-field textarea { min-height:100px; resize:vertical }
+
+        /* Style for disabled GST input */
+        .gst-input[disabled] { 
+            background-color: #f7f9fb; 
+            cursor: not-allowed; 
+            border-color: #e6ebf0;
+        }
+
+        /* ====== BUTTONS ====== */
+        .btn { display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer;font-weight:700 }
+        .btn.primary { background:var(--blue);border-color:var(--blue);color:#fff }
+        .btn.danger { color:var(--danger);border-color:rgba(227,80,80,0.12) }
+        .btn[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+        /* ====== UTIL ====== */
+        .muted { color:var(--muted) }
+        .right { margin-left:auto }
+        .hidden { display:none }
+        .link-icon { color: var(--blue); margin-left: 5px; }
+
+        /* ====== MODAL STYLES (for both Photo Modal and PDF Template) ====== */
+        #photoModal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; 
+            background-color: rgba(0,0,0,0.9);
+            cursor: zoom-in;
+        }
+        #closeModalBtn {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            transition: 0.3s;
+            cursor: pointer;
+            z-index: 1001;
+        }
+        #modalImageContainer { 
+            width: 80%;
+            max-width: 1200px;
+            height: 90vh;
+            margin: auto;
+            position: relative;
+            top: 50%;
+            transform: translateY(-50%);
+            overflow: hidden; 
+            cursor: zoom-out;
+        }
+        #modalImage {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transition: transform 0.1s ease-out; 
+        }
+
+        /* PDF Template Container - Will be positioned off-screen by JS */
+        #quotationPdfTemplate {
+            background-color: transparent;
+            display: none; 
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+        }
+        
+        /* ====== RESPONSIVE ====== */
+        @media (max-width: 980px){
+            .sidebar { display:none }
+            .form-grid-2 { grid-template-columns:1fr }
+            .main { margin-left: 0; padding:18px }
+            .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+        @media (max-width: 640px){
+            .stats-grid { grid-template-columns: 1fr !important; }
+        }

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Techtitans - Login</title>
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <style>
+    :root {
+        --color-background: #EBEFF5;
+        --color-card-bg: #FFFFFF;
+        --color-primary-text: #34495E;
+        --color-accent-blue: #3A648C;
+        --color-button-bg: #90A4AE;
+        --color-input-border: #C8D3DB;
+        --color-input-bg: #F4F7FB;
+    }
+
+    body {
+        font-family: Arial, sans-serif;
+        background-color: var(--color-background);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    .auth-card {
+        background-color: var(--color-card-bg);
+        width: 100%;
+        max-width: 380px;
+        padding: 40px;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05), 0 0 1px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .icon-container {
+        width: 60px;
+        height: 60px;
+        background-color: var(--color-background);
+        color: var(--color-primary-text);
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0 auto 15px auto;
+    }
+
+    .logo { font-size: 24px; font-weight: bold; color: var(--color-primary-text); }
+    .subtitle { font-size: 14px; color: var(--color-primary-text); opacity: 0.7; margin-bottom: 30px; }
+
+    .form-group { text-align: left; width: 100%; }
+    .form-group label { display: block; font-size: 14px; margin: 15px 0 5px; color: var(--color-primary-text); }
+
+    .form-group input {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid var(--color-input-border);
+        border-radius: 4px;
+        background-color: var(--color-input-bg);
+        font-size: 16px;
+        color: var(--color-primary-text);
+        box-sizing: border-box;
+    }
+
+    .auth-button {
+        width: 100%;
+        padding: 12px;
+        background-color: var(--color-button-bg);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 20px;
+    }
+
+    .forgot-link {
+        margin-top: 10px;
+        font-size: 13px;
+        color: var(--color-accent-blue);
+        text-align: right;
+        display: block;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    </style>
+</head>
+
+<body>
+
+    <div id="signInCard" class="auth-card">
+        <img src="images/Logo.svg" alt="Logo" style="max-width: 200px; height: auto; margin-bottom: 15px;">
+        <p class="subtitle">Sign in to access your dashboard</p>
+
+        <form id="loginForm">
+            <label>Email</label>
+            <input type="email" id="loginEmail" required> <br>
+<br>
+            <label>Password</label>
+            <input type="password" id="loginPassword" required>
+
+            <button type="submit" class="auth-button">Log In</button>
+
+            <a href="forgot_password.html" class="forgot-link">Forgot Password?</a>
+        </form>
+    </div>
+
+    <script src="js/login.js"></script>
+</body>
+</html>

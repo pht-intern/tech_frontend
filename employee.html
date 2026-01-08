@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <title>Dashboard - Techtitans  (Employee)</title>
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet"/>
+    <link href="css/employee.css" rel="stylesheet"/>
+</head>
+<body>
+
+    <aside class="sidebar" role="navigation">
+        <div class="brand">
+            <img src="images/Logo.svg" alt="Tech Titans Logo" style="height: 120px; width: auto; max-width: 100%;">
+        </div>
+
+        <nav class="nav" id="sideNav">
+            <a href="#" data-tab="dashboard" class="active"><i class="fas fa-th-large"></i> Dashboard</a>
+            <a href="#" data-tab="createQuotation"><i class="fas fa-file-invoice-dollar"></i> Create Quotation</a>
+            <a href="#" data-tab="viewHistory"><i class="fas fa-history"></i> History</a>
+            <a href="#" data-tab="viewCustomers"><i class="fas fa-users"></i> Customers</a> 
+        </nav>
+
+        <div class="user">
+            <div class="avatar" id="userAvatar">E</div>
+            <div class="meta" style="flex: 1;"><strong id="userRoleDisplay">Employee</strong><small id="userEmailDisplay">employee@rolewise.app</small></div>
+        </div>
+        <button class="btn danger" id="logoutBtn" style="margin-top: 8px; width: 100%; padding: 8px; font-size: 13px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </aside>
+
+    <main class="main">
+        <header class="header">
+            <h1 id="headerTitle">Employee Dashboard</h1>
+        </header>
+
+        <section id="dashboard" class="content-section">
+            <div class="section-tabs" id="dashboardTabs">
+                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
+                <button class="tab-btn" data-tab="viewHistory">History</button>
+                <button class="tab-btn log-tab-btn" data-tab="viewCustomers">Customers</button>
+            </div>
+
+            <div class="card">
+                <h2>Overview</h2>
+                <p class="muted">Quick summary of products, quotations and activity.</p>
+
+                <div class="stats-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px">
+                    <div class="card" style="padding:16px; border-left: 4px solid #3A648C;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <h3 style="margin:0; font-size:16px; color:#34495E;">Products</h3>
+                            <i class="fas fa-box" style="color:#90A4AE; font-size:20px;"></i>
+                        </div>
+                        <div id="summaryItemsCount" style="font-size:32px; font-weight:bold; color:#34495E;">—</div>
+                        <div class="muted" style="font-size:12px; margin-top:4px;">Total products available</div>
+                    </div>
+
+                    <div class="card" style="padding:16px; border-left: 4px solid #27AE60;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <h3 style="margin:0; font-size:16px; color:#34495E;">Quotations</h3>
+                            <i class="fas fa-file-invoice-dollar" style="color:#90A4AE; font-size:20px;"></i>
+                        </div>
+                        <div id="summaryQuotationsCount" style="font-size:32px; font-weight:bold; color:#34495E;">—</div>
+                        <div class="muted" style="font-size:12px; margin-top:4px;">Total quotations created</div>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:20px">
+                    <div class="card" style="padding:16px;">
+                        <h3 style="margin:0 0 12px 0; font-size:18px; color:#34495E;">Recent Quotations</h3>
+                        <div id="recentQuotationsList" style="max-height:200px; overflow-y:auto;">
+                            <p class="muted" style="text-align:center; padding:20px;">Loading...</p>
+                        </div>
+                    </div>
+
+                    <div class="card" style="padding:16px;">
+                        <h3 style="margin:0 0 12px 0; font-size:18px; color:#34495E;">Recent Activity</h3>
+                        <div id="recentActivityList" style="max-height:200px; overflow-y:auto;">
+                            <p class="muted" style="text-align:center; padding:20px;">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="createQuotation" class="content-section" style="display:none">
+            <div class="section-tabs">
+                <button class="tab-btn active" data-tab="createQuotation">Create Quotation</button>
+                <button class="tab-btn" data-tab="viewHistory">History</button>
+                <button class="tab-btn" data-tab="viewCustomers">Customers</button> 
+            </div>
+
+            <div class="card" style="flex-grow: 1;">
+                <h2>Create Quotation</h2>
+                <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-top:12px">
+                    <div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                            <div>
+                                <label class="muted">Customer Name <span class="muted">(Optional)</span></label>
+                                <input id="cust-name" type="text" style="padding:10px;border-radius:8px;border:1px solid var(--border)" placeholder="Customer Name">
+                            </div>
+                            <div>
+                                <label class="muted">Phone *</label>
+                                <input id="phone-number" type="tel" maxlength="10" pattern="\d{10}" inputmode="numeric" style="padding:10px;border-radius:8px;border:1px solid var(--border)" placeholder="10-digit phone number" required>
+                            </div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px; margin-top:10px">
+                            <div>
+                                <label class="muted">Email <span class="muted">(Optional)</span></label>
+                                <input id="cust-email" type="email" style="padding:10px;border-radius:8px;border:1px solid var(--border)" placeholder="Email">
+                            </div>
+                        </div>
+
+                        <div style="margin-top:10px">
+                            <label class="muted">Address</label>
+                            <textarea id="cust-address" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)" placeholder="Optional"></textarea>
+                        </div>
+                        
+                        <div class="card" style="margin-top:12px">
+                            <h2>Quotation Items</h2>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Quantity</th>
+                                        <th>Unit Price (₹)</th>
+                                        <th>Total (Excl. GST)</th>
+                                        <th>GST Rate (%)</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="quotationItemsBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="card">
+                            <h2>Add Items to Quotation</h2>
+                            <div style="margin-top:8px">
+                                <input id="itemSearchInput" placeholder="Search products by Name or ID..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">
+                                <!-- Dynamic type filters for quotation items -->
+                                <div id="quotationTypeFilters" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:6px;"></div>
+                                <style>
+                                    .type-filter-btn.active {
+                                        background: linear-gradient(135deg, #35b3e7 0%, #5490cc 100%) !important;
+                                        color: white !important;
+                                        border-color: #35b3e7 !important;
+                                        font-weight: 600;
+                                    }
+                                    .type-filter-btn:hover {
+                                        background: #f0f7ff !important;
+                                        border-color: #35b3e7 !important;
+                                    }
+                                </style>
+                                <div id="availableItemsList" style="margin-top:10px;max-height:340px;overflow:auto"></div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top:12px">
+                            <h2>Summary</h2>
+                            <div style="text-align:left; margin-top:10px;">
+                                <p style="margin:8px 0;">Subtotal: <span class="right" id="subTotalDisplay">₹0.00</span></p>
+                            </div>
+                            <div style="font-size:20px;margin:12px 0; border-top:2px solid #ccc; padding-top:10px;">
+                                <strong>Grand Total:</strong> <span class="right" id="grandTotalDisplay">₹0.00</span>
+                                <p style="margin:8px 0; font-size:13px; color:#7f8c8d; font-style:italic;">Inclusive of GST</p>
+                            </div>
+                            <button id="createQuotationBtn" class="btn primary" style="width:100%" onclick="createQuotation()"><i class="fas fa-file-invoice-dollar"></i> Create Quotation</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="viewHistory" class="content-section" style="display:none">
+            <div class="section-tabs">
+                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
+                <button class="tab-btn active" data-tab="viewHistory">History</button>
+                <button class="tab-btn" data-tab="viewCustomers">Customers</button> 
+            </div>
+
+            <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h2>Quotation History</h2>
+                </div>
+                <p class="muted">List of all quotations created in the system. **(Search by Quotation ID or Customer Name below)**</p>
+                
+                <div style="margin-top: 12px; margin-bottom: 18px;">
+                    <input type="text" id="historySearchInput" placeholder="Search quotations by ID or Customer Name..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">
+                </div>
+
+                <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 300px);">
+                    <table class="data-table" id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>Quotation ID</th>
+                                <th>Customer Name</th>
+                                <th>Date Created</th>
+                                <th>Total Amount (₹)</th>
+                                <th>Items Count</th>
+                                <th>Created By</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyListBody"></tbody>
+                    </table>
+                    <p id="noHistoryMessage" class="muted" style="text-align:center;padding:18px;display:none">No quotations have been created yet.</p>
+                </div>
+                <div id="historyPagination" style="display: flex; justify-content: center; align-items: center; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 12px; gap: 8px; flex-wrap: wrap;">
+                    <button id="historyPrevBtn" class="pagination-btn" onclick="goToHistoryPage(-1)" disabled>
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <div id="historyPageNumbers" style="display: flex; gap: 6px; align-items: center;"></div>
+                    <button id="historyNextBtn" class="pagination-btn" onclick="goToHistoryPage(1)" disabled>
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <div id="historyPageInfo" style="margin-left: 12px; padding: 8px 12px; background: white; border-radius: 8px; font-size: 13px; color: #7f8c8d; border: 1px solid #e0e0e0;"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="viewCustomers" class="content-section" style="display:none">
+            <div class="section-tabs">
+                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
+                <button class="tab-btn" data-tab="viewHistory">History</button>
+                <button class="tab-btn active" data-tab="viewCustomers">Customers</button>
+            </div>
+
+            <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
+                <h2>Customer List</h2>
+                <p class="muted">List of all customers who have received a quotation.</p>
+                <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 250px);">
+                    <table class="data-table" id="customersTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Address</th>
+                                <th>Last Quotation Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customersListBody">
+                            <tr><td colspan="5" class="muted" style="text-align:center">Customer data must be compiled from the Quotation History list.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="customersPagination" style="display: flex; justify-content: center; align-items: center; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 12px; gap: 8px; flex-wrap: wrap;">
+                    <button id="customersPrevBtn" class="pagination-btn" onclick="goToCustomersPage(-1)" disabled>
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <div id="customersPageNumbers" style="display: flex; gap: 6px; align-items: center;"></div>
+                    <button id="customersNextBtn" class="pagination-btn" onclick="goToCustomersPage(1)" disabled>
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <div id="customersPageInfo" style="margin-left: 12px; padding: 8px 12px; background: white; border-radius: 8px; font-size: 13px; color: #7f8c8d; border: 1px solid #e0e0e0;"></div>
+                </div>
+            </div>
+        </section>
+
+        <div id="photoModal">
+            <span id="closeModalBtn">&times;</span>
+            <div id="modalImageContainer">
+                <img id="modalImage" />
+            </div>
+        </div>
+        <div id="quotationPdfTemplate"></div>
+    </main>
+
+    <!-- Quotation View Modal -->
+    <div id="quotationViewModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; overflow-y: auto;">
+        <div style="position: relative; max-width: 900px; margin: 20px auto; background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <div style="position: sticky; top: 0; background: #fff; padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0; z-index: 1;">
+                <h3 style="margin: 0; font-size: 18px; color: #34495E;">View Quotation</h3>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="closeQuotationModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">&times;</button>
+                </div>
+            </div>
+            <div id="quotationViewContent" style="padding: 20px; max-height: calc(100vh - 120px); overflow-y: auto; display: flex; justify-content: center; align-items: flex-start;">
+                <!-- Quotation content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Product Modal -->
+    <div id="editProductModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; overflow-y: auto;">
+        <div style="position: relative; max-width: 700px; margin: 20px auto; background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <div style="position: sticky; top: 0; background: #fff; padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0; z-index: 1;">
+                <h3 style="margin: 0; font-size: 18px; color: #34495E;">Edit Product</h3>
+                <button id="closeEditProductModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">&times;</button>
+            </div>
+            <div style="padding: 20px;">
+                <form id="editProductForm" class="form-grid-2" style="margin-top:12px">
+                    <div class="form-field">
+                        <label for="edit-product-id">Product ID</label>
+                        <input type="text" id="edit-product-id" readonly>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="edit-item-url">Website URL <span class="muted">(Must be unique)</span></label>
+                        <input type="url" id="edit-item-url" placeholder="https://example.com/product-page" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="edit-product-name">Product Name</label>
+                        <input type="text" id="edit-product-name" placeholder="e.g. Office PC 01" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="edit-type">Type</label>
+                        <input type="text" id="edit-type" placeholder="e.g. Laptop, Desktop" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="edit-price">Price (INR)</label>
+                        <input type="number" id="edit-price" placeholder="e.g. 105999.00" required min="0" step="0.01">
+                    </div>
+                    
+                    <div class="form-field">
+                        <label for="edit-gst">GST (%)</label>
+                        <input type="number" id="edit-gst" placeholder="e.g. 18" min="0" max="100" step="0.01">
+                    </div> 
+
+                    <div class="form-field" style="grid-column: 1 / 3;">
+                        <label for="edit-description">Description</label>
+                        <textarea id="edit-description" placeholder="e.g. Core i7, 16GB RAM, 1TB SSD, RTX 3080"></textarea>
+                    </div>
+
+                    <div style="grid-column: 1 / 3; display:flex;justify-content:flex-end;gap:8px; margin-top: 10px;">
+                        <button type="button" class="btn" id="cancelEditProductBtn">Cancel</button>
+                        <button type="submit" class="btn primary">Update Product</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <script src="js/employee.js"></script>
+
+    </body>
+   </html>

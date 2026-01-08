@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Preview & Download</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: #ff69b4;
+            margin-bottom: 30px;
+        }
+        .preview-section {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .preview-title {
+            color: #ffffff;
+            margin-bottom: 15px;
+        }
+        #quotationPdfTemplate {
+            background: #1a1a1a;
+            margin: 20px auto;
+            max-width: 800px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        .download-btn {
+            background: linear-gradient(135deg, #ff69b4, #8a2be2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            display: block;
+            margin: 20px auto;
+            transition: transform 0.2s;
+        }
+        .download-btn:hover {
+            transform: scale(1.05);
+        }
+        .download-btn:active {
+            transform: scale(0.95);
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            color: #ff69b4;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📄 PDF Template Preview</h1>
+            <p style="color: #ffffff;">Preview and download the quotation PDF</p>
+        </div>
+
+        <div class="preview-section">
+            <h2 class="preview-title">Preview:</h2>
+            <div id="quotationPdfTemplate"></div>
+            <div class="loading" id="loading">Generating PDF... Please wait...</div>
+            <button class="download-btn" onclick="downloadPDF()">📥 Download PDF</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        // Sample quotation data
+        const sampleQuotation = {
+            quotationId: 'Q16122025030430',
+            dateCreated: new Date().toLocaleDateString('en-IN'),
+            customer: {
+                name: 'John Doe',
+                phone: '9876543210',
+                email: 'john.doe@example.com',
+                address: '123 Main Street, City, State - 123456'
+            },
+            items: [
+                {
+                    productName: 'CORSAIR VENGEANCE LPX 8GB (1X8GB) DDR4 3200MHZ',
+                    quantity: 1,
+                    price: 2000
+                },
+                {
+                    productName: 'GIGABYTE GeForce RTX 5070 Ti EAGLE OC SFF 16G TRIPLE FAN',
+                    quantity: 1,
+                    price: 76923
+                },
+                {
+                    productName: 'Intel core i3 12100f 12th gen',
+                    quantity: 1,
+                    price: 8200
+                },
+                {
+                    productName: 'Amd ryzen 5 5600g',
+                    quantity: 1,
+                    price: 11400
+                }
+            ],
+            subTotal: 98523,
+            discountAmount: 0,
+            discountPercent: 0,
+            grandTotal: 98523,
+            validityDays: 3
+        };
+
+        // Format currency
+        function formatRupee(amount) {
+            return '₹' + parseFloat(amount).toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        // Generate quotation HTML
+        function generateQuotationHtml(quotation) {
+            const customer = quotation.customer || {};
+            const items = Array.isArray(quotation.items) ? quotation.items : [];
+            const quotationId = quotation.quotationId || 'N/A';
+            const dateCreated = quotation.dateCreated || new Date().toLocaleDateString('en-IN');
+            const companyGstId = '29ABCDE1234F1Z5'; // Sample GST ID
+            const subTotal = parseFloat(quotation.subTotal || 0);
+            const discountAmount = parseFloat(quotation.discountAmount || 0);
+            const discountPercent = parseFloat(quotation.discountPercent || 0);
+            const totalAfterDiscount = subTotal - discountAmount;
+            const grandTotal = parseFloat(quotation.grandTotal || 0);
+            // Calculate GST if not provided: GST = GrandTotal - (SubTotal - Discount)
+            let totalGstAmount = parseFloat(quotation.totalGstAmount || 0);
+            if (!totalGstAmount || totalGstAmount === 0) {
+                totalGstAmount = grandTotal - totalAfterDiscount;
+            }
+            const validityDays = quotation.validityDays || 3;
+
+            return `
+                <div style="width: 800px; height: 1123px; margin: 0; background: #1a1a1a; background-image: url('images/Quotation_bg_design.png'); background-size: contain; background-position: center center; background-repeat: no-repeat; background-attachment: fixed; font-family: Arial, sans-serif; padding: 0; position: relative;">
+                    <style>
+                        @page {
+                            size: A4;
+                            margin: 0;
+                            background: url('images/Quotation_bg_design.png') no-repeat center center;
+                            background-size: contain;
+                        }
+                        .pdf-table { width: calc(100% - 40px); border-collapse: collapse; margin: 0 20px; border: none; }
+                        .pdf-table th { 
+                            background: rgba(138, 43, 226, 0.3); 
+                            color: #ffffff; 
+                            font-weight: bold; 
+                            padding: 12px 15px; 
+                            text-align: left; 
+                            border: none; 
+                            border-bottom: 2px solid rgba(255, 105, 180, 0.5);
+                            border-right: 1px solid rgba(255, 255, 255, 0.1);
+                        }
+                        .pdf-table td { 
+                            background: rgba(138, 43, 226, 0.2); 
+                            color: #ffffff; 
+                            padding: 12px 15px; 
+                            text-align: left; 
+                            border: none; 
+                            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                            border-right: 1px solid rgba(255, 255, 255, 0.1);
+                        }
+                        .pdf-table tbody tr:hover {
+                            background: rgba(138, 43, 226, 0.3) !important;
+                        }
+                        .text-right { text-align: right !important; }
+                        .pdf-table{
+                        margin-top: 5px;
+                        font-size: 12px;
+                        }
+                    </style>
+                    
+                    <!-- Logo -->
+                    <div style="position: absolute; top: 0; left: 0; z-index: 10; margin-top: 0px;">
+                        <img src="images/logo_white.png" alt="Logo" style="width: 180px; height: auto;">
+                    </div>
+                    
+                    <!-- Title -->
+                    <div style="text-align: center; margin: 0; padding-top: 90px;">
+                        <h2 style="margin: 0; font-size: 40px; font-weight: bold; color: #ff69b4;">QUOTATION</h2>
+                    </div>
+
+                    <!-- Company Info -->
+                    <div style="margin-top: 0px; padding: 20px; padding-top: 5px; color: #ffffff;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <div>
+                                <strong style="color: #ff69b4; font-size: 18px;">Advance Infotech</strong><br>
+                                <span style="color: #ffffff;">No. 1102, 2nd Floor, Sri Dharmaraya <br> Swamy Temple Road, Bangalore 560002</span><br>
+                                <span style="color: #ffffff;">advanceinfotech21@gmail.com</span><br>
+                                <span style="color: #ffffff;">+91 6362618184</span><br>
+                                <span style="color: #ffffff;">GSTIN: 29CXNPS7420Q1ZC</span><br>
+                                <span style="color: #ffffff;">UPI: 8050702019@jkb</span>
+                            </div>
+                            <div style="text-align: right;">
+                                <span style="color: #ffffff;">Bank Account: 0384010100002174</span><br>
+                                <span style="color: #ffffff;">Bank Name: J & K Bank</span><br>
+                                <span style="color: #ffffff;">Bank Branch: Mission Road, Bangalore</span><br>
+                                <span style="color: #ffffff;">Bank Account IFSC: JAKA0OTCBNG</span><br>
+                                <span style="color: #ffffff;">Bank Account Account Type: Current</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Customer and Quotation Info -->
+                    <div style="margin-top: 0px; padding: 20px; padding-top: 0px; color: #ffffff;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <div>
+                                <strong style="color: #ff69b4; font-size: 18px;">Bill To:</strong><br>
+                                <span style="color: #ffffff;">${customer?.name || 'N/A'}</span><br>
+                                ${customer?.phone ? `<span style="color: #ffffff;">${customer.phone}</span><br>` : ''}
+                                ${customer?.email ? `<span style="color: #ffffff;">${customer.email}</span><br>` : ''}
+                                ${customer?.address ? `<span style="color: #ffffff;">${customer.address}</span><br>` : ''}
+                            </div>
+                            <div style="text-align: right;">
+                                <strong style="color: #ff69b4;">Quotation #:</strong> <span style="color: #ffffff;">${quotationId}</span><br>
+                                <strong style="color: #ff69b4;">Date:</strong> <span style="color: #ffffff;">${dateCreated}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Items Table -->
+                    <table class="pdf-table">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-right">Qty</th>
+                                <th class="text-right">Unit Price</th>
+                                <th class="text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.length > 0 ? items.map(item => {
+                                const itemPrice = parseFloat(item.price || 0);
+                                const itemQuantity = parseInt(item.quantity || 1);
+                                const itemTotal = itemPrice * itemQuantity;
+                                return `
+                                    <tr>
+                                        <td>${item.productName || 'N/A'}</td>
+                                        <td class="text-right">${itemQuantity}</td>
+                                        <td class="text-right">${formatRupee(itemPrice)}</td>
+                                        <td class="text-right">${formatRupee(itemTotal)}</td>
+                                    </tr>
+                                `;
+                            }).join('') : '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ffffff; background: rgba(138, 43, 226, 0.2);">No items added</td></tr>'}
+                        </tbody>
+                    </table>
+
+                    <!-- Pricing Summary -->
+                    <div style="margin: 0; padding: 20px; text-align: right; color: #ffffff;">
+                        <div style="display: inline-block; width: 300px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: #ffffff;">Subtotal (Excl. GST):</span>
+                                <span style="color: #ffffff;">${formatRupee(totalAfterDiscount)}</span>
+                            </div>
+                            <div style="text-align: right; margin-top: 10px; margin-bottom: 5px;">
+                                <span style="color: #ffffff; font-size: 11px; opacity: 0.8;">(inclusive of GST)</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 15px; border-top: 2px solid #ff69b4; font-weight: bold; font-size: 16px;">
+                                <span style="color: #ff69b4;">TOTAL:</span>
+                                <span style="color: #ffa500; font-size: 18px;">${formatRupee(grandTotal)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer Note -->
+                    <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 20px; font-size: 16px; color: #ffffff; text-align: center; opacity: 0.8;">
+                        <p style="margin: 0;">All prices are valid for <strong style="color: #ff69b4;">${validityDays} days</strong> from the date of quotation.</p>
+                        <p style="margin: 5px 0 0 0;">"<strong style="color: #ff69b4;">Free</strong> pan India warranty" • <strong style="color: #ff69b4;">3-year</strong> call support <strong style="color: #ffa500;">Monday to Saturday 12pm to 7pm</strong></p>
+                        <p style="margin: 5px 0 0 0;">All products from <strong style="color: #ff69b4;">direct manufacture</strong> or <strong style="color: #ff69b4;">store warranty</strong></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Load preview on page load
+        window.onload = function() {
+            const template = document.getElementById('quotationPdfTemplate');
+            template.innerHTML = generateQuotationHtml(sampleQuotation);
+        };
+
+        // Download PDF function
+        async function downloadPDF() {
+            const pdfTemplate = document.getElementById('quotationPdfTemplate');
+            const loading = document.getElementById('loading');
+            const downloadBtn = document.querySelector('.download-btn');
+            
+            if (!pdfTemplate) {
+                alert('PDF template element not found.');
+                return;
+            }
+
+            // Show loading
+            loading.style.display = 'block';
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = 'Generating...';
+
+            // Wait for images to load before capturing
+            const images = pdfTemplate.querySelectorAll('img');
+            const imagePromises = Array.from(images).map(img => {
+                if (img.complete) return Promise.resolve();
+                return new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = resolve; // Continue even if image fails
+                    setTimeout(resolve, 2000); // Timeout after 2 seconds
+                });
+            });
+            
+            await Promise.all(imagePromises);
+            // Additional wait for background images and rendering
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            try {
+                const canvas = await html2canvas(pdfTemplate, {
+                    scale: 2,
+                    logging: false,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#1a1a1a', // Dark background to match template
+                    width: 800,
+                    height: pdfTemplate.scrollHeight || pdfTemplate.offsetHeight,
+                    x: 0,
+                    y: 0,
+                    scrollX: 0,
+                    scrollY: 0,
+                    onclone: (clonedDoc) => {
+                        // Ensure background image is visible in cloned document (page-fixed)
+                        const clonedElement = clonedDoc.querySelector('#quotationPdfTemplate > div');
+                        if (clonedElement) {
+                            clonedElement.style.backgroundImage = "url('images/Quotation_bg_design.png')";
+                            clonedElement.style.backgroundSize = "contain";
+                            clonedElement.style.backgroundPosition = "center center";
+                            clonedElement.style.backgroundRepeat = "no-repeat";
+                            clonedElement.style.backgroundAttachment = "fixed";
+                        }
+                    }
+                });
+                
+                if (!canvas || canvas.width === 0 || canvas.height === 0) {
+                    throw new Error('Canvas is empty');
+                }
+                
+                const { jsPDF } = window.jspdf;
+                
+                // Always use A4 size
+                const imgWidth = 595.28; // A4 width in pt
+                const pageHeight = 841.89; // A4 height in pt (minimum)
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                
+                // Create A4 document
+                const doc = new jsPDF({
+                    unit: 'pt',
+                    format: 'a4',
+                    compress: true
+                });
+
+                const imgData = canvas.toDataURL('image/png', 1.0);
+                
+                // Check if we need multiple pages (more than 7 items or content exceeds one page)
+                const itemsCount = sampleQuotation.items ? sampleQuotation.items.length : 0;
+                const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
+                
+                if (needsMultiplePages) {
+                    // Multi-page logic
+                    let heightLeft = imgHeight;
+                    let position = 0;
+                    
+                    doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                    
+                    while (heightLeft >= 0) {
+                        position = heightLeft - imgHeight;
+                        doc.addPage();
+                        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                        heightLeft -= pageHeight;
+                    }
+                } else {
+                    // Single page - always use full A4 height (minimum)
+                    // If content is shorter, it will be centered or positioned at top, but page is always A4 height
+                    const contentHeight = Math.min(imgHeight, pageHeight);
+                    doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeight, undefined, 'FAST');
+                }
+
+                // Get customer name for filename
+                const customer = sampleQuotation.customer || {};
+                const customerName = customer?.name || customer?.phone || sampleQuotation?.quotationId || 'Quotation';
+                const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').trim();
+                const filename = `Quotation_${sanitizedName}.pdf`;
+                
+                doc.save(filename);
+                
+                // Hide loading and restore button
+                loading.style.display = 'none';
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = '📥 Download PDF';
+                
+            } catch (error) {
+                console.error('PDF generation error:', error);
+                alert("PDF generation failed. Please try again.");
+                
+                // Hide loading and restore button
+                loading.style.display = 'none';
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = '📥 Download PDF';
+            }
+        }
+    </script>
+</body>
+</html>
+
