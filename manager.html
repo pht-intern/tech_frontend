@@ -151,7 +151,17 @@
 
                     <div class="form-field">
                         <label for="type">Type</label>
-                        <input type="text" id="type" placeholder="e.g. Laptop, Desktop" required>
+                        <select id="type" required style="padding:10px;border-radius:8px;border:1px solid var(--border);width:100%">
+                            <option value="">Select Product Type</option>
+                            <option value="laptop">LAPTOP</option>
+                            <option value="monitor">MONITOR</option>
+                            <option value="keyboard&mouse">KEYBOARD&MOUSE</option>
+                            <option value="printers">PRINTERS</option>
+                            <option value="accessories">ACCESSORIES</option>
+                            <option value="ups">UPS</option>
+                            <option value="networking products">NETWORKING PRODUCTS</option>
+                            <option value="others">OTHERS</option>
+                        </select>
                     </div>
 
                     <div class="form-field">
@@ -341,8 +351,17 @@
                         <div class="card" style="margin-top:12px">
                             <h2>Quotation Items</h2>
                             <table class="data-table">
-                                <thead><tr><th>Item</th><th>Quantity</th><th>Unit Price</th><th>Total</th><th>GST Rate (%)</th><th>Actions</th></tr></thead>
-                                <tbody id="quotationItemsBody"><tr id="quotationNoItemsRow"><td colspan="6" class="muted" style="text-align:center">No items added yet.</td></tr></tbody>
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Quantity</th>
+                                        <th>Unit Price (₹)</th>
+                                        <th>Total</th>
+                                        <th>GST Rate (%)</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="quotationItemsBody"></tbody>
                             </table>
                         </div>
                     </div>
@@ -355,15 +374,31 @@
                                 <!-- Dynamic type filters for quotation items -->
                                 <div id="quotationTypeFilters" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:6px;"></div>
                                 <style>
+                                    .type-filter-btn {
+                                        font-family: inherit;
+                                        box-sizing: border-box;
+                                        outline: none;
+                                        text-decoration: none;
+                                        user-select: none;
+                                        white-space: nowrap;
+                                        vertical-align: middle;
+                                    }
                                     .type-filter-btn.active {
                                         background: linear-gradient(135deg, #35b3e7 0%, #5490cc 100%) !important;
                                         color: white !important;
                                         border-color: #35b3e7 !important;
-                                        font-weight: 600;
+                                        font-weight: 600 !important;
+                                        transform: translateY(-1px);
+                                        box-shadow: 0 2px 6px rgba(53, 179, 231, 0.2);
                                     }
-                                    .type-filter-btn:hover {
+                                    .type-filter-btn:hover:not(.active) {
                                         background: #f0f7ff !important;
                                         border-color: #35b3e7 !important;
+                                        transform: translateY(-1px);
+                                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                                    }
+                                    .type-filter-btn:active {
+                                        transform: translateY(0);
                                     }
                                 </style>
                                 <div id="availableItemsList" style="margin-top:10px;max-height:340px;overflow:auto"></div>
@@ -379,7 +414,7 @@
                                 <strong>Grand Total:</strong> <span class="right" id="grandTotalDisplay">₹0.00</span>
                                 <p style="margin:8px 0; font-size:13px; color:#7f8c8d; font-style:italic;">Inclusive of GST</p>
                             </div>
-                            <button id="createQuotationBtn" class="btn primary" style="width:100%"><i class="fas fa-file-invoice-dollar"></i> Create Quotation</button>
+                            <button id="createQuotationBtn" type="button" class="btn primary" style="width:100%" onclick="createQuotation()"><i class="fas fa-file-invoice-dollar"></i> Create Quotation</button>
                         </div>
                     </div>
                 </div>
@@ -504,7 +539,17 @@
 
                     <div class="form-field">
                         <label for="edit-type">Type</label>
-                        <input type="text" id="edit-type" placeholder="e.g. Laptop, Desktop" required>
+                        <select id="edit-type" required style="padding:10px;border-radius:8px;border:1px solid var(--border);width:100%">
+                            <option value="">Select Product Type</option>
+                            <option value="laptop">LAPTOP</option>
+                            <option value="monitor">MONITOR</option>
+                            <option value="keyboard&mouse">KEYBOARD&MOUSE</option>
+                            <option value="printers">PRINTERS</option>
+                            <option value="accessories">ACCESSORIES</option>
+                            <option value="ups">UPS</option>
+                            <option value="networking products">NETWORKING PRODUCTS</option>
+                            <option value="others">OTHERS</option>
+                        </select>
                     </div>
 
                     <div class="form-field">

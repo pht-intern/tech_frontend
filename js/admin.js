@@ -940,30 +940,34 @@ function getQuotationItems() {
 }
 
 // Dynamic type filters for "Add Items to Quotation"
-async function renderQuotationTypeFilters() {
+async function renderQuotationTypeFilters(items = null) {
+    console.trace('🔍 renderQuotationTypeFilters called');
     const container = document.getElementById('quotationTypeFilters');
     if (!container) return;
 
-    let types = [];
-    try {
-        const itemsResponse = await getItems();
-        const items = Array.isArray(itemsResponse) ? itemsResponse : (itemsResponse?.data || []);
-        types = [...new Set(items.map(item => item.type).filter(Boolean))]
-            .sort((a, b) => a.localeCompare(b, 'en-IN', { sensitivity: 'base' }));
-    } catch (error) {
-        // Silent fail; we'll still render base types
+    // Prevent unnecessary re-renders
+    if (container.hasAttribute('data-rendered') && container.children.length > 0) {
+        console.log('⚠️ renderQuotationTypeFilters skipped - already rendered');
+        return;
     }
+
+    // Use passed items or get from cache
+    const itemsData = items || window.cachedItems || [];
+    let types = [];
+    
+    types = [...new Set(itemsData.map(item => item.type).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'en-IN', { sensitivity: 'base' }));
 
     const baseTypes = [
         { label: 'All', value: '' },
-        { label: 'RAM', value: 'ram' },
-        { label: 'GPU', value: 'gpu' },
-        { label: 'Intel', value: 'intel' },
-        { label: 'AMD', value: 'amd' },
-        { label: 'Cabinet', value: 'cabinet' },
-        { label: 'Cooler', value: 'cooler' },
-        { label: 'HDD', value: 'hdd' },
-        { label: 'SSD', value: 'ssd' }
+        { label: 'MONITOR', value: 'monitor' },
+        { label: 'KEYBOARD&MOUSE', value: 'keyboard&mouse' },
+        { label: 'ACCESSORIES', value: 'accessories' },
+        { label: 'UPS', value: 'ups' },
+        { label: 'LAPTOP', value: 'laptop' },
+        { label: 'PRINTERS', value: 'printers' },
+        { label: 'NETWORKING PRODUCTS', value: 'networking products' },
+        { label: 'OTHERS', value: 'others' }
     ];
 
     const baseValues = new Set(baseTypes.map(t => String(t.value).toLowerCase()));
@@ -1000,60 +1004,86 @@ async function renderQuotationTypeFilters() {
         const value = String(t).toLowerCase();
         container.appendChild(createButton(label, value, false));
     });
+    
+    // Mark as rendered
+    container.setAttribute('data-rendered', 'true');
 }
 
-async function renderAvailableItemsForQuotation(filter = '', typeFilter = '') {
-    const itemsResponse = await getItems();
-    const items = Array.isArray(itemsResponse) ? itemsResponse : (itemsResponse?.data || []);
-    const listDiv = document.getElementById('availableItemsList');
-    listDiv.innerHTML = '';
+async function renderAvailableItemsForQuotation(filter = '', typeFilter = '', items = null) {
+    console.trace('🔍 renderAvailableItemsForQuotation called');
+    try {
+        // Use passed items or get from cache/fetch
+        const itemsData = items || window.cachedItems || await getItems();
+        const listDiv = document.getElementById('availableItemsList');
+        
+        if (!listDiv) return;
+        listDiv.innerHTML = '';
 
-    if (!Array.isArray(items) || items.length === 0) {
-        listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products available. Please add products first.</p>';
-        return;
-    }
-
-    const normalizedFilter = filter.toLowerCase();
-    const normalizedTypeFilter = typeFilter.toLowerCase();
-    const filteredItems = items.filter(item => {
-        const matchesSearch = !normalizedFilter || 
-            (item.productName && item.productName.toLowerCase().includes(normalizedFilter)) ||
-            (item.productId && item.productId.toLowerCase().includes(normalizedFilter));
-        let matchesType = true;
-        if (normalizedTypeFilter) {
-            if (normalizedTypeFilter === 'intel') {
-                // Check if type field matches Intel category (case-insensitive)
-                const productType = (item.type || '').toLowerCase();
-                matchesType = productType === 'intel' || productType === 'intel processor' || productType.startsWith('intel');
-            } else if (normalizedTypeFilter === 'amd') {
-                // Check if type field matches AMD category (case-insensitive)
-                const productType = (item.type || '').toLowerCase();
-                matchesType = productType === 'amd' || productType === 'amd processor' || productType.startsWith('amd');
-            } else {
-                matchesType = (item.type && item.type.toLowerCase() === normalizedTypeFilter);
-            }
+        if (!Array.isArray(itemsData) || itemsData.length === 0) {
+            listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products available in database. Please add products through the admin panel.</p>';
+            return;
         }
-        return matchesSearch && matchesType;
-    });
 
-    if (filteredItems.length === 0) {
-        listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products found matching your search.</p>';
-        return;
+        const normalizedFilter = filter.toLowerCase();
+        const normalizedTypeFilter = typeFilter.toLowerCase();
+        const filteredItems = itemsData.filter(item => {
+            const productName = (item.productName || item.name || '').toLowerCase();
+            const productId = (item.productId || item.id || '').toString().toLowerCase();
+            const matchesSearch = !normalizedFilter || 
+                productName.includes(normalizedFilter) || 
+                productId.includes(normalizedFilter);
+            let matchesType = true;
+            if (normalizedTypeFilter) {
+                const productType = (item.type || '').toLowerCase();
+                
+                // Handle special category matching
+                if (normalizedTypeFilter === 'keyboard&mouse' || normalizedTypeFilter === 'keyboard and mouse') {
+                    matchesType = productType.includes('keyboard') || productType.includes('mouse') || 
+                                 productType === 'keyboard&mouse' || productType === 'keyboard and mouse';
+                } else if (normalizedTypeFilter === 'networking products' || normalizedTypeFilter === 'networking') {
+                    matchesType = productType.includes('networking') || productType.includes('network') ||
+                                 productType === 'networking products' || productType === 'networking';
+                } else if (normalizedTypeFilter === 'others' || normalizedTypeFilter === 'other') {
+                    // Match if type is "others", "other", or doesn't match specific categories
+                    matchesType = productType === 'others' || productType === 'other' || 
+                                 productType.includes('other');
+                } else {
+                    // Exact match or contains match for other categories
+                    matchesType = productType === normalizedTypeFilter || productType.includes(normalizedTypeFilter);
+                }
+            }
+            return matchesSearch && matchesType;
+        });
+
+        if (filteredItems.length === 0) {
+            listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products found matching your search.</p>';
+            return;
+        }
+
+        filteredItems.forEach(item => {
+            const itemDiv = document.createElement('div');
+            itemDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #f2f6fb;';
+
+            const productId = item.productId || item.id;
+            const productName = item.productName || item.name;
+            const price = item.price || 0;
+
+            itemDiv.innerHTML = `
+                        <div>
+                            <strong>${productName}</strong> <span class="muted" style="font-size:12px">(${productId})</span>
+                            <div style="font-size:13px;">${formatRupee(price)}</div>
+                        </div>
+                        <button class="btn primary" onclick="addItemToQuotation('${productId}')"><i class="fas fa-plus"></i> Add</button>
+                    `;
+            listDiv.appendChild(itemDiv);
+        });
+    } catch (error) {
+        console.error('Error rendering available items:', error);
+        const listDiv = document.getElementById('availableItemsList');
+        if (!listDiv) return;
+        
+        listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">Error loading products. Please refresh the page.</p>';
     }
-
-    filteredItems.forEach(item => {
-        const itemDiv = document.createElement('div');
-        itemDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #f2f6fb;';
-
-        itemDiv.innerHTML = `
-                    <div>
-                        <strong>${item.productName}</strong> <span class="muted" style="font-size:12px">(${item.productId})</span>
-                        <div style="font-size:13px;">${formatRupee(item.price)}</div>
-                    </div>
-                    <button class="btn primary" onclick="addItemToQuotation('${item.productId}')"><i class="fas fa-plus"></i> Add</button>
-                `;
-        listDiv.appendChild(itemDiv);
-    });
 }
 
 async function addItemToQuotation(productId) {
@@ -3426,6 +3456,38 @@ document.addEventListener('DOMContentLoaded', function() {
         searchInput.addEventListener('input', function(e) {
             const filter = e.target.value.trim();
             renderItemsList(filter);
+        });
+    }
+
+    // Connect item search input for quotation creation
+    const itemSearchInput = document.getElementById('itemSearchInput');
+    if (itemSearchInput) {
+        itemSearchInput.addEventListener('input', function(e) {
+            const filter = e.target.value.trim();
+            const typeFilter = document.querySelector('#quotationTypeFilters .type-filter-btn.active')?.dataset.type || '';
+            renderAvailableItemsForQuotation(filter, typeFilter);
+        });
+    }
+
+    // Event delegation for quotation type filters
+    const quotationTypeFilters = document.getElementById('quotationTypeFilters');
+    if (quotationTypeFilters) {
+        quotationTypeFilters.addEventListener('click', function(e) {
+            if (e.target.classList.contains('type-filter-btn')) {
+                // Remove active class from all buttons
+                quotationTypeFilters.querySelectorAll('.type-filter-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                // Add active class to clicked button
+                e.target.classList.add('active');
+                
+                // Get current search filter
+                const filter = document.getElementById('itemSearchInput')?.value.trim() || '';
+                const typeFilter = e.target.dataset.type || '';
+                
+                // Render items with new filter
+                renderAvailableItemsForQuotation(filter, typeFilter);
+            }
         });
     }
 });

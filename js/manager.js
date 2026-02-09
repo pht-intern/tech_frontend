@@ -127,9 +127,9 @@ function formatRupee(amount) {
 }
 
 function toTitleCase(str) {
-    return str.toLowerCase().split(' ').map(word => {
-        return (word.charAt(0).toUpperCase() + word.slice(1));
-    }).join(' ');
+    return str.replace(/\w\S*/g, function(txt) {
+        return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+    });
 }
 
 function generateUniqueId() {
@@ -140,7 +140,12 @@ function generateProductId() {
     const today = new Date();
     const dateStr = today.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '');
     const timeStr = today.toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/:/g, '');
-    return `P${dateStr}${timeStr}`;
+    const milliseconds = String(today.getMilliseconds()).padStart(3, '0');
+    return `P${dateStr}${timeStr}${milliseconds}`;
+}
+
+function getQuotationItems() {
+    return quotationItems;
 }
 
 // --- API Helper Functions ---
@@ -200,7 +205,9 @@ async function getLogs() {
 }
 
 async function getGstRules() {
-    return await apiFetch('/gst_rules');
+    const response = await apiFetch('/gst_rules');
+    // API returns {success: true, data: [...]} or just the array
+    return Array.isArray(response) ? response : (response.data || []);
 }
 
 async function getSettings() {
@@ -871,54 +878,55 @@ async function getGstRateForItem(itemName) {
 
 
 // --- Quotation Creation Logic ---
-function getQuotationItems() {
-    return quotationItems;
-}
-
-// Dynamic type filters for "Add Items to Quotation"
-async function renderQuotationTypeFilters() {
+function renderQuotationTypeFilters(items = null) {
     const container = document.getElementById('quotationTypeFilters');
     if (!container) return;
 
+    // Prevent unnecessary re-renders
+    if (container.hasAttribute('data-rendered') && container.children.length > 0) {
+        return;
+    }
+
+    // Use passed items or get from cache
+    const itemsData = items || window.cachedItems || [];
     let types = [];
-    try {
-        const items = await getItems();
-        types = [...new Set(items.map(item => item.type).filter(Boolean))]
+    
+    if (itemsData && itemsData.length > 0) {
+        types = [...new Set(itemsData.map(item => item.type).filter(Boolean))]
             .sort((a, b) => a.localeCompare(b, 'en-IN', { sensitivity: 'base' }));
-    } catch (error) {
-        // Silent fail; we'll still render base types
     }
 
     const baseTypes = [
         { label: 'All', value: '' },
-        { label: 'RAM', value: 'ram' },
-        { label: 'GPU', value: 'gpu' },
-        { label: 'Intel', value: 'intel' },
-        { label: 'AMD', value: 'amd' },
-        { label: 'Cabinet', value: 'cabinet' },
-        { label: 'Cooler', value: 'cooler' },
-        { label: 'HDD', value: 'hdd' },
-        { label: 'SSD', value: 'ssd' }
+        { label: 'MONITOR', value: 'monitor' },
+        { label: 'KEYBOARD&MOUSE', value: 'keyboard&mouse' },
+        { label: 'ACCESSORIES', value: 'accessories' },
+        { label: 'UPS', value: 'ups' },
+        { label: 'LAPTOP', value: 'laptop' },
+        { label: 'PRINTERS', value: 'printers' },
+        { label: 'NETWORKING PRODUCTS', value: 'networking products' },
+        { label: 'OTHERS', value: 'others' }
     ];
-
-    const baseValues = new Set(baseTypes.map(t => String(t.value).toLowerCase()));
-    const extraTypes = types.filter(t => !baseValues.has(String(t).toLowerCase()));
-
-    container.innerHTML = '';
 
     function createButton(label, value, isActive) {
         const btn = document.createElement('button');
         btn.className = 'type-filter-btn';
         if (isActive) btn.classList.add('active');
         btn.dataset.type = value;
-        // Match existing inline styles
+        btn.textContent = label;
+        // Match existing inline styles exactly
         btn.style.padding = '6px 12px';
         btn.style.border = '1px solid var(--border)';
         btn.style.borderRadius = '6px';
         btn.style.background = '#fff';
         btn.style.cursor = 'pointer';
         btn.style.fontSize = '12px';
+        btn.style.fontWeight = '500';
         btn.style.transition = 'all 0.2s';
+        btn.style.display = 'inline-flex';
+        btn.style.alignItems = 'center';
+        btn.style.justifyContent = 'center';
+        btn.style.minWidth = 'fit-content';
         return btn;
     }
 
@@ -929,59 +937,92 @@ async function renderQuotationTypeFilters() {
     });
 
     // Additional categories from Type dropdown / item types
+    const extraTypes = types.filter(t => !baseValues.has(String(t).toLowerCase()));
     extraTypes.forEach(t => {
         const label = toTitleCase(String(t));
         const value = String(t).toLowerCase();
         container.appendChild(createButton(label, value, false));
     });
+    
+    // Mark as rendered
+    container.setAttribute('data-rendered', 'true');
 }
 
-async function renderAvailableItemsForQuotation(filter = '', typeFilter = '') {
-    const items = await getItems();
-    const listDiv = document.getElementById('availableItemsList');
-    listDiv.innerHTML = '';
+async function renderAvailableItemsForQuotation(filter = '', typeFilter = '', items = null) {
+    try {
+        // Use passed items or get from cache/fetch
+        const itemsData = items || window.cachedItems || await getItems();
+        const listDiv = document.getElementById('availableItemsList');
+        
+        if (!listDiv) return;
+        listDiv.innerHTML = '';
 
-    const normalizedFilter = filter.toLowerCase();
-    const normalizedTypeFilter = typeFilter.toLowerCase();
-    const filteredItems = items.filter(item => {
-        const matchesSearch = !normalizedFilter || 
-            item.productName.toLowerCase().includes(normalizedFilter) ||
-            item.productId.toLowerCase().includes(normalizedFilter);
-        let matchesType = true;
-        if (normalizedTypeFilter) {
-            if (normalizedTypeFilter === 'intel') {
-                // Check if type field matches Intel category (case-insensitive)
-                const productType = (item.type || '').toLowerCase();
-                matchesType = productType === 'intel' || productType === 'intel processor' || productType.startsWith('intel');
-            } else if (normalizedTypeFilter === 'amd') {
-                // Check if type field matches AMD category (case-insensitive)
-                const productType = (item.type || '').toLowerCase();
-                matchesType = productType === 'amd' || productType === 'amd processor' || productType.startsWith('amd');
-            } else {
-                matchesType = (item.type && item.type.toLowerCase() === normalizedTypeFilter);
-            }
+        if (!Array.isArray(itemsData) || itemsData.length === 0) {
+            listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products available in database. Please add products through the admin panel.</p>';
+            return;
         }
-        return matchesSearch && matchesType;
-    });
 
-    if (filteredItems.length === 0) {
-        listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products found matching your search.</p>';
-        return;
+        const normalizedFilter = filter.toLowerCase();
+        const normalizedTypeFilter = typeFilter.toLowerCase();
+        const filteredItems = itemsData.filter(item => {
+            const productName = (item.productName || item.name || '').toLowerCase();
+            const productId = (item.productId || item.id || '').toString().toLowerCase();
+            const matchesSearch = !normalizedFilter || 
+                productName.includes(normalizedFilter) || 
+                productId.includes(normalizedFilter);
+            let matchesType = true;
+            if (normalizedTypeFilter) {
+                const productType = (item.type || '').toLowerCase();
+                
+                // Handle special category matching
+                if (normalizedTypeFilter === 'keyboard&mouse' || normalizedTypeFilter === 'keyboard and mouse') {
+                    matchesType = productType.includes('keyboard') || productType.includes('mouse') || 
+                                 productType === 'keyboard&mouse' || productType === 'keyboard and mouse';
+                } else if (normalizedTypeFilter === 'networking products' || normalizedTypeFilter === 'networking') {
+                    matchesType = productType.includes('networking') || productType.includes('network') ||
+                                 productType === 'networking products' || productType === 'networking';
+                } else if (normalizedTypeFilter === 'others' || normalizedTypeFilter === 'other') {
+                    // Match if type is "others", "other", or doesn't match specific categories
+                    matchesType = productType === 'others' || productType === 'other' || 
+                                 productType.includes('other');
+                } else {
+                    // Exact match or contains match for other categories
+                    matchesType = productType === normalizedTypeFilter || productType.includes(normalizedTypeFilter);
+                }
+            }
+            return matchesSearch && matchesType;
+        });
+
+        if (filteredItems.length === 0) {
+            listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products found matching your search.</p>';
+            return;
+        }
+
+        filteredItems.forEach(item => {
+            const itemDiv = document.createElement('div');
+            itemDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #f2f6fb;';
+
+            const productId = item.productId || item.id;
+            const productName = item.productName || item.name;
+            const price = item.price || 0;
+
+            itemDiv.innerHTML = `
+                <div>
+                    <strong>${productName}</strong> <span class="muted" style="font-size:12px">(${productId})</span>
+                    <br><span class="muted" style="font-size:12px">${item.type || 'N/A'} | ${formatRupee(price)}</span>
+                </div>
+                <button class="btn primary" onclick="addItemToQuotation('${productId}')"><i class="fas fa-plus"></i> Add</button>
+            `;
+
+            listDiv.appendChild(itemDiv);
+        });
+    } catch (error) {
+        console.error('Error in renderAvailableItemsForQuotation:', error);
+        const listDiv = document.getElementById('availableItemsList');
+        if (listDiv) {
+            listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">Error loading products.</p>';
+        }
     }
-
-    filteredItems.forEach(item => {
-        const itemDiv = document.createElement('div');
-        itemDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #f2f6fb;';
-
-        itemDiv.innerHTML = `
-                    <div>
-                        <strong>${item.productName}</strong> <span class="muted" style="font-size:12px">(${item.productId})</span>
-                        <div style="font-size:13px;">${formatRupee(item.price)}</div>
-                    </div>
-                    <button class="btn primary" onclick="addItemToQuotation('${item.productId}')"><i class="fas fa-plus"></i> Add</button>
-                `;
-        listDiv.appendChild(itemDiv);
-    });
 }
 
 async function addItemToQuotation(productId) {
@@ -1206,80 +1247,92 @@ function updateGrandTotal() {
 }
 
 async function createQuotation() {
-    if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE)) {
-        alert('You are not authorized to create quotations.');
-        return;
+    // Prevent double submission
+    let isSubmitting = false;
+    if (isSubmitting) return;
+
+    isSubmitting = true;
+
+    const btn = document.getElementById('createQuotationBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
     }
-
-    const customerName = document.getElementById('cust-name')?.value.trim() || null;
-    const phoneNumber = document.getElementById('phone-number')?.value.trim();
-    const customerEmail = document.getElementById('cust-email')?.value.trim() || null;
-    const customerAddress = document.getElementById('cust-address')?.value.trim() || null;
-    const items = getQuotationItems();
-
-    // Validate customer name length if provided
-    if (customerName && customerName.length > 255) {
-        alert('Customer name must be 255 characters or less.');
-        return;
-    }
-
-    // Validate phone number (mandatory)
-    if (!phoneNumber || phoneNumber.length !== 10) {
-        alert('Please enter a valid 10-digit phone number for the customer.');
-        return;
-    }
-
-    // Validate email if provided
-    if (customerEmail && customerEmail.length > 0) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(customerEmail)) {
-            alert('Please enter a valid email address or leave it empty.');
-            return;
-        }
-    }
-
-    if (items.length === 0) {
-        alert('Please add at least one item to the quotation.');
-        return;
-    }
-
-    // Recalculate totals
-    let subTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const discountPercent = parseFloat(document.getElementById('discount-percent')?.value || 0);
-    let discountAmount = (subTotal * (discountPercent / 100));
-    let totalGstAmount = items.reduce((sum, item) => {
-        return sum + (item.price * item.quantity * (item.gstRate / 100));
-    }, 0);
-    let grandTotal = (subTotal - discountAmount) + totalGstAmount;
-
-    // Prepare items for API (remove description field as it's not in schema)
-    const itemsForApi = items.map(item => ({
-        productId: String(item.productId || item.id),
-        productName: String(item.productName || item.name),
-        price: String(parseFloat(item.price || 0).toFixed(2)),
-        quantity: parseInt(item.quantity || 1),
-        gstRate: String(parseFloat(item.gstRate || 0).toFixed(2))
-    }));
-
-    const payload = {
-        quotationId: generateProductId().replace('P', 'Q'),
-        dateCreated: new Date().toLocaleDateString('en-IN'),
-        customer: {
-            name: customerName || null,
-            phone: phoneNumber,
-            email: customerEmail || null,
-            address: customerAddress || null
-        },
-        items: itemsForApi,
-        subTotal: String(parseFloat(subTotal).toFixed(2)),
-        discountPercent: String(parseFloat(discountPercent).toFixed(2)),
-        discountAmount: String(parseFloat(discountAmount).toFixed(2)),
-        totalGstAmount: String(parseFloat(totalGstAmount).toFixed(2)),
-        grandTotal: String(parseFloat(grandTotal).toFixed(2)),
-        createdBy: CURRENT_USER_EMAIL.split('@')[0]
-    };
 
     try {
+        if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE)) {
+            alert('You are not authorized to create quotations.');
+            return;
+        }
+
+        const customerName = document.getElementById('cust-name')?.value.trim() || null;
+        const phoneNumber = document.getElementById('phone-number')?.value.trim();
+        const customerEmail = document.getElementById('cust-email')?.value.trim() || null;
+        const customerAddress = document.getElementById('cust-address')?.value.trim() || null;
+        const items = getQuotationItems();
+
+        // Validate customer name length if provided
+        if (customerName && customerName.length > 255) {
+            alert('Customer name must be 255 characters or less.');
+            return;
+        }
+
+        // Validate phone number (mandatory)
+        if (!phoneNumber || phoneNumber.length !== 10) {
+            alert('Please enter a valid 10-digit phone number for the customer.');
+            return;
+        }
+
+        // Validate email if provided
+        if (customerEmail && customerEmail.length > 0) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(customerEmail)) {
+                alert('Please enter a valid email address or leave it empty.');
+                return;
+            }
+        }
+
+        if (items.length === 0) {
+            alert('Please add at least one item to the quotation.');
+            return;
+        }
+
+        // Recalculate totals
+        let subTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const discountPercent = parseFloat(document.getElementById('discount-percent')?.value || 0);
+        let discountAmount = (subTotal * (discountPercent / 100));
+        let totalGstAmount = items.reduce((sum, item) => {
+            return sum + (item.price * item.quantity * (item.gstRate / 100));
+        }, 0);
+        let grandTotal = (subTotal - discountAmount) + totalGstAmount;
+
+        // Prepare items for API (remove description field as it's not in schema)
+        const itemsForApi = items.map(item => ({
+            productId: String(item.productId || item.id),
+            productName: String(item.productName || item.name),
+            price: String(parseFloat(item.price || 0).toFixed(2)),
+            quantity: parseInt(item.quantity || 1),
+            gstRate: String(parseFloat(item.gstRate || 0).toFixed(2))
+        }));
+
+        const payload = {
+            quotationId: generateProductId().replace('P', 'Q'),
+            dateCreated: new Date().toLocaleDateString('en-IN'),
+            customer: {
+                name: customerName || null,
+                phone: phoneNumber,
+                email: customerEmail || null,
+                address: customerAddress || null
+            },
+            items: itemsForApi,
+            subTotal: String(parseFloat(subTotal).toFixed(2)),
+            discountPercent: String(parseFloat(discountPercent).toFixed(2)),
+            discountAmount: String(parseFloat(discountAmount).toFixed(2)),
+            totalGstAmount: String(parseFloat(totalGstAmount).toFixed(2)),
+            grandTotal: String(parseFloat(grandTotal).toFixed(2)),
+            createdBy: CURRENT_USER_EMAIL.split('@')[0]
+        };
+
         const res = await apiFetch('/quotations', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1288,7 +1341,7 @@ async function createQuotation() {
 
         // Extract data from response if needed
         let quotationData = res.data || res;
-        
+
         // Ensure all numeric fields are properly parsed
         if (quotationData) {
             quotationData.subTotal = parseFloat(quotationData.subTotal || 0);
@@ -1310,7 +1363,8 @@ async function createQuotation() {
         document.getElementById('cust-address').value = '';
         const discountPercentInput = document.getElementById('discount-percent');
         if (discountPercentInput) discountPercentInput.value = '0';
-        document.getElementById('customer-details-display').innerHTML = '';
+        const customerDetailsDisplay = document.getElementById('customer-details-display');
+        if (customerDetailsDisplay) customerDetailsDisplay.innerHTML = '';
         renderQuotationItems();
         updateGrandTotal();
         document.getElementById('itemSearchInput').value = '';
@@ -1318,7 +1372,14 @@ async function createQuotation() {
 
         alert('Quotation created successfully!');
     } catch (e) {
-        // Handled
+        // Error handled by apiFetch
+        console.error('Quotation creation failed:', e);
+    } finally {
+        isSubmitting = false;
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Create Quotation';
+        }
     }
 }
 
@@ -2846,7 +2907,7 @@ function renderRecentActivity(logs) {
 }
 
 // --- Event Handlers & Initializers ---
-document.getElementById('addItemForm')?.addEventListener('submit', saveItem);
+// document.getElementById('addItemForm')?.addEventListener('submit', saveItem); // Removed duplicate event listener
 document.getElementById('addItemForm')?.addEventListener('reset', handleItemEditReset);
 document.getElementById('editProductForm')?.addEventListener('submit', saveEditProduct);
 document.getElementById('closeEditProductModal')?.addEventListener('click', closeEditProductModal);
@@ -2856,7 +2917,7 @@ initEditProductModal();
 document.getElementById('createQuotationBtn')?.addEventListener('click', createQuotation);
 document.getElementById('itemSearchInput')?.addEventListener('input', (e) => {
     const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
-    renderAvailableItemsForQuotation(e.target.value, activeTypeFilter);
+    renderAvailableItemsForQuotation(e.target.value, activeTypeFilter, window.cachedItems);
 });
 
 // Type filter button handlers - use event delegation
@@ -2868,7 +2929,7 @@ document.addEventListener('click', function(e) {
         e.target.classList.add('active');
         const typeFilter = e.target.dataset.type || '';
         const searchValue = document.getElementById('itemSearchInput')?.value || '';
-        renderAvailableItemsForQuotation(searchValue, typeFilter);
+        renderAvailableItemsForQuotation(searchValue, typeFilter, window.cachedItems);
     }
 });
 
@@ -2928,8 +2989,8 @@ function showSection(sectionId) {
     if (sectionId === 'itemsList') renderItemsList();
     if (sectionId === 'createQuotation') {
         // Initialize Create Quotation section
-        renderQuotationTypeFilters();
-        renderAvailableItemsForQuotation();
+        renderQuotationTypeFilters(window.cachedItems);
+        renderAvailableItemsForQuotation('', '', window.cachedItems);
         renderQuotationItems();
         updateGrandTotal();
     }

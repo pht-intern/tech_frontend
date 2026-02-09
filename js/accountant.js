@@ -140,7 +140,9 @@
         }
 
         function toTitleCase(str) {
-            return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+            return str.replace(/\w\S*/g, function(txt) {
+                return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+            });
         }
 
         // Simple LocalStorage Wrapper
@@ -287,17 +289,23 @@
             writeLogs(logs);
         }
 
-        function getGstRateForItem(productName) {
-            const rules = getGstRules();
-            const rule = rules.find(r => r.productName.toLowerCase() === productName.toLowerCase());
-            if (rule) return rule.percent;
-            return parseFloat(readLS(LS_KEYS.gst) || 18); // Default to 18%
+        async function getGstRateForItem(itemName) {
+            const rulesResponse = await getGstRules();
+            const settingsResponse = await getSettings();
+            
+            // Handle API response format
+            const rules = Array.isArray(rulesResponse) ? rulesResponse : (rulesResponse?.data || []);
+            const settings = settingsResponse?.data || settingsResponse || {};
+            const defaultGst = settings.defaultGst || 18;
+
+            const rule = Array.isArray(rules) ? rules.find(r => r.productName.toLowerCase() === itemName.toLowerCase()) : null;
+            return rule ? parseFloat(rule.percent) : parseFloat(defaultGst);
         }
 
         // --- UI Logic ---
 
         // Tab/Section Switching
-        function showSection(sectionId) {
+        async function showSection(sectionId) {
             document.querySelectorAll('.content-section').forEach(section => {
                 section.style.display = 'none';
             });
@@ -359,7 +367,8 @@
                 quotationItems = [];
                 renderQuotationItems();
                 updateGrandTotal();
-                renderAvailableItemsForQuotation('', '');
+                renderQuotationTypeFilters(window.cachedItems);
+                renderAvailableItemsForQuotation('', '', window.cachedItems);
             }
         }
 
@@ -1354,30 +1363,34 @@
         // --- Quotation Creation ---
 
         // Dynamic type filters for "Add Items to Quotation"
-        function renderQuotationTypeFilters() {
+        function renderQuotationTypeFilters(items = null) {
             const container = document.getElementById('quotationTypeFilters');
             if (!container) return;
 
-            let items = [];
-            try {
-                items = getItemsSync();
-            } catch (error) {
-                items = [];
+            // Prevent unnecessary re-renders
+            if (container.hasAttribute('data-rendered') && container.children.length > 0) {
+                return;
             }
 
-            const types = [...new Set(items.map(item => item.type).filter(Boolean))]
-                .sort((a, b) => a.localeCompare(b, 'en-IN', { sensitivity: 'base' }));
+            // Use passed items or get from cache
+            const itemsData = items || window.cachedItems || [];
+            let types = [];
+            
+            if (itemsData && itemsData.length > 0) {
+                types = [...new Set(itemsData.map(item => item.type).filter(Boolean))]
+                    .sort((a, b) => a.localeCompare(b, 'en-IN', { sensitivity: 'base' }));
+            }
 
             const baseTypes = [
                 { label: 'All', value: '' },
-                { label: 'RAM', value: 'ram' },
-                { label: 'GPU', value: 'gpu' },
-                { label: 'Intel', value: 'intel' },
-                { label: 'AMD', value: 'amd' },
-                { label: 'Cabinet', value: 'cabinet' },
-                { label: 'Cooler', value: 'cooler' },
-                { label: 'HDD', value: 'hdd' },
-                { label: 'SSD', value: 'ssd' }
+                { label: 'MONITOR', value: 'monitor' },
+                { label: 'KEYBOARD&MOUSE', value: 'keyboard&mouse' },
+                { label: 'ACCESSORIES', value: 'accessories' },
+                { label: 'UPS', value: 'ups' },
+                { label: 'LAPTOP', value: 'laptop' },
+                { label: 'PRINTERS', value: 'printers' },
+                { label: 'NETWORKING PRODUCTS', value: 'networking products' },
+                { label: 'OTHERS', value: 'others' }
             ];
 
             const baseValues = new Set(baseTypes.map(t => String(t.value).toLowerCase()));
@@ -1390,14 +1403,20 @@
                 btn.className = 'type-filter-btn';
                 if (isActive) btn.classList.add('active');
                 btn.dataset.type = value;
-                // Match existing inline styles
+                btn.textContent = label;
+                // Match existing inline styles exactly
                 btn.style.padding = '6px 12px';
                 btn.style.border = '1px solid var(--border)';
                 btn.style.borderRadius = '6px';
                 btn.style.background = '#fff';
                 btn.style.cursor = 'pointer';
                 btn.style.fontSize = '12px';
+                btn.style.fontWeight = '500';
                 btn.style.transition = 'all 0.2s';
+                btn.style.display = 'inline-flex';
+                btn.style.alignItems = 'center';
+                btn.style.justifyContent = 'center';
+                btn.style.minWidth = 'fit-content';
                 return btn;
             }
 
@@ -1413,72 +1432,91 @@
                 const value = String(t).toLowerCase();
                 container.appendChild(createButton(label, value, false));
             });
+            
+            // Mark as rendered
+            container.setAttribute('data-rendered', 'true');
         }
 
-        function renderAvailableItemsForQuotation(searchTerm = '', typeFilter = '') {
-            const items = getItemsSync();
-            const list = document.getElementById('availableItemsList');
-            
-            if (!list) {
-                console.error('availableItemsList element not found');
-                return;
-            }
-            
-            list.innerHTML = '';
-            
-            searchTerm = searchTerm.toLowerCase().trim();
-            const normalizedTypeFilter = typeFilter.toLowerCase();
-            const filteredItems = items.filter(item => {
-                const matchesSearch = !searchTerm || 
-                    item.productName.toLowerCase().includes(searchTerm) || 
-                    item.productId.toLowerCase().includes(searchTerm) || 
-                    (item.type && item.type.toLowerCase().includes(searchTerm));
-                let matchesType = true;
-                if (normalizedTypeFilter) {
-                    if (normalizedTypeFilter === 'intel') {
-                        // Check if type field matches Intel category (case-insensitive)
-                        const productType = (item.type || '').toLowerCase();
-                        matchesType = productType === 'intel' || productType === 'intel processor' || productType.startsWith('intel');
-                    } else if (normalizedTypeFilter === 'amd') {
-                        // Check if type field matches AMD category (case-insensitive)
-                        const productType = (item.type || '').toLowerCase();
-                        matchesType = productType === 'amd' || productType === 'amd processor' || productType.startsWith('amd');
-                    } else {
-                        matchesType = (item.type && item.type.toLowerCase() === normalizedTypeFilter);
-                    }
-                }
-                return matchesSearch && matchesType;
-            });
-
-            if (filteredItems.length === 0) {
-                list.innerHTML = '<p class="muted" style="text-align:center;padding:10px;">No products found.</p>';
-                return;
-            }
-
-            filteredItems.forEach(item => {
-                const itemDiv = document.createElement('div');
-                itemDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px dashed var(--border);';
+        async function renderAvailableItemsForQuotation(searchTerm = '', typeFilter = '', items = null) {
+            try {
+                // Use passed items or get from cache/fetch
+                const itemsData = items || window.cachedItems || await getItems();
+                const listDiv = document.getElementById('availableItemsList');
                 
-                const gstRate = getGstRateForItem(item.productName);
+                if (!listDiv) return;
+                listDiv.innerHTML = '';
 
-                itemDiv.innerHTML = `
-                    <div style="font-size:14px;">
-                        <strong>${item.productName}</strong> <span class="muted" style="font-size:12px;">(${item.productId})</span><br>
-                        <span class="muted">${item.type} | ${formatRupee(item.price)}</span>
-                    </div>
-                    <div>
-                        <button class="btn primary" style="padding: 5px 8px;" onclick="addItemToQuotation('${item.productId}')">
-                            <i class="fas fa-plus"></i> Add
-                        </button>
-                    </div>
-                `;
-                list.appendChild(itemDiv);
-            });
+                if (!Array.isArray(itemsData) || itemsData.length === 0) {
+                    listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products available in database. Please add products through the admin panel.</p>';
+                    return;
+                }
+
+                const normalizedFilter = searchTerm.toLowerCase();
+                const normalizedTypeFilter = typeFilter.toLowerCase();
+                const filteredItems = itemsData.filter(item => {
+                    const productName = (item.productName || item.name || '').toLowerCase();
+                    const productId = (item.productId || item.id || '').toString().toLowerCase();
+                    const matchesSearch = !normalizedFilter || 
+                        productName.includes(normalizedFilter) || 
+                        productId.includes(normalizedFilter);
+                    let matchesType = true;
+                    if (normalizedTypeFilter) {
+                        const productType = (item.type || '').toLowerCase();
+                        
+                        // Handle special category matching
+                        if (normalizedTypeFilter === 'keyboard&mouse' || normalizedTypeFilter === 'keyboard and mouse') {
+                            matchesType = productType.includes('keyboard') || productType.includes('mouse') || 
+                                         productType === 'keyboard&mouse' || productType === 'keyboard and mouse';
+                        } else if (normalizedTypeFilter === 'networking products' || normalizedTypeFilter === 'networking') {
+                            matchesType = productType.includes('networking') || productType.includes('network') ||
+                                         productType === 'networking products' || productType === 'networking';
+                        } else if (normalizedTypeFilter === 'others' || normalizedTypeFilter === 'other') {
+                            // Match if type is "others", "other", or doesn't match specific categories
+                            matchesType = productType === 'others' || productType === 'other' || 
+                                         productType.includes('other');
+                        } else {
+                            // Exact match or contains match for other categories
+                            matchesType = productType === normalizedTypeFilter || productType.includes(normalizedTypeFilter);
+                        }
+                    }
+                    return matchesSearch && matchesType;
+                });
+
+                if (filteredItems.length === 0) {
+                    listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products found matching your search.</p>';
+                    return;
+                }
+
+                filteredItems.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #f2f6fb;';
+
+                    const productId = item.productId || item.id;
+                    const productName = item.productName || item.name;
+                    const price = item.price || 0;
+
+                    itemDiv.innerHTML = `
+                        <div>
+                            <strong>${productName}</strong> <span class="muted" style="font-size:12px">(${productId})</span>
+                            <br><span class="muted" style="font-size:12px">${item.type || 'N/A'} | ${formatRupee(price)}</span>
+                        </div>
+                        <button class="btn primary" onclick="addItemToQuotation('${productId}')"><i class="fas fa-plus"></i> Add</button>
+                    `;
+
+                    listDiv.appendChild(itemDiv);
+                });
+            } catch (error) {
+                console.error('Error in renderAvailableItemsForQuotation:', error);
+                const listDiv = document.getElementById('availableItemsList');
+                if (listDiv) {
+                    listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">Error loading products.</p>';
+                }
+            }
         }
 
         async function addItemToQuotation(productId) {
             // Always use items table for create quotation section (not temp table)
-            const items = getItemsSync();
+            const items = await getItems();
             const itemToAdd = items.find(i => i.productId === productId);
             
             if (!itemToAdd) return;
@@ -1488,7 +1526,7 @@
                 existingItem.quantity += 1;
             } else {
                 // Get GST rate from GST rules or settings
-                const gstRate = getGstRateForItem(itemToAdd.productName);
+                const gstRate = await getGstRateForItem(itemToAdd.productName);
                 const price = parseFloat(itemToAdd.price || 0);
                 
                 quotationItems.push({
@@ -1535,7 +1573,8 @@
                 }
             }
             
-            // Save to temp table only (do not update items table)
+            // Save edited price to temp table (for history)
+            // Only revert to items table value if editing an existing quotation (not during creation)
             if (AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE)) {
                 try {
                     // Fetch current item data to get all required fields
@@ -1551,10 +1590,11 @@
                         }
                         
                         // Calculate GST amount from current GST rate
-                        const gstAmount = (parseFloat(newPrice) || 0) * (parseFloat(item.gstRate || 0) / 100);
-                        const totalPrice = parseFloat(newPrice) || 0;
+                        const parsedPrice = parseFloat(newPrice) || 0;
+                        const gstAmount = parsedPrice * (parseFloat(item.gstRate || 0) / 100);
+                        const totalPrice = parsedPrice;
                         
-                        // Save to temp table only (not items table)
+                        // Save edited value to temp table only (for history viewing)
                         await apiFetch('/temp', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -1563,16 +1603,20 @@
                                 itemUrl: dbItem.itemUrl || '',
                                 productName: dbItem.productName,
                                 type: dbItem.type || '',
-                                price: parseFloat(newPrice) || 0,
+                                price: parsedPrice,
                                 gst: gstAmount,
                                 totalPrice: totalPrice,
                                 description: dbItem.description || '',
                                 addedBy: addedBy
                             })
                         });
+                        
+                        // Only revert quotation item back to items table value if NOT creating a new quotation
+                        // (i.e., only revert when editing an existing quotation)
+                        // For now, we'll keep the edited price in the quotation
                     }
-                } catch (error) {
-                    console.error('Failed to save to temp table:', error);
+                } catch (tempError) {
+                    console.warn('Failed to save to temp table:', tempError);
                 }
             }
             
@@ -1581,16 +1625,12 @@
         }
 
         async function updateItemGstRate(productId, newGstRate) {
-            const item = quotationItems.find(qi => qi.productId === productId);
-            if (item) {
-                item.gstRate = parseFloat(newGstRate) || 0;
-            }
-            
-            // Save to temp table when GST is edited (do not update items table)
+            // Save edited GST to temp table (for history), but keep using items table value in quotation
             if (AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE)) {
                 try {
                     const items = await getItems();
                     const dbItem = items.find(i => i.productId === productId);
+                    const item = quotationItems.find(qi => qi.productId === productId);
                     
                     if (dbItem && item) {
                         let addedBy = CURRENT_USER_EMAIL;
@@ -1600,13 +1640,13 @@
                             addedBy = addedBy || 'unknown';
                         }
                         
-                        // Calculate GST amount and total price
+                        // Calculate GST amount and total price with edited GST rate
                         const itemPrice = parseFloat(item.price || dbItem.price || 0);
-                        const gstRate = parseFloat(newGstRate) || 0;
-                        const gstAmount = itemPrice * (gstRate / 100);
+                        const editedGstRate = parseFloat(newGstRate) || 0;
+                        const gstAmount = itemPrice * (editedGstRate / 100);
                         const totalPrice = itemPrice + gstAmount;
                         
-                        // Save to temp table only (not items table)
+                        // Save edited value to temp table only (for history viewing)
                         await apiFetch('/temp', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -1622,6 +1662,10 @@
                                 addedBy: addedBy
                             })
                         });
+                        
+                        // Revert quotation item GST rate back to items table value (get from GST rules)
+                        const originalGstRate = await getGstRateForItem(dbItem.productName);
+                        item.gstRate = originalGstRate;
                     }
                 } catch (tempError) {
                     console.warn('Failed to save to temp table:', tempError);
@@ -1647,56 +1691,36 @@
                 const total = itemTotal + itemGstAmount; // Total including GST
                 const row = body.insertRow();
 
-                // Item Name/Description
                 row.insertCell().innerHTML = `<strong>${item.productName}</strong><br><span class="muted" style="font-size:12px">${item.description || 'No description'}</span>`;
 
-                // Quantity
                 const qtyCell = row.insertCell();
-                qtyCell.innerHTML = `<input type="number" value="${item.quantity}" min="1" style="width:50px; padding:5px; border-radius:4px; border:1px solid var(--border); text-align:right;" oninput="updateItemQuantity('${item.productId}', this.value)">`;
+                qtyCell.innerHTML = `<input type="number" value="${item.quantity}" min="1" style="width:50px; padding:5px; border-radius:4px; border:1px solid var(--border);" onchange="updateItemQuantity('${item.productId}', this.value)">`;
 
-                // Unit Price
                 const priceCell = row.insertCell();
                 priceCell.innerHTML = `<input type="number" value="${item.price}" min="0" step="0.01" style="width:80px; padding:5px; border-radius:4px; border:1px solid var(--border); text-align:right;" onchange="updateItemPrice('${item.productId}', this.value)">`;
-
-                // Total (Taxable Value)
                 row.insertCell().textContent = formatRupee(total);
 
-                // GST Rate (%)
                 const gstCell = row.insertCell();
-                const defaultGst = parseFloat(readLS(LS_KEYS.gst) || 18);
-                const isItemGstDefault = item.gstRate === defaultGst;
-                const canFixGst = AUTHORIZED_TO_FIX_GST.includes(CURRENT_USER_ROLE);
+                gstCell.innerHTML = `<input type="number" value="${item.gstRate}" min="0" max="50" style="width:50px; padding:5px; border-radius:4px; border:1px solid var(--border);" onchange="updateItemGstRate('${item.productId}', this.value)">`;
 
-
-                gstCell.innerHTML = `<input type="number" value="${item.gstRate}" min="0" max="50" style="width:50px; padding:5px; border-radius:4px; border:1px solid var(--border); text-align:right;" 
-                                        oninput="updateItemGstRate('${item.productId}', this.value)" ${canFixGst ? '' : 'disabled class="gst-input"'}>`;
-                
-                // If Accountant cannot fix GST, ensure the input in the summary area is also disabled/read-only.
-                const gstPercentInput = document.getElementById('gst-percent');
-                if (gstPercentInput) {
-                    gstPercentInput.disabled = !canFixGst;
-                    if (!canFixGst) {
-                        gstPercentInput.classList.add('gst-input');
-                    } else {
-                        gstPercentInput.classList.remove('gst-input');
-                    }
-                }
-
-                // Actions
                 const actionsCell = row.insertCell();
-                actionsCell.innerHTML = `<button class="btn danger" style="padding: 5px 8px;" onclick="removeItemFromQuotation('${item.productId}')"><i class="fas fa-trash-alt"></i></button>`;
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'btn danger';
+                removeBtn.style.padding = '5px 8px';
+                removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                removeBtn.onclick = () => removeItemFromQuotation(item.productId);
+                actionsCell.appendChild(removeBtn);
             });
         }
 
         function updateGrandTotal() {
             let subTotal = quotationItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            
+
             const discountPercent = parseFloat(document.getElementById('discount-percent')?.value || 0);
+
             let discountAmount = (subTotal * (discountPercent / 100));
-            
             let totalAfterDiscount = subTotal - discountAmount;
-            
-            // Calculate total GST amount based on individual item rates
+
             let totalGstAmount = quotationItems.reduce((sum, item) => {
                 const itemTotal = item.price * item.quantity;
                 const itemGstRate = item.gstRate;
@@ -1704,20 +1728,16 @@
                 return sum + itemGstAmount;
             }, 0);
 
-            // Apply discount proportionally to the taxable value (subtotal) before adding GST
-            // A more complex proportional distribution of discount is often required in real-world GST calculation,
-            // but for simplicity, we apply the discount to the subtotal and calculate GST on the original unit price * quantity,
-            // then add them up. This is simplified to ensure GST remains constant regardless of discount, which is common in Indian billing systems.
-
             let grandTotal = totalAfterDiscount + totalGstAmount;
 
-            // Update DOM
-            document.getElementById('subTotalDisplay').textContent = formatRupee(subTotal);
+            const subTotalDisplay = document.getElementById('subTotalDisplay');
             const discountAmountDisplay = document.getElementById('discountAmountDisplay');
-            if (discountAmountDisplay) discountAmountDisplay.textContent = formatRupee(discountAmount);
             const gstAmountDisplay = document.getElementById('gstAmountDisplay');
+            const grandTotalDisplay = document.getElementById('grandTotalDisplay');
+            if (subTotalDisplay) subTotalDisplay.textContent = formatRupee(subTotal);
+            if (discountAmountDisplay) discountAmountDisplay.textContent = formatRupee(discountAmount);
             if (gstAmountDisplay) gstAmountDisplay.textContent = formatRupee(totalGstAmount);
-            document.getElementById('grandTotalDisplay').textContent = formatRupee(grandTotal);
+            if (grandTotalDisplay) grandTotalDisplay.textContent = formatRupee(grandTotal);
         }
 
         async function createQuotation() {
@@ -3326,8 +3346,19 @@
             renderAvailableItemsForQuotation(e.target.value, activeTypeFilter);
         });
 
-        // Initial type filters for quotation section
-        renderQuotationTypeFilters();
+        // Initial type filters for quotation section - wait for cached data
+        if (window.cachedItems) {
+            renderQuotationTypeFilters(window.cachedItems);
+            renderAvailableItemsForQuotation('', '', window.cachedItems);
+        } else {
+            // If no cached data yet, fetch it once
+            getItems().then(items => {
+                renderQuotationTypeFilters(items);
+                renderAvailableItemsForQuotation('', '', items);
+            }).catch(err => {
+                console.error('Error loading initial items:', err);
+            });
+        }
 
         // Type filter button handlers - use event delegation
         document.addEventListener('click', function(e) {

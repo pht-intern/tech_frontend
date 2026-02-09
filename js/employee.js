@@ -193,30 +193,34 @@
         /* ---------- Item Management ---------- */
 
         // Dynamic type filters for "Add Items to Quotation"
-        async function renderQuotationTypeFilters() {
+        function renderQuotationTypeFilters(items = null) {
+            console.trace('🔍 renderQuotationTypeFilters called');
             const container = document.getElementById('quotationTypeFilters');
             if (!container) return;
 
-            let types = [];
-            try {
-                const itemsResponse = await getItems();
-                const items = Array.isArray(itemsResponse) ? itemsResponse : (itemsResponse?.data || PRODUCTS);
-                types = [...new Set(items.map(item => item.type).filter(Boolean))]
-                    .sort((a, b) => a.localeCompare(b, 'en-IN', { sensitivity: 'base' }));
-            } catch (error) {
-                // Silent fail; we'll still render base types
+            // Prevent unnecessary re-renders
+            if (container.hasAttribute('data-rendered') && container.children.length > 0) {
+                console.log('⚠️ renderQuotationTypeFilters skipped - already rendered');
+                return;
             }
+
+            // Use passed items or get from cache
+            const itemsData = items || window.cachedItems || [];
+            let types = [];
+            
+            types = [...new Set(itemsData.map(item => item.type).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b, 'en-IN', { sensitivity: 'base' }));
 
             const baseTypes = [
                 { label: 'All', value: '' },
-                { label: 'RAM', value: 'ram' },
-                { label: 'GPU', value: 'gpu' },
-                { label: 'Intel', value: 'intel' },
-                { label: 'AMD', value: 'amd' },
-                { label: 'Cabinet', value: 'cabinet' },
-                { label: 'Cooler', value: 'cooler' },
-                { label: 'HDD', value: 'hdd' },
-                { label: 'SSD', value: 'ssd' }
+                { label: 'MONITOR', value: 'monitor' },
+                { label: 'KEYBOARD&MOUSE', value: 'keyboard&mouse' },
+                { label: 'ACCESSORIES', value: 'accessories' },
+                { label: 'UPS', value: 'ups' },
+                { label: 'LAPTOP', value: 'laptop' },
+                { label: 'PRINTERS', value: 'printers' },
+                { label: 'NETWORKING PRODUCTS', value: 'networking products' },
+                { label: 'OTHERS', value: 'others' }
             ];
 
             const baseValues = new Set(baseTypes.map(t => String(t.value).toLowerCase()));
@@ -229,6 +233,7 @@
                 btn.className = 'type-filter-btn';
                 if (isActive) btn.classList.add('active');
                 btn.dataset.type = value;
+                btn.textContent = label;
                 // Match existing inline styles
                 btn.style.padding = '6px 12px';
                 btn.style.border = '1px solid var(--border)';
@@ -248,29 +253,39 @@
 
             // Additional categories from Type dropdown / item types
             extraTypes.forEach(t => {
-                const label = (t || '').toString();
+                const label = toTitleCase(String(t));
                 const value = String(t).toLowerCase();
                 container.appendChild(createButton(label, value, false));
             });
+            
+            // Mark as rendered
+            container.setAttribute('data-rendered', 'true');
         }
 
-        async function renderAvailableItemsForQuotation(filter = '', typeFilter = '') {
+        function toTitleCase(str) {
+            return str.replace(/\w\S*/g, function(txt) {
+                return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+            });
+        }
+
+        async function renderAvailableItemsForQuotation(filter = '', typeFilter = '', items = null) {
+            console.trace('🔍 renderAvailableItemsForQuotation called');
             try {
-                const itemsResponse = await getItems();
-                const items = Array.isArray(itemsResponse) ? itemsResponse : (itemsResponse?.data || PRODUCTS);
+                // Use passed items or get from cache/fetch
+                const itemsData = items || window.cachedItems || await getItems();
                 const listDiv = document.getElementById('availableItemsList');
                 
                 if (!listDiv) return;
                 listDiv.innerHTML = '';
 
-                if (!Array.isArray(items) || items.length === 0) {
-                    listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products available. Please add products first.</p>';
+                if (!Array.isArray(itemsData) || itemsData.length === 0) {
+                    listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products available in database. Please add products through the admin panel.</p>';
                     return;
                 }
 
                 const normalizedFilter = filter.toLowerCase();
                 const normalizedTypeFilter = typeFilter.toLowerCase();
-                const filteredItems = items.filter(item => {
+                const filteredItems = itemsData.filter(item => {
                     const productName = (item.productName || item.name || '').toLowerCase();
                     const productId = (item.productId || item.id || '').toString().toLowerCase();
                     const matchesSearch = !normalizedFilter || 
@@ -278,16 +293,22 @@
                         productId.includes(normalizedFilter);
                     let matchesType = true;
                     if (normalizedTypeFilter) {
-                        if (normalizedTypeFilter === 'intel') {
-                            // Check if type field matches Intel category (case-insensitive)
-                            const productType = (item.type || '').toLowerCase();
-                            matchesType = productType === 'intel' || productType === 'intel processor' || productType.startsWith('intel');
-                        } else if (normalizedTypeFilter === 'amd') {
-                            // Check if type field matches AMD category (case-insensitive)
-                            const productType = (item.type || '').toLowerCase();
-                            matchesType = productType === 'amd' || productType === 'amd processor' || productType.startsWith('amd');
+                        const productType = (item.type || '').toLowerCase();
+                        
+                        // Handle special category matching
+                        if (normalizedTypeFilter === 'keyboard&mouse' || normalizedTypeFilter === 'keyboard and mouse') {
+                            matchesType = productType.includes('keyboard') || productType.includes('mouse') || 
+                                         productType === 'keyboard&mouse' || productType === 'keyboard and mouse';
+                        } else if (normalizedTypeFilter === 'networking products' || normalizedTypeFilter === 'networking') {
+                            matchesType = productType.includes('networking') || productType.includes('network') ||
+                                         productType === 'networking products' || productType === 'networking';
+                        } else if (normalizedTypeFilter === 'others' || normalizedTypeFilter === 'other') {
+                            // Match if type is "others", "other", or doesn't match specific categories
+                            matchesType = productType === 'others' || productType === 'other' || 
+                                         productType.includes('other');
                         } else {
-                            matchesType = (item.type && item.type.toLowerCase() === normalizedTypeFilter);
+                            // Exact match or contains match for other categories
+                            matchesType = productType === normalizedTypeFilter || productType.includes(normalizedTypeFilter);
                         }
                     }
                     return matchesSearch && matchesType;
@@ -316,55 +337,22 @@
                     listDiv.appendChild(itemDiv);
                 });
             } catch (error) {
-                // Fallback to local PRODUCTS
+                console.error('Error rendering available items:', error);
                 const listDiv = document.getElementById('availableItemsList');
                 if (!listDiv) return;
                 
-                listDiv.innerHTML = '';
-                PRODUCTS.forEach(product => {
-                    const itemDiv = document.createElement('div');
-                    itemDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #f2f6fb;';
-                    itemDiv.innerHTML = `
-                        <div>
-                            <strong>${product.name}</strong> <span class="muted" style="font-size:12px">(${product.id})</span>
-                            <div style="font-size:13px;">${formatRupee(product.price)}</div>
-                        </div>
-                        <button class="btn primary" onclick="addItemToQuotation('${product.id}')"><i class="fas fa-plus"></i> Add</button>
-                    `;
-                    listDiv.appendChild(itemDiv);
-                });
+                listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">Error loading products. Please refresh the page.</p>';
             }
         }
 
         async function addItemToQuotation(productId) {
             try {
                 const itemsResponse = await getItems();
-                const items = Array.isArray(itemsResponse) ? itemsResponse : (itemsResponse?.data || PRODUCTS);
+                const items = Array.isArray(itemsResponse) ? itemsResponse : (itemsResponse?.data || []);
                 const itemToAdd = items.find(item => (item.productId || item.id) == productId);
 
                 if (!itemToAdd) {
-                    // Fallback to local PRODUCTS
-                    const localProduct = PRODUCTS.find(p => p.id == productId);
-                    if (!localProduct) {
-                        alert('Product not found.');
-                        return;
-                    }
-                    
-                    const existingQuoteItem = quotationItems.find(qi => (qi.productId || qi.id) == productId);
-                    if (existingQuoteItem) {
-                        existingQuoteItem.quantity++;
-                    } else {
-                        quotationItems.push({
-                            id: Date.now(),
-                            productId: localProduct.id,
-                            productName: localProduct.name,
-                            price: localProduct.price,
-                            quantity: 1,
-                            gstRate: SETTINGS.gstRate * 100
-                        });
-                    }
-                    renderQuotationItems();
-                    updateGrandTotal();
+                    alert('Product not found in database. Please refresh the page and try again.');
                     return;
                 }
 
@@ -395,7 +383,7 @@
                         id: Date.now(),
                         productId: itemToAdd.productId || itemToAdd.id,
                         productName: itemToAdd.productName || itemToAdd.name,
-                        price: parseFloat(itemToAdd.price) || 0,
+                        price: parseFloat(itemToAdd.price || 0),
                         quantity: 1,
                         gstRate: gstRate,
                         description: itemToAdd.description || ''
@@ -982,7 +970,9 @@
                 const description = item.description || '';
                 const quantity = item.quantity || 1;
                 const price = parseFloat(item.price) || 0;
-                const total = price * quantity;
+                const itemTotal = price * quantity;
+                const itemGstAmount = itemTotal * (item.gstRate / 100);
+                const total = itemTotal + itemGstAmount; // Total including GST
                 const gstRate = item.gstRate || (SETTINGS.gstRate * 100);
                 const itemId = item.id || item.productId;
                 
@@ -998,7 +988,7 @@
                 const priceCell = row.insertCell();
                 priceCell.innerHTML = `<input type="number" value="${price}" min="0" step="0.01" style="width:80px; padding:5px; border-radius:4px; border:1px solid var(--border); text-align:right;" onchange="updateItemPrice('${itemId}', this.value)">`;
                 
-                // Total (Excl. GST) column
+                // Total column (including GST)
                 row.insertCell().textContent = formatRupee(total);
                 
                 // GST Rate column
@@ -1829,12 +1819,48 @@
         }
 
         async function getItems() {
+            console.trace('🔍 getItems called - tracking API call origin');
+            
+            // Use cached data if available to prevent API spam
+            if (window.cachedItems) {
+                console.log('✅ Using cached items - no API call');
+                return window.cachedItems;
+            }
+            
             try {
                 const response = await apiFetch('/items');
-                if (!response) return PRODUCTS; // Fallback to local data
-                return Array.isArray(response) ? response : (response.data || PRODUCTS);
+                if (!response) {
+                    console.warn('No items response from API');
+                    return []; // Return empty array instead of hardcoded products
+                }
+                const items = Array.isArray(response) ? response : (response.data || []);
+                // Cache the result
+                window.cachedItems = items;
+                return items;
             } catch (error) {
-                return PRODUCTS; // Fallback to local data
+                console.error('Error fetching items:', error);
+                return []; // Return empty array instead of hardcoded products
+            }
+        }
+
+        async function getGstRules() {
+            console.trace('🔍 getGstRules called - tracking API call origin');
+            
+            // Use cached data if available to prevent API spam
+            if (window.cachedGstRules) {
+                console.log('✅ Using cached GST rules - no API call');
+                return window.cachedGstRules;
+            }
+            
+            try {
+                const response = await apiFetch('/gst_rules');
+                const gstRules = Array.isArray(response) ? response : (response.data || []);
+                // Cache the result
+                window.cachedGstRules = gstRules;
+                return gstRules;
+            } catch (error) {
+                console.error('Error fetching GST rules:', error);
+                return []; // Fallback to empty array
             }
         }
 
@@ -1871,7 +1897,7 @@
                 const logsResponse = await getLogs();
 
                 // Handle API response format
-                const items = Array.isArray(itemsResponse) ? itemsResponse : (itemsResponse?.data || PRODUCTS);
+                const items = Array.isArray(itemsResponse) ? itemsResponse : (itemsResponse?.data || []);
                 const quotations = Array.isArray(quotationsResponse) ? quotationsResponse : (quotationsResponse?.data || quotationHistory);
                 const logs = Array.isArray(logsResponse) ? logsResponse : (logsResponse?.data || AUDIT_LOGS);
 
@@ -2197,44 +2223,72 @@
             } else if (id === 'viewCustomers') {
                 renderCustomersList();
             } else if (id === 'createQuotation') {
+                renderQuotationTypeFilters();
+                renderAvailableItemsForQuotation();
                 renderQuotationItems();
                 updateGrandTotal();
             }
         }
 
         // Add search functionality for history and item search
+        let domListenersInitialized = false;
+        let typeFilterHandlersSet = false;
         document.addEventListener('DOMContentLoaded', function() {
+            if (domListenersInitialized) return;
+            domListenersInitialized = true;
+            
             const historySearchInput = document.getElementById('historySearchInput');
             if (historySearchInput) {
-                historySearchInput.addEventListener('input', function(e) {
+                // Remove existing listeners
+                const newHistoryInput = historySearchInput.cloneNode(true);
+                historySearchInput.parentNode.replaceChild(newHistoryInput, historySearchInput);
+                
+                newHistoryInput.addEventListener('input', function(e) {
                     renderHistoryList(e.target.value);
                 });
             }
             
             const itemSearchInput = document.getElementById('itemSearchInput');
             if (itemSearchInput) {
-                itemSearchInput.addEventListener('input', function(e) {
+                // Remove existing listeners
+                const newItemInput = itemSearchInput.cloneNode(true);
+                itemSearchInput.parentNode.replaceChild(newItemInput, itemSearchInput);
+                
+                newItemInput.addEventListener('input', function(e) {
                     const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
                     renderAvailableItemsForQuotation(e.target.value, activeTypeFilter);
                 });
             }
 
-            // Type filter button handlers - use event delegation
-            document.addEventListener('click', function(e) {
-                if (e.target.classList.contains('type-filter-btn')) {
-                    // Remove active class from all buttons
-                    document.querySelectorAll('.type-filter-btn').forEach(b => b.classList.remove('active'));
-                    // Add active class to clicked button
-                    e.target.classList.add('active');
-                    const typeFilter = e.target.dataset.type || '';
-                    const searchValue = document.getElementById('itemSearchInput')?.value || '';
-                    renderAvailableItemsForQuotation(searchValue, typeFilter);
-                }
-            });
+            // Type filter button handlers - use event delegation (only once)
+            if (!typeFilterHandlersSet) {
+                typeFilterHandlersSet = true;
+                document.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('type-filter-btn')) {
+                        // Remove active class from all buttons
+                        document.querySelectorAll('.type-filter-btn').forEach(b => b.classList.remove('active'));
+                        // Add active class to clicked button
+                        e.target.classList.add('active');
+                        const typeFilter = e.target.dataset.type || '';
+                        const searchValue = document.getElementById('itemSearchInput')?.value || '';
+                        renderAvailableItemsForQuotation(searchValue, typeFilter);
+                    }
+                });
+            }
             
-            // Initial load of available items and type filters
-            renderQuotationTypeFilters();
-            renderAvailableItemsForQuotation();
+            // Initial load of available items and type filters - wait for cached data
+            if (window.cachedItems) {
+                renderQuotationTypeFilters(window.cachedItems);
+                renderAvailableItemsForQuotation('', '', window.cachedItems);
+            } else {
+                // If no cached data yet, fetch it once
+                getItems().then(items => {
+                    renderQuotationTypeFilters(items);
+                    renderAvailableItemsForQuotation('', '', items);
+                }).catch(err => {
+                    console.error('Error loading initial items:', err);
+                });
+            }
         });
 
         // Original showSection function (keeping for backward compatibility)
@@ -2257,6 +2311,7 @@
 
         // --- PDF Generation ---
         async function getSettings() {
+            console.trace('🔍 getSettings called - tracking API call origin');
             try {
                 const response = await apiFetch('/settings');
                 if (response && response.data) {
@@ -2358,9 +2413,10 @@
             
             let subTotal = parseFloat(quotation.subTotal) || 0;
             const discountPercent = parseFloat(quotation.discountPercent) || 0;
-            let discountAmount = parseFloat(quotation.discountAmount) || 0;
+            let discountAmount = parseFloat(quotation.discountAmount) || (subTotal * discountPercent / 100);
+            let totalAfterDiscount = subTotal - discountAmount;
             let totalGstAmount = parseFloat(quotation.totalGstAmount) || parseFloat(quotation.gst) || 0;
-            let grandTotal = parseFloat(quotation.grandTotal) || 0;
+            let grandTotal = parseFloat(quotation.grandTotal) || (totalAfterDiscount + totalGstAmount);
 
             const settings = await getSettings();
             const logoBase64 = settings.logo || '';
@@ -2804,7 +2860,13 @@
 
 
         /* ---------- Initializers ---------- */
+        let employeePageInitialized = false;
+        let eventListenersInitialized = false;
+
         function initializeDashboard() {
+            if (employeePageInitialized) return;
+            employeePageInitialized = true;
+
             // Set initial user info
             const userRoleDisplay = document.getElementById('userRoleDisplay');
             const userEmailDisplay = document.getElementById('userEmailDisplay');
@@ -2816,27 +2878,51 @@
             if (userAvatar) userAvatar.textContent = CURRENT_USER_ROLE.charAt(0).toUpperCase();
             if (headerTitle) headerTitle.textContent = `${CURRENT_USER_ROLE} Dashboard`;
 
-            // Add event listeners for navigation tabs
-            document.querySelectorAll('[data-tab]').forEach(el => {
-                el.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const sectionId = this.getAttribute('data-tab');
-                    showSection(sectionId);
+            // Add event listeners for navigation tabs (only once)
+            if (!eventListenersInitialized) {
+                eventListenersInitialized = true;
+                document.querySelectorAll('[data-tab]').forEach(el => {
+                    // Remove existing listeners to prevent duplicates
+                    const newEl = el.cloneNode(true);
+                    el.parentNode.replaceChild(newEl, el);
+                    
+                    newEl.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        const sectionId = this.getAttribute('data-tab');
+                        showSection(sectionId);
+                    });
                 });
-            });
+            }
 
             applyRoleRestrictions();
             
-            // Load initial data
+            // Load initial data - fetch ONCE and pass down
             Promise.all([
-                renderHistoryList().catch(err => console.error('Error rendering history:', err)),
-                updateSummary().catch(err => console.error('Error updating summary:', err)),
-                renderCustomersList().catch(err => console.error('Error rendering customers:', err)),
-                Promise.resolve(renderProductsList()).catch(err => console.error('Error rendering products:', err))
-            ]).then(() => {
-                showSection('dashboard');
+                getItems().catch(err => { console.error('Error fetching items:', err); return []; }),
+                getQuotations().catch(err => { console.error('Error fetching quotations:', err); return []; }),
+                getGstRules().catch(err => { console.error('Error fetching GST rules:', err); return []; }),
+                getSettings().catch(err => { console.error('Error fetching settings:', err); return getSettingsFallback(); })
+            ]).then(([itemsData, quotationsData, gstRulesData, settingsData]) => {
+                // Store data globally to prevent re-fetching
+                window.cachedItems = itemsData;
+                window.cachedQuotations = quotationsData;
+                window.cachedGstRules = gstRulesData;
+                window.cachedSettings = settingsData;
+                
+                // Now render everything with cached data
+                Promise.all([
+                    renderHistoryList().catch(err => console.error('Error rendering history:', err)),
+                    updateSummary().catch(err => console.error('Error updating summary:', err)),
+                    renderCustomersList().catch(err => console.error('Error rendering customers:', err)),
+                    Promise.resolve(renderProductsList()).catch(err => console.error('Error rendering products:', err))
+                ]).then(() => {
+                    showSection('dashboard');
+                }).catch((error) => {
+                    console.error('Error initializing dashboard:', error);
+                    showSection('dashboard');
+                });
             }).catch((error) => {
-                console.error('Error initializing dashboard:', error);
+                console.error('Error fetching initial data:', error);
                 showSection('dashboard');
             });
             
