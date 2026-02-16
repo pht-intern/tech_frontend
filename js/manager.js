@@ -214,7 +214,7 @@ async function getQuotations() {
 }
 
 async function getCustomers() {
-    const response = await apiFetch('/_api/customers');
+    const response = await apiFetch('/customers');
     return Array.isArray(response) ? response : (response.data || []);
 }
 

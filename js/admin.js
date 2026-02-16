@@ -203,7 +203,7 @@ async function getQuotations() {
 }
 
 async function getCustomers() {
-    const response = await apiFetch('/_api/customers');
+    const response = await apiFetch('/customers');
     return Array.isArray(response) ? response : (response.data || []);
 }
 
@@ -214,7 +214,7 @@ async function getLogs() {
 }
 
 async function getContactRequests() {
-    const response = await apiFetch('/_api/contact-requests');
+    const response = await apiFetch('/contact-requests');
     return Array.isArray(response) ? response : (response.data || []);
 }
 
