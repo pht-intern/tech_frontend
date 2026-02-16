@@ -255,7 +255,7 @@
 
         async function getCustomers() {
             try {
-                const response = await apiFetch('/_api/customers');
+                const response = await apiFetch('/customers');
                 return Array.isArray(response) ? response : (response?.data || []);
             } catch (error) {
                 return [];
