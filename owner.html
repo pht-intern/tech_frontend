@@ -7,46 +7,41 @@
     <link rel="icon" type="image/x-icon" href="images/favicon.ico">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet"/>
     <link href="css/owner.css" rel="stylesheet"/>
+    <link href="css/demo-overlay.css" rel="stylesheet"/>
 </head>
-<body>
+<body data-demo-role="owner">
+
+    <div id="demoOverlay" class="demo-overlay" role="dialog" aria-label="Product demo tour"></div>
 
     <aside class="sidebar" role="navigation">
         <div class="brand">
             <img src="images/Logo.svg" alt="Tech Titans Logo" style="height: 120px; width: auto; max-width: 100%;">
         </div>
 
-        <nav class="nav" id="sideNav">
-            <a href="#" data-tab="dashboard" class="active"><i class="fas fa-th-large"></i> Dashboard</a>
-            <a href="#" data-tab="itemsList"><i class="fas fa-list"></i> Products</a>
-            <a href="#" data-tab="addItem"><i class="fas fa-plus-circle"></i> Add Product</a>
-            <a href="#" data-tab="createQuotation"><i class="fas fa-file-invoice-dollar"></i> Create Quotation</a>
-            <a href="#" data-tab="viewHistory"><i class="fas fa-history"></i> History</a>
-            <a href="#" data-tab="viewCustomers" id="navViewCustomers"><i class="fas fa-users"></i> Customers</a> <a href="#" data-tab="viewLogs" id="navViewLogs"><i class="fas fa-clipboard-list"></i> Logs</a>
-            <a href="#" data-tab="settings" id="navSettings"><i class="fas fa-cog"></i> Settings</a> 
-        </nav>
-
         <div class="user">
             <div class="avatar" id="userAvatar">O</div>
             <div class="meta" style="flex: 1;"><strong id="userRoleDisplay">Owner</strong><small id="userEmailDisplay">owner@rolewise.app</small></div>
         </div>
+
+        <nav class="nav" id="sideNav">
+            <a href="#" data-tab="dashboard" class="active"><i class="fas fa-th-large"></i> Dashboard</a>
+            <a href="#" data-tab="itemsList"><i class="fas fa-list"></i> Products</a>
+            <a href="#" data-tab="createQuotation"><i class="fas fa-file-invoice-dollar"></i> Quotations</a>
+            <a href="#" data-tab="viewCustomers" id="navViewCustomers"><i class="fas fa-users"></i> Customers</a>
+            <a href="#" data-tab="viewLogs" id="navViewLogs"><i class="fas fa-clipboard-list"></i> Logs</a>
+            <a href="#" data-tab="viewContactRequests" id="navViewContactRequests"><i class="fas fa-envelope"></i> Contact Requests</a>
+            <a href="#" data-tab="settings" id="navSettings"><i class="fas fa-cog"></i> Settings</a>
+        </nav>
+
+        <a href="#" id="getDemoBtn" class="btn primary sidebar-cta"><i class="fas fa-play-circle"></i> Get Demo</a>
+
         <button class="btn danger" id="logoutBtn" style="margin-top: 8px; width: 100%; padding: 8px; font-size: 13px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
     </aside>
 
     <main class="main">
-        <header class="header">
-            <h1 id="headerTitle">Owner Dashboard</h1>
-        </header>
+        <header class="header" aria-hidden="true"></header>
 
         <section id="dashboard" class="content-section">
-            <div class="section-tabs" id="dashboardTabs">
-                <button class="tab-btn" data-tab="itemsList">Products</button>
-                <button class="tab-btn" data-tab="addItem">Create Product</button>
-                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
-                <button class="tab-btn" data-tab="viewHistory">History</button>
-                <button class="tab-btn" data-tab="viewCustomers" id="tabViewCustomers">Customers</button> <button class="tab-btn log-tab-btn" data-tab="viewLogs" id="tabViewLogs">Logs</button>
-                <button class="tab-btn log-tab-btn" data-tab="settings" id="tabSettings">Settings</button>
-            </div>
-
             <div class="card">
                 <h2>Overview</h2>
                 <p class="muted">Quick summary of products, quotations and activity.</p>
@@ -123,6 +118,15 @@
                         <div id="summaryAvgQuotation" style="font-size:32px; font-weight:bold; color:#34495E;">—</div>
                         <div class="muted" style="font-size:12px; margin-top:4px;">Average quotation value</div>
                     </div>
+
+                    <div class="card" id="summaryContactRequestsCard" style="padding:16px; border-left: 4px solid #8E44AD;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <h3 style="margin:0; font-size:16px; color:#34495E;">Contact Requests</h3>
+                            <i class="fas fa-envelope" style="color:#90A4AE; font-size:20px;"></i>
+                        </div>
+                        <div id="summaryContactRequestsCount" style="font-size:32px; font-weight:bold; color:#34495E;">—</div>
+                        <div class="muted" style="font-size:12px; margin-top:4px;">Get In Touch submissions</div>
+                    </div>
                 </div>
 
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:20px">
@@ -145,12 +149,9 @@
 
         <section id="addItem" class="content-section" style="display:none">
             <div class="section-tabs">
-                <button class="tab-btn" data-tab="itemsList">Products</button>
-                <button class="tab-btn active" data-tab="addItem">Create Product</button>
-                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
-                <button class="tab-btn" data-tab="viewHistory">History</button>
-                <button class="tab-btn" data-tab="viewCustomers">Customers</button> <button class="tab-btn log-tab-btn" data-tab="viewLogs">Logs</button>
-                <button class="tab-btn log-tab-btn" data-tab="settings">Settings</button>
+                <button class="tab-btn active" data-tab="addItem">Create product</button>
+                <button class="tab-btn" data-tab="itemsList">Product history</button>
+                <button class="tab-btn" data-tab="itemDrafts">Drafts</button>
             </div>
 
             <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-top:12px">
@@ -183,9 +184,25 @@
 
                         <div class="form-field">
                             <label for="type">Type</label>
-                            <input type="text" id="type" list="product-types" placeholder="e.g. Laptop, Desktop" required autocomplete="off" oninput="updateTypeSuggestions()">
-                            <datalist id="product-types"></datalist>
-                            <div id="type-suggestions" style="font-size:12px; margin-top:4px; color:#7f8c8d;"></div>
+                            <select id="type" required style="padding:10px;border-radius:8px;border:1px solid var(--border);width:100%">
+                                <option value="">Select Product Type</option>
+                                <option value="laptop">LAPTOP</option>
+                                <option value="monitor">MONITOR</option>
+                                <option value="keyboard&mouse">KEYBOARD&MOUSE</option>
+                                <option value="printers">PRINTERS</option>
+                                <option value="accessories">ACCESSORIES</option>
+                                <option value="ups">UPS</option>
+                                <option value="networking products">NETWORKING PRODUCTS</option>
+                                <option value="others">OTHERS</option>
+                                <option value="cpu">CPU</option>
+                                <option value="motherboard">MOTHERBOARD</option>
+                                <option value="ram">RAM</option>
+                                <option value="gpu">GPU</option>
+                                <option value="psu">PSU</option>
+                                <option value="case">CASE</option>
+                                <option value="cooler">CPU COOLER</option>
+                                <option value="storage">STORAGE</option>
+                            </select>
                         </div>
 
                         <div class="form-field">
@@ -220,6 +237,54 @@
                             <textarea id="description" placeholder="e.g. Core i7, 16GB RAM, 1TB SSD, RTX 3080" oninput="validateDescription()"></textarea>
                             <div id="description-validation" style="font-size:12px; margin-top:4px;"></div>
                         </div>
+
+                        <details style="grid-column: 1 / 3; margin-top:12px; padding:12px; background:#f8f9fa; border-radius:8px; border:1px solid #e9ecef;">
+                            <summary style="cursor:pointer; font-weight:600;">Compatibility Fields (optional – show based on Type)</summary>
+                            <p class="muted" id="compatTypeHint" style="margin-top:8px; font-size:12px;">Select a product type to see relevant fields.</p>
+                            <div id="compatFieldsContainer" class="form-grid-2" style="margin-top:12px; gap:8px;">
+                                <div class="form-field compat-field" data-compat-for="cpu motherboard"><label for="compat-socket">Socket</label><input type="text" id="compat-socket" placeholder="e.g. AM5, LGA1700"></div>
+                                <div class="form-field compat-field" data-compat-for="cpu gpu cooler"><label for="compat-tdp">TDP (W)</label><input type="number" id="compat-tdp" placeholder="e.g. 65" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="cpu motherboard ram"><label for="compat-memory-type">Memory Type</label><input type="text" id="compat-memory-type" placeholder="e.g. DDR5, DDR4"></div>
+                                <div class="form-field compat-field" data-compat-for="cpu motherboard"><label for="compat-max-memory-speed">Max Memory Speed</label><input type="text" id="compat-max-memory-speed" placeholder="e.g. 5600MT/s"></div>
+                                <div class="form-field compat-field" data-compat-for="cpu motherboard gpu"><label for="compat-pcie-version">PCIe Version</label><input type="text" id="compat-pcie-version" placeholder="e.g. PCIe 4.0"></div>
+                                <div class="form-field compat-field" data-compat-for="cpu"><label for="compat-generation">Generation</label><input type="text" id="compat-generation" placeholder="e.g. 14th Gen"></div>
+                                <div class="form-field compat-field" data-compat-for="cpu"><label for="compat-bios-version">BIOS Version Required</label><input type="text" id="compat-bios-version" placeholder="e.g. P1.20"></div>
+                                <div class="form-field compat-field" data-compat-for="motherboard"><label for="compat-chipset">Chipset</label><input type="text" id="compat-chipset" placeholder="e.g. Z790, B650"></div>
+                                <div class="form-field compat-field" data-compat-for="motherboard psu"><label for="compat-form-factor">Form Factor</label><input type="text" id="compat-form-factor" placeholder="e.g. ATX, mATX, SFX"></div>
+                                <div class="form-field compat-field" data-compat-for="motherboard"><label for="compat-memory-slots">Memory Slots</label><input type="number" id="compat-memory-slots" placeholder="e.g. 4" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="motherboard"><label for="compat-max-memory">Max Memory (GB)</label><input type="text" id="compat-max-memory" placeholder="e.g. 128GB"></div>
+                                <div class="form-field compat-field" data-compat-for="motherboard"><label for="compat-pcie-x16-slots">PCIe x16 Slots</label><input type="number" id="compat-pcie-x16-slots" placeholder="e.g. 2" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="motherboard"><label for="compat-m2-slots">M.2 Slots</label><input type="number" id="compat-m2-slots" placeholder="e.g. 2" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="motherboard"><label for="compat-sata-ports">SATA Ports</label><input type="number" id="compat-sata-ports" placeholder="e.g. 6" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="motherboard"><label for="compat-supported-cpu-generations">Supported CPU Generations</label><input type="text" id="compat-supported-cpu-generations" placeholder="e.g. 12th, 13th, 14th"></div>
+                                <div class="form-field compat-field" data-compat-for="motherboard"><label for="compat-wifi-support">WiFi Support</label><input type="text" id="compat-wifi-support" placeholder="e.g. WiFi 6E"></div>
+                                <div class="form-field compat-field" data-compat-for="ram"><label for="compat-capacity-per-module">Capacity Per Module</label><input type="text" id="compat-capacity-per-module" placeholder="e.g. 8GB, 16GB"></div>
+                                <div class="form-field compat-field" data-compat-for="ram"><label for="compat-modules-count">Modules Count</label><input type="number" id="compat-modules-count" placeholder="e.g. 2" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="ram"><label for="compat-speed">Speed</label><input type="text" id="compat-speed" placeholder="e.g. 5600MT/s"></div>
+                                <div class="form-field compat-field" data-compat-for="ram"><label for="compat-voltage">Voltage</label><input type="text" id="compat-voltage" placeholder="e.g. 1.35V"></div>
+                                <div class="form-field compat-field" data-compat-for="gpu storage"><label for="compat-length-mm">Length (mm)</label><input type="number" id="compat-length-mm" placeholder="GPU: 320, M.2: 80" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="gpu cooler"><label for="compat-height-mm">Height (mm)</label><input type="number" id="compat-height-mm" placeholder="e.g. 140" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="gpu"><label for="compat-thickness-slots">Thickness (Slots)</label><input type="number" id="compat-thickness-slots" placeholder="e.g. 2" min="1"></div>
+                                <div class="form-field compat-field" data-compat-for="gpu"><label for="compat-required-pcie">Required PCIe Connectors</label><input type="text" id="compat-required-pcie" placeholder="e.g. 2x8-pin"></div>
+                                <div class="form-field compat-field" data-compat-for="gpu"><label for="compat-recommended-psu-wattage">Recommended PSU Wattage</label><input type="number" id="compat-recommended-psu-wattage" placeholder="e.g. 650" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="psu"><label for="compat-wattage">Wattage</label><input type="number" id="compat-wattage" placeholder="e.g. 650" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="psu"><label for="compat-pcie-connectors">PCIe Connectors</label><input type="text" id="compat-pcie-connectors" placeholder="e.g. 2x8-pin"></div>
+                                <div class="form-field compat-field" data-compat-for="psu"><label for="compat-cpu-power-connectors">CPU Power Connectors</label><input type="text" id="compat-cpu-power-connectors" placeholder="e.g. 8+4"></div>
+                                <div class="form-field compat-field" data-compat-for="psu"><label for="compat-sata-connectors">SATA Connectors</label><input type="number" id="compat-sata-connectors" placeholder="e.g. 6" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="psu"><label for="compat-modular-type">Modular Type</label><input type="text" id="compat-modular-type" placeholder="e.g. Fully, Semi"></div>
+                                <div class="form-field compat-field" data-compat-for="case"><label for="compat-supported-form-factors">Supported Form Factors</label><input type="text" id="compat-supported-form-factors" placeholder="e.g. ATX, mATX, ITX"></div>
+                                <div class="form-field compat-field" data-compat-for="case"><label for="compat-max-gpu-length">Max GPU Length (mm)</label><input type="number" id="compat-max-gpu-length" placeholder="e.g. 400" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="case"><label for="compat-max-cpu-cooler-height">Max CPU Cooler Height (mm)</label><input type="number" id="compat-max-cpu-cooler-height" placeholder="e.g. 165" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="case"><label for="compat-psu-support">PSU Support</label><input type="text" id="compat-psu-support" placeholder="e.g. ATX, SFX"></div>
+                                <div class="form-field compat-field" data-compat-for="case"><label for="compat-drive-bays-25">2.5" Drive Bays</label><input type="number" id="compat-drive-bays-25" placeholder="e.g. 2" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="case"><label for="compat-drive-bays-35">3.5" Drive Bays</label><input type="number" id="compat-drive-bays-35" placeholder="e.g. 2" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="cooler"><label for="compat-supported-sockets">Supported Sockets</label><input type="text" id="compat-supported-sockets" placeholder="e.g. AM5, LGA1700"></div>
+                                <div class="form-field compat-field" data-compat-for="cooler"><label for="compat-tdp-rating">TDP Rating (W)</label><input type="number" id="compat-tdp-rating" placeholder="e.g. 150" min="0"></div>
+                                <div class="form-field compat-field" data-compat-for="cooler"><label for="compat-radiator-size">Radiator Size (AIO)</label><input type="text" id="compat-radiator-size" placeholder="e.g. 240mm, 360mm"></div>
+                                <div class="form-field compat-field" data-compat-for="storage motherboard gpu"><label for="compat-interface-type">Interface Type</label><input type="text" id="compat-interface-type" placeholder="e.g. NVMe, SATA"></div>
+                                <div class="form-field compat-field" data-compat-for="storage"><label for="compat-storage-form-factor">Storage Form Factor</label><input type="text" id="compat-storage-form-factor" placeholder="e.g. M.2 2280, 2.5"></div>
+                            </div>
+                        </details>
 
                         <div style="grid-column: 1 / 3; display:flex;justify-content:flex-end;gap:8px;">
                             <button type="reset" class="btn" onclick="resetAddProductForm()">Reset</button>
@@ -278,18 +343,37 @@
                             <p class="muted" style="text-align:center; padding:20px;">Loading...</p>
                         </div>
                     </div>
+                    <div class="card" style="margin-top:12px" id="productDraftsCard">
+                        <h3 style="margin:0 0 10px 0; font-size:16px; color:#34495E;"><i class="fas fa-save"></i> Saved drafts</h3>
+                        <p class="muted" style="font-size:12px; margin-bottom:10px;">Recovered when browser or system stopped. Resume to edit or convert to final product.</p>
+                        <div id="productDraftsList" style="max-height:180px; overflow-y:auto;">
+                            <p class="muted" style="text-align:center; padding:12px; font-size:13px;">No drafts</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="quotationDrafts" class="content-section" style="display:none">
+            <div class="section-tabs">
+                <button class="tab-btn" data-tab="createQuotation">Create quotation</button>
+                <button class="tab-btn" data-tab="viewHistory">Quotation history</button>
+                <button class="tab-btn active" data-tab="quotationDrafts">Drafts</button>
+            </div>
+            <div class="card" style="flex-grow: 1;">
+                <h2>Quotation drafts</h2>
+                <p class="muted">Saved when the browser or system stopped. Resume to edit in Create quotation, or convert to a final quotation.</p>
+                <div id="quotationDraftsPageList" style="margin-top:16px; min-height:200px;">
+                    <p class="muted" style="text-align:center; padding:24px;">Loading drafts…</p>
                 </div>
             </div>
         </section>
 
         <section id="itemsList" class="content-section" style="display:none">
             <div class="section-tabs">
-                <button class="tab-btn active" data-tab="itemsList">Products</button>
-                <button class="tab-btn" data-tab="addItem">Create Product</button>
-                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
-                <button class="tab-btn" data-tab="viewHistory">History</button>
-                <button class="tab-btn" data-tab="viewCustomers">Customers</button> <button class="tab-btn log-tab-btn" data-tab="viewLogs">Logs</button>
-                <button class="tab-btn log-tab-btn" data-tab="settings">Settings</button>
+                <button class="tab-btn" data-tab="addItem">Create product</button>
+                <button class="tab-btn active" data-tab="itemsList">Product history</button>
+                <button class="tab-btn" data-tab="itemDrafts">Drafts</button>
             </div>
 
             <div class="card" style="flex-grow: 1;">
@@ -301,6 +385,13 @@
                 
                 <div style="margin-top: 12px; margin-bottom: 18px;">
                     <input type="text" id="productListSearchInput" placeholder="Search products by Name or ID..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">
+                </div>
+                
+                <!-- Price Sort Button -->
+                <div style="margin-bottom: 12px;">
+                    <button id="priceSortBtn" class="btn secondary" style="margin-right: 8px;" onclick="togglePriceSort()">
+                        <i class="fas fa-sort"></i> Price: <span id="priceSortText">Low to High</span>
+                    </button>
                 </div>
                 
                 <!-- Product Type Navigation Buttons (Filters) -->
@@ -435,14 +526,26 @@
             </div>
         </section>
 
+        <section id="itemDrafts" class="content-section" style="display:none">
+            <div class="section-tabs">
+                <button class="tab-btn" data-tab="addItem">Create product</button>
+                <button class="tab-btn" data-tab="itemsList">Product history</button>
+                <button class="tab-btn active" data-tab="itemDrafts">Drafts</button>
+            </div>
+            <div class="card" style="flex-grow: 1;">
+                <h2>Product drafts</h2>
+                <p class="muted">Saved when the browser or system stopped. Resume to edit in Create product, or convert to a final product.</p>
+                <div id="productDraftsPageList" style="margin-top:16px; min-height:200px;">
+                    <p class="muted" style="text-align:center; padding:24px;">Loading drafts…</p>
+                </div>
+            </div>
+        </section>
+
         <section id="createQuotation" class="content-section" style="display:none">
             <div class="section-tabs">
-                <button class="tab-btn" data-tab="itemsList">Products</button>
-                <button class="tab-btn" data-tab="addItem">Create Product</button>
-                <button class="tab-btn active" data-tab="createQuotation">Create Quotation</button>
-                <button class="tab-btn" data-tab="viewHistory">History</button>
-                <button class="tab-btn" data-tab="viewCustomers">Customers</button> <button class="tab-btn log-tab-btn" data-tab="viewLogs">Logs</button>
-                <button class="tab-btn log-tab-btn" data-tab="settings">Settings</button>
+                <button class="tab-btn active" data-tab="createQuotation">Create quotation</button>
+                <button class="tab-btn" data-tab="viewHistory">Quotation history</button>
+                <button class="tab-btn" data-tab="quotationDrafts">Drafts</button>
             </div>
 
             <div class="card" style="flex-grow: 1;">
@@ -472,6 +575,28 @@
                             <textarea id="cust-address" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)" placeholder="Address"></textarea>
                         </div>
                         
+                        <div style="margin-top:10px">
+                            <label class="muted">Upload Image <span class="muted">(Optional, for quotation page 2)</span></label>
+                            <div style="position: relative; border: 2px dashed #cbd5e1; border-radius:8px; padding:20px; text-align:center; background:#f8fafc; transition: all 0.3s ease; cursor: pointer;" 
+                                 onmouseover="this.style.borderColor='#3b82f6'; this.style.background='#eff6ff';" 
+                                 onmouseout="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';">
+                                <input id="quotation-image" type="file" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none;">
+                                <div style="pointer-events: none;">
+                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px;">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                        <polyline points="21 15 16 10 5 21"></polyline>
+                                    </svg>
+                                    <div style="color:#6b7280; font-size:14px; margin-bottom:4px;">Click to upload image</div>
+                                    <div style="color:#9ca3af; font-size:12px;">PNG, JPG, GIF, WebP • Max 10MB • One image only</div>
+                                </div>
+                            </div>
+                            <div id="imagePreview" style="margin-top:12px; display:none; padding:12px; border:1px solid #e5e7eb; border-radius:8px; background:#ffffff;">
+                                <div id="imagePreviewList" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;"></div>
+                                <button type="button" id="removeAllImagesBtn" style="margin-top:8px; padding:6px 12px; border-radius:6px; border:1px solid #dc3545; background:#dc3545; color:white; cursor:pointer; font-size:12px; font-weight:500;">Remove</button>
+                            </div>
+                        </div>
+                        
                         <div class="card" style="margin-top:12px">
                             <h2>Quotation Items</h2>
                             <table class="data-table">
@@ -488,6 +613,11 @@
                                 <input id="itemSearchInput" placeholder="Search products by Name or ID..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">
                                 <!-- Dynamic type filters for quotation items -->
                                 <div id="quotationTypeFilters" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:6px;"></div>
+                                <label style="margin-top:10px; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+                                    <input type="checkbox" id="compatibleFilterToggle" style="cursor:pointer;">
+                                    <span>Show compatible products only</span>
+                                </label>
+                                <p class="muted" id="compatibleFilterHint" style="margin-top:4px; font-size:12px; display:none;">Filters products by compatibility with items already in quotation (CPU, Motherboard, RAM, GPU, Case, etc.)</p>
                                 <style>
                                     .type-filter-btn.active {
                                         background: linear-gradient(135deg, #35b3e7 0%, #5490cc 100%) !important;
@@ -515,6 +645,13 @@
                             </div>
                             <button id="createQuotationBtn" class="btn primary" style="width:100%"><i class="fas fa-file-invoice-dollar"></i> Create Quotation</button>
                         </div>
+                        <div class="card" style="margin-top:12px" id="quotationDraftsCard">
+                            <h3 style="margin:0 0 10px 0; font-size:16px; color:#34495E;"><i class="fas fa-save"></i> Saved drafts</h3>
+                            <p class="muted" style="font-size:12px; margin-bottom:10px;">Recovered when browser or system stopped. Resume to edit or convert to final quotation.</p>
+                            <div id="quotationDraftsList" style="max-height:200px; overflow-y:auto;">
+                                <p class="muted" style="text-align:center; padding:12px; font-size:13px;">No drafts</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -522,16 +659,16 @@
 
         <section id="viewHistory" class="content-section" style="display:none">
             <div class="section-tabs">
-                <button class="tab-btn" data-tab="itemsList">Products</button>
-                <button class="tab-btn" data-tab="addItem">Create Product</button>
-                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
-                <button class="tab-btn active" data-tab="viewHistory">History</button>
-                <button class="tab-btn" data-tab="viewCustomers">Customers</button> <button class="tab-btn log-tab-btn" data-tab="viewLogs">Logs</button>
-                <button class="tab-btn log-tab-btn" data-tab="settings">Settings</button>
+                <button class="tab-btn" data-tab="createQuotation">Create quotation</button>
+                <button class="tab-btn active" data-tab="viewHistory">Quotation history</button>
+                <button class="tab-btn" data-tab="quotationDrafts">Drafts</button>
             </div>
 
             <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
-                <h2>Quotation History</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <h2 style="margin: 0;">Quotation History</h2>
+                    <button type="button" class="btn primary" onclick="exportQuotationHistoryToCsv()" title="Export to CSV"><i class="fas fa-file-export"></i> Export</button>
+                </div>
                 <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 250px);">
                     <table class="data-table" id="historyTable">
                         <thead><tr><th>Quotation ID</th><th>Customer Name</th><th>Date Created</th><th>Total Amount (₹)</th><th>Items Count</th><th>Created By</th><th>Actions</th></tr></thead>
@@ -554,56 +691,161 @@
 
         <section id="viewCustomers" class="content-section" style="display:none">
             <div class="section-tabs">
-                <button class="tab-btn" data-tab="itemsList">Products</button>
-                <button class="tab-btn" data-tab="addItem">Create Product</button>
-                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
-                <button class="tab-btn" data-tab="viewHistory">History</button>
-                <button class="tab-btn active" data-tab="viewCustomers">Customers</button>
-                <button class="tab-btn log-tab-btn" data-tab="viewLogs">Logs</button>
-                <button class="tab-btn log-tab-btn" data-tab="settings">Settings</button>
+                <button class="tab-btn active" data-subtab="customerHistory">Customer history</button>
+                <button class="tab-btn" data-subtab="customerDetails">Customer details</button>
             </div>
 
-            <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
-                <h2>Customer List</h2>
-                <p class="muted">List of all customers who have received a quotation.</p>
-                <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 250px);">
-                    <table class="data-table" id="customersTable">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Address</th>
-                                <th>Last Quotation Date</th>
-                            </tr>
-                        </thead>
-                        <tbody id="customersListBody">
-                            <tr><td colspan="5" class="muted" style="text-align:center">Customer data must be compiled from the Quotation History list.</td></tr>
-                        </tbody>
-                    </table>
+            <div id="customerHistoryView" class="customer-sub-view">
+                <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                        <h2 style="margin: 0;">Customer List</h2>
+                        <button type="button" class="btn primary" onclick="exportCustomerHistoryToCsv()" title="Export to CSV"><i class="fas fa-file-export"></i> Export</button>
+                    </div>
+                    <p class="muted">List of all customers who have received a quotation.</p>
+                    <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 250px);">
+                        <table class="data-table" id="customersTable">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Address</th>
+                                    <th>Last Quotation Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customersListBody">
+                                <tr><td colspan="6" class="muted" style="text-align:center">Customer data must be compiled from the Quotation History list.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="customersPagination" style="display: flex; justify-content: center; align-items: center; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 12px; gap: 8px; flex-wrap: wrap;">
+                        <button id="customersPrevBtn" class="pagination-btn" onclick="goToCustomersPage(-1)" disabled>
+                            <i class="fas fa-chevron-left"></i> Previous
+                        </button>
+                        <div id="customersPageNumbers" style="display: flex; gap: 6px; align-items: center;"></div>
+                        <button id="customersNextBtn" class="pagination-btn" onclick="goToCustomersPage(1)" disabled>
+                            Next <i class="fas fa-chevron-right"></i>
+                        </button>
+                        <div id="customersPageInfo" style="margin-left: 12px; padding: 8px 12px; background: white; border-radius: 8px; font-size: 13px; color: #7f8c8d; border: 1px solid #e0e0e0;"></div>
+                    </div>
                 </div>
-                <div id="customersPagination" style="display: flex; justify-content: center; align-items: center; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 12px; gap: 8px; flex-wrap: wrap;">
-                    <button id="customersPrevBtn" class="pagination-btn" onclick="goToCustomersPage(-1)" disabled>
-                        <i class="fas fa-chevron-left"></i> Previous
-                    </button>
-                    <div id="customersPageNumbers" style="display: flex; gap: 6px; align-items: center;"></div>
-                    <button id="customersNextBtn" class="pagination-btn" onclick="goToCustomersPage(1)" disabled>
-                        Next <i class="fas fa-chevron-right"></i>
-                    </button>
-                    <div id="customersPageInfo" style="margin-left: 12px; padding: 8px 12px; background: white; border-radius: 8px; font-size: 13px; color: #7f8c8d; border: 1px solid #e0e0e0;"></div>
+            </div>
+            <div id="customerDetailsView" class="customer-sub-view" style="display:none;">
+                <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
+                    <h2>Customer Details</h2>
+                    <p class="muted">List of all customers with their detailed information.</p>
+                    <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 250px);">
+                        <table class="data-table" id="customerDetailsTable">
+                            <thead>
+                                <tr>
+                                    <th>S.No</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Address</th>
+                                    <th>Last Quotation Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customerDetailsListBody">
+                                <tr><td colspan="7" class="muted" style="text-align:center">Customer data will be loaded here.</td></tr>
+                            </tbody>
+                        </table>
+                        <style>
+                            .customer-row {
+                                cursor: pointer;
+                                transition: background-color 0.2s ease;
+                            }
+                            .customer-row:hover {
+                                background-color: #f8f9fa;
+                            }
+                            .customer-row.expanded {
+                                background-color: #e3f2fd;
+                            }
+                            .customer-quotation-row {
+                                background-color: #ffffff;
+                                border-left: 3px solid #2196f3;
+                            }
+                            .quotation-details {
+                                padding: 15px;
+                                background-color: #fafafa;
+                                border-radius: 8px;
+                                margin: 8px 0;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                            }
+                            .quotation-header {
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                margin-bottom: 10px;
+                                padding-bottom: 8px;
+                                border-bottom: 1px solid #e0e0e0;
+                            }
+                            .quotation-id {
+                                font-weight: bold;
+                                color: #2196f3;
+                            }
+                            .quotation-date {
+                                color: #666;
+                                font-size: 12px;
+                            }
+                            .quotation-items {
+                                margin-top: 10px;
+                            }
+                            .quotation-item {
+                                padding: 8px;
+                                margin: 5px 0;
+                                background-color: white;
+                                border-radius: 4px;
+                                border: 1px solid #e0e0e0;
+                            }
+                            .expand-icon {
+                                transition: transform 0.2s ease;
+                            }
+                            .expand-icon.rotated {
+                                transform: rotate(90deg);
+                            }
+                        </style>
+                    </div>
+                    <div id="customerDetailsPagination" style="display: flex; justify-content: center; align-items: center; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 12px; gap: 8px; flex-wrap: wrap;">
+                        <button id="customerDetailsPrevBtn" class="pagination-btn" onclick="goToCustomerDetailsPage(-1)" disabled>
+                            <i class="fas fa-chevron-left"></i> Previous
+                        </button>
+                        <div id="customerDetailsPageNumbers" style="display: flex; gap: 6px; align-items: center;"></div>
+                        <button id="customerDetailsNextBtn" class="pagination-btn" onclick="goToCustomerDetailsPage(1)" disabled>
+                            Next <i class="fas fa-chevron-right"></i>
+                        </button>
+                        <div id="customerDetailsPageInfo" style="margin-left: 12px; padding: 8px 12px; background: white; border-radius: 8px; font-size: 13px; color: #7f8c8d; border: 1px solid #e0e0e0;"></div>
+                    </div>
                 </div>
             </div>
         </section>
-        <section id="viewLogs" class="content-section" style="display:none">
-            <div class="section-tabs">
-                <button class="tab-btn" data-tab="itemsList">Products</button>
-                <button class="tab-btn" data-tab="addItem">Create Product</button>
-                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
-                <button class="tab-btn" data-tab="viewHistory">History</button>
-                <button class="tab-btn" data-tab="viewCustomers">Customers</button> <button class="tab-btn active" data-tab="viewLogs">Logs</button>
-                <button class="tab-btn log-tab-btn" data-tab="settings">Settings</button>
+        <section id="viewContactRequests" class="content-section" style="display:none">
+            <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
+                <h2>Contact Requests</h2>
+                <p class="muted">Messages submitted via the Get In Touch form on the landing page.</p>
+                <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 250px);">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Message</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactRequestsListBody"></tbody>
+                    </table>
+                    <p id="noContactRequestsMessage" class="muted" style="text-align:center;padding:18px;display:none;">No contact requests yet.</p>
+                </div>
             </div>
+        </section>
 
+        <section id="viewLogs" class="content-section" style="display:none">
             <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
                 <h2>User Activity Logs</h2>
                 <p class="muted">A chronological record of actions taken by users across roles. Owner can delete logs.</p>
@@ -622,29 +864,10 @@
                     </table>
                     <p id="noLogsMessage" class="muted" style="text-align:center;padding:18px;display:none;">No user activity logs recorded yet.</p>
                 </div>
-                <div id="logsPagination" style="display: flex; justify-content: center; align-items: center; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 12px; gap: 8px; flex-wrap: wrap;">
-                    <button id="logsPrevBtn" class="pagination-btn" onclick="goToLogsPage(-1)" disabled>
-                        <i class="fas fa-chevron-left"></i> Previous
-                    </button>
-                    <div id="logsPageNumbers" style="display: flex; gap: 6px; align-items: center;"></div>
-                    <button id="logsNextBtn" class="pagination-btn" onclick="goToLogsPage(1)" disabled>
-                        Next <i class="fas fa-chevron-right"></i>
-                    </button>
-                    <div id="logsPageInfo" style="margin-left: 12px; padding: 8px 12px; background: white; border-radius: 8px; font-size: 13px; color: #7f8c8d; border: 1px solid #e0e0e0;"></div>
-                </div>
             </div>
         </section>
 
         <section id="settings" class="content-section" style="display:none">
-            <div class="section-tabs">
-                <button class="tab-btn" data-tab="itemsList">Products</button>
-                <button class="tab-btn" data-tab="addItem">Create Product</button>
-                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
-                <button class="tab-btn" data-tab="viewHistory">History</button>
-                <button class="tab-btn" data-tab="viewCustomers">Customers</button> <button class="tab-btn" data-tab="viewLogs">Logs</button>
-                <button class="tab-btn active" data-tab="settings">Settings</button>
-            </div>
-
             <div class="card">
                 <h2>Company Logo</h2>
                 <p class="muted">Upload your company logo for use on generated quotations.</p>
@@ -703,6 +926,35 @@
                 </div>
             </div>
 
+            <div class="card">
+                <h2>PDF Theme Settings</h2>
+                <p class="muted">Choose the color theme for your generated quotation PDFs.</p>
+                <div style="margin-top:18px">
+                    <div class="form-field" style="display:flex; align-items:center; gap:15px">
+                        <label for="settings-pdf-theme" style="margin:0; width:150px">PDF Theme</label>
+                        <select id="settings-pdf-theme" style="width:200px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
+                            <option value="default">Default (Blue)</option>
+                            <option value="green">Green</option>
+                            <option value="red">Red</option>
+                            <option value="purple">Purple</option>
+                            <option value="orange">Orange</option>
+                            <option value="teal">Teal</option>
+                            <option value="gray">Gray</option>
+                        </select>
+                        <button class="btn primary" id="savePdfThemeBtn"><i class="fas fa-save"></i> Save Theme</button>
+                    </div>
+                    <div id="themePreview" style="margin-top:15px; padding:12px; border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb;">
+                        <div style="font-size:12px; font-weight:600; margin-bottom:8px; color:#374151;">Theme Preview:</div>
+                        <div id="themePreviewContent" style="display:flex; align-items:center; gap:10px;">
+                            <div id="previewHeader" style="width:60px; height:20px; background:#3A648C; border-radius:3px;"></div>
+                            <div id="previewAccent" style="width:40px; height:20px; background:#111827; border-radius:3px;"></div>
+                            <div id="previewBorder" style="width:40px; height:20px; background:#e5e7eb; border-radius:3px;"></div>
+                        </div>
+                    </div>
+                    <small class="muted" style="display:block;margin-top:8px">The selected theme will be applied to headers, borders, and accent colors in your PDF quotations.</small>
+                </div>
+            </div>
+
         </section>
 
     </main>
@@ -728,6 +980,87 @@
             </div>
             <div id="quotationViewContent" style="padding: 20px; max-height: calc(100vh - 120px); overflow-y: auto; display: flex; justify-content: center; align-items: flex-start;">
                 <!-- Quotation content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Customer Modal -->
+    <div id="editCustomerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; overflow-y: auto;">
+        <div style="position: relative; max-width: 520px; margin: 20px auto; background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <div style="position: sticky; top: 0; background: #fff; padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0; z-index: 1;">
+                <h3 style="margin: 0; font-size: 18px; color: #34495E;">Edit Customer</h3>
+                <button type="button" id="closeEditCustomerModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 0; width: 30px; height: 30px;">&times;</button>
+            </div>
+            <div style="padding: 20px;">
+                <form id="editCustomerForm" class="form-grid-2" style="margin-top:12px">
+                    <div class="form-field" style="grid-column: 1 / 3;">
+                        <label for="edit-cust-phone">Phone (identifier)</label>
+                        <input type="text" id="edit-cust-phone" readonly>
+                    </div>
+                    <div class="form-field" style="grid-column: 1 / 3;">
+                        <label for="edit-cust-name">Name</label>
+                        <input type="text" id="edit-cust-name" placeholder="Customer name" required>
+                    </div>
+                    <div class="form-field" style="grid-column: 1 / 3;">
+                        <label for="edit-cust-email">Email</label>
+                        <input type="email" id="edit-cust-email" placeholder="customer@example.com">
+                    </div>
+                    <div class="form-field" style="grid-column: 1 / 3;">
+                        <label for="edit-cust-address">Address</label>
+                        <textarea id="edit-cust-address" placeholder="Full address" rows="3"></textarea>
+                    </div>
+                    <div style="grid-column: 1 / 3; display:flex;justify-content:flex-end;gap:8px; margin-top: 10px;">
+                        <button type="button" class="btn" id="cancelEditCustomerBtn">Cancel</button>
+                        <button type="submit" class="btn primary">Update Customer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Quotation Modal -->
+    <div id="editQuotationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; overflow-y: auto;">
+        <div style="position: relative; max-width: 800px; margin: 20px auto; background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <div style="position: sticky; top: 0; background: #fff; padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0; z-index: 1;">
+                <h3 style="margin: 0; font-size: 18px; color: #34495E;">Edit Quotation <span id="editQuotationIdLabel"></span></h3>
+                <button type="button" id="closeEditQuotationModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 0; width: 30px; height: 30px;">&times;</button>
+            </div>
+            <div style="padding: 20px; max-height: calc(100vh - 140px); overflow-y: auto;">
+                <form id="editQuotationForm">
+                    <div class="form-grid-2" style="margin-bottom: 20px;">
+                        <div class="form-field" style="grid-column: 1 / 3;"><label>Customer</label></div>
+                        <div class="form-field"><label for="edit-quote-name">Name</label><input type="text" id="edit-quote-name" required></div>
+                        <div class="form-field"><label for="edit-quote-phone">Phone</label><input type="tel" id="edit-quote-phone" required></div>
+                        <div class="form-field" style="grid-column: 1 / 3;"><label for="edit-quote-email">Email</label><input type="email" id="edit-quote-email" placeholder="customer@example.com"></div>
+                        <div class="form-field" style="grid-column: 1 / 3;"><label for="edit-quote-address">Address</label><textarea id="edit-quote-address" rows="2" placeholder="Address"></textarea></div>
+                        <div class="form-field"><label for="edit-quote-discount">Discount (%)</label><input type="number" id="edit-quote-discount" min="0" max="100" step="0.01" value="0"></div>
+                        <div class="form-field" style="grid-column: 1 / 3;">
+                            <label class="muted">Images <span class="muted">(Optional)</span></label>
+                            <div style="position: relative; border: 2px dashed #cbd5e1; border-radius:8px; padding:16px; text-align:center; background:#f8fafc; cursor: pointer;" id="editQuoteImageDropZone">
+                                <input id="edit-quote-image" type="file" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;">
+                                <div style="color:#6b7280; font-size:13px;">Click to add image • PNG, JPG, GIF, WebP • 10MB max</div>
+                            </div>
+                            <div id="editQuoteImagePreview" style="margin-top:10px; display:none;">
+                                <div id="editQuoteImagePreviewList" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+                                <button type="button" id="editQuoteRemoveAllImages" class="btn" style="margin-top:8px; font-size:12px; color:#dc3545;">Remove</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 12px;"><strong>Items</strong> <button type="button" class="btn" style="padding: 4px 10px; font-size: 12px;" id="editQuoteAddItemBtn"><i class="fas fa-plus"></i> Add Row</button></div>
+                    <div style="overflow-x: auto;">
+                        <table class="data-table" style="margin-bottom: 16px;">
+                            <thead><tr><th>Product</th><th>Price (₹)</th><th>Qty</th><th>GST (%)</th><th></th></tr></thead>
+                            <tbody id="editQuotationItemsBody"></tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top: 12px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
+                        <strong>Grand Total: ₹</strong><span id="editQuotationGrandTotal">0</span>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;gap:8px; margin-top: 16px;">
+                        <button type="button" class="btn" id="cancelEditQuotationBtn">Cancel</button>
+                        <button type="submit" class="btn primary">Update Quotation</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -784,6 +1117,54 @@
                         <textarea id="edit-description" placeholder="e.g. Core i7, 16GB RAM, 1TB SSD, RTX 3080"></textarea>
                     </div>
 
+                    <details style="grid-column: 1 / 3; margin-top:12px; padding:12px; background:#f8f9fa; border-radius:8px; border:1px solid #e9ecef;">
+                        <summary style="cursor:pointer; font-weight:600;">Compatibility Fields (optional)</summary>
+                        <p class="muted" id="editCompatTypeHint" style="margin-top:8px; font-size:12px;">Select a product type to see relevant fields.</p>
+                        <div id="editCompatFieldsContainer" class="form-grid-2" style="margin-top:12px; gap:8px;">
+                            <div class="form-field compat-field" data-compat-for="cpu motherboard"><label for="edit-compat-socket">Socket</label><input type="text" id="edit-compat-socket"></div>
+                            <div class="form-field compat-field" data-compat-for="cpu gpu cooler"><label for="edit-compat-tdp">TDP (W)</label><input type="number" id="edit-compat-tdp" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="cpu motherboard ram"><label for="edit-compat-memory-type">Memory Type</label><input type="text" id="edit-compat-memory-type"></div>
+                            <div class="form-field compat-field" data-compat-for="cpu motherboard"><label for="edit-compat-max-memory-speed">Max Memory Speed</label><input type="text" id="edit-compat-max-memory-speed"></div>
+                            <div class="form-field compat-field" data-compat-for="cpu motherboard gpu"><label for="edit-compat-pcie-version">PCIe Version</label><input type="text" id="edit-compat-pcie-version"></div>
+                            <div class="form-field compat-field" data-compat-for="cpu"><label for="edit-compat-generation">Generation</label><input type="text" id="edit-compat-generation"></div>
+                            <div class="form-field compat-field" data-compat-for="cpu"><label for="edit-compat-bios-version">BIOS Version Required</label><input type="text" id="edit-compat-bios-version"></div>
+                            <div class="form-field compat-field" data-compat-for="motherboard"><label for="edit-compat-chipset">Chipset</label><input type="text" id="edit-compat-chipset"></div>
+                            <div class="form-field compat-field" data-compat-for="motherboard psu"><label for="edit-compat-form-factor">Form Factor</label><input type="text" id="edit-compat-form-factor"></div>
+                            <div class="form-field compat-field" data-compat-for="motherboard"><label for="edit-compat-memory-slots">Memory Slots</label><input type="number" id="edit-compat-memory-slots" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="motherboard"><label for="edit-compat-max-memory">Max Memory (GB)</label><input type="text" id="edit-compat-max-memory"></div>
+                            <div class="form-field compat-field" data-compat-for="motherboard"><label for="edit-compat-pcie-x16-slots">PCIe x16 Slots</label><input type="number" id="edit-compat-pcie-x16-slots" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="motherboard"><label for="edit-compat-m2-slots">M.2 Slots</label><input type="number" id="edit-compat-m2-slots" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="motherboard"><label for="edit-compat-sata-ports">SATA Ports</label><input type="number" id="edit-compat-sata-ports" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="motherboard"><label for="edit-compat-supported-cpu-generations">Supported CPU Generations</label><input type="text" id="edit-compat-supported-cpu-generations"></div>
+                            <div class="form-field compat-field" data-compat-for="motherboard"><label for="edit-compat-wifi-support">WiFi Support</label><input type="text" id="edit-compat-wifi-support"></div>
+                            <div class="form-field compat-field" data-compat-for="ram"><label for="edit-compat-capacity-per-module">Capacity Per Module</label><input type="text" id="edit-compat-capacity-per-module"></div>
+                            <div class="form-field compat-field" data-compat-for="ram"><label for="edit-compat-modules-count">Modules Count</label><input type="number" id="edit-compat-modules-count" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="ram"><label for="edit-compat-speed">Speed</label><input type="text" id="edit-compat-speed"></div>
+                            <div class="form-field compat-field" data-compat-for="ram"><label for="edit-compat-voltage">Voltage</label><input type="text" id="edit-compat-voltage"></div>
+                            <div class="form-field compat-field" data-compat-for="gpu storage"><label for="edit-compat-length-mm">Length (mm)</label><input type="number" id="edit-compat-length-mm" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="gpu cooler"><label for="edit-compat-height-mm">Height (mm)</label><input type="number" id="edit-compat-height-mm" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="gpu"><label for="edit-compat-thickness-slots">Thickness (Slots)</label><input type="number" id="edit-compat-thickness-slots" min="1"></div>
+                            <div class="form-field compat-field" data-compat-for="gpu"><label for="edit-compat-required-pcie">Required PCIe Connectors</label><input type="text" id="edit-compat-required-pcie"></div>
+                            <div class="form-field compat-field" data-compat-for="gpu"><label for="edit-compat-recommended-psu-wattage">Recommended PSU Wattage</label><input type="number" id="edit-compat-recommended-psu-wattage" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="psu"><label for="edit-compat-wattage">Wattage</label><input type="number" id="edit-compat-wattage" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="psu"><label for="edit-compat-pcie-connectors">PCIe Connectors</label><input type="text" id="edit-compat-pcie-connectors"></div>
+                            <div class="form-field compat-field" data-compat-for="psu"><label for="edit-compat-cpu-power-connectors">CPU Power Connectors</label><input type="text" id="edit-compat-cpu-power-connectors"></div>
+                            <div class="form-field compat-field" data-compat-for="psu"><label for="edit-compat-sata-connectors">SATA Connectors</label><input type="number" id="edit-compat-sata-connectors" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="psu"><label for="edit-compat-modular-type">Modular Type</label><input type="text" id="edit-compat-modular-type"></div>
+                            <div class="form-field compat-field" data-compat-for="case"><label for="edit-compat-supported-form-factors">Supported Form Factors</label><input type="text" id="edit-compat-supported-form-factors"></div>
+                            <div class="form-field compat-field" data-compat-for="case"><label for="edit-compat-max-gpu-length">Max GPU Length (mm)</label><input type="number" id="edit-compat-max-gpu-length" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="case"><label for="edit-compat-max-cpu-cooler-height">Max CPU Cooler Height (mm)</label><input type="number" id="edit-compat-max-cpu-cooler-height" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="case"><label for="edit-compat-psu-support">PSU Support</label><input type="text" id="edit-compat-psu-support"></div>
+                            <div class="form-field compat-field" data-compat-for="case"><label for="edit-compat-drive-bays-25">2.5" Drive Bays</label><input type="number" id="edit-compat-drive-bays-25" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="case"><label for="edit-compat-drive-bays-35">3.5" Drive Bays</label><input type="number" id="edit-compat-drive-bays-35" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="cooler"><label for="edit-compat-supported-sockets">Supported Sockets</label><input type="text" id="edit-compat-supported-sockets"></div>
+                            <div class="form-field compat-field" data-compat-for="cooler"><label for="edit-compat-tdp-rating">TDP Rating (W)</label><input type="number" id="edit-compat-tdp-rating" min="0"></div>
+                            <div class="form-field compat-field" data-compat-for="cooler"><label for="edit-compat-radiator-size">Radiator Size (AIO)</label><input type="text" id="edit-compat-radiator-size"></div>
+                            <div class="form-field compat-field" data-compat-for="storage motherboard gpu"><label for="edit-compat-interface-type">Interface Type</label><input type="text" id="edit-compat-interface-type"></div>
+                            <div class="form-field compat-field" data-compat-for="storage"><label for="edit-compat-storage-form-factor">Storage Form Factor</label><input type="text" id="edit-compat-storage-form-factor"></div>
+                        </div>
+                    </details>
+
                     <div style="grid-column: 1 / 3; display:flex;justify-content:flex-end;gap:8px; margin-top: 10px;">
                         <button type="button" class="btn" id="cancelEditProductBtn">Cancel</button>
                         <button type="submit" class="btn primary">Update Product</button>
@@ -795,6 +1176,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="js/demo-overlay.js"></script>
     <script src="js/owner.js"></script>
    </body>
 </html>

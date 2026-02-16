@@ -3,116 +3,1272 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Techtitans - Login</title>
+    <meta name="description" content="TechTitans - Karnataka's trusted IT hardware retailer. Shop PC components, custom builds, peripherals. 25+ years experience. Free shipping, secure checkout, 10,000+ orders delivered.">
+    <title>TechTitans - PC Components, Custom Builds & IT Hardware</title>
     <link rel="icon" type="image/x-icon" href="images/favicon.ico">
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
     <style>
     :root {
-        --color-background: #EBEFF5;
-        --color-card-bg: #FFFFFF;
-        --color-primary-text: #34495E;
-        --color-accent-blue: #3A648C;
-        --color-button-bg: #90A4AE;
-        --color-input-border: #C8D3DB;
-        --color-input-bg: #F4F7FB;
+        --color-bg: #F5F7FA;
+        --color-surface: #FFFFFF;
+        --color-primary: #2563EB;
+        --color-accent: #3B82F6;
+        --color-text: #1E293B;
+        --color-text-muted: #64748B;
+        --color-border: #E2E8F0;
+    }
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    html {
+        scroll-behavior: smooth;
     }
 
     body {
-        font-family: Arial, sans-serif;
-        background-color: var(--color-background);
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        background-color: var(--color-bg);
+        color: var(--color-text);
+        line-height: 1.6;
+        overflow-x: hidden;
+    }
+
+    /* Navigation */
+    .navbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--color-border);
+        transition: all 0.3s ease;
+    }
+
+    .nav-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem 1.5rem;
         display: flex;
-        flex-direction: column;
-        justify-content: center;
         align-items: center;
-        min-height: 100vh;
-        margin: 0;
-        padding: 20px;
-        box-sizing: border-box;
+        justify-content: space-between;
     }
 
-    .auth-card {
-        background-color: var(--color-card-bg);
-        width: 100%;
-        max-width: 380px;
-        padding: 40px;
-        border-radius: 8px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05), 0 0 1px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        margin-bottom: 30px;
-    }
-
-    .icon-container {
-        width: 60px;
-        height: 60px;
-        background-color: var(--color-background);
-        color: var(--color-primary-text);
-        border-radius: 50%;
+    .nav-logo {
         display: flex;
-        justify-content: center;
         align-items: center;
-        margin: 0 auto 15px auto;
+        gap: 0.5rem;
     }
 
-    .logo { font-size: 24px; font-weight: bold; color: var(--color-primary-text); }
-    .subtitle { font-size: 14px; color: var(--color-primary-text); opacity: 0.7; margin-bottom: 30px; }
-
-    .form-group { text-align: left; width: 100%; }
-    .form-group label { display: block; font-size: 14px; margin: 15px 0 5px; color: var(--color-primary-text); }
-
-    .form-group input {
-        width: 100%;
-        padding: 12px 15px;
-        border: 1px solid var(--color-input-border);
-        border-radius: 4px;
-        background-color: var(--color-input-bg);
-        font-size: 16px;
-        color: var(--color-primary-text);
-        box-sizing: border-box;
+    .nav-logo img {
+        height: 80px;
+        width: auto;
     }
 
-    .auth-button {
-        width: 100%;
-        padding: 12px;
-        background-color: var(--color-button-bg);
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-        margin-top: 20px;
+    .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        list-style: none;
+        flex-wrap: wrap;
     }
 
-    .forgot-link {
-        margin-top: 10px;
-        font-size: 13px;
-        color: var(--color-accent-blue);
-        text-align: right;
-        display: block;
+    .nav-links .nav-cta {
+        flex-shrink: 0;
+    }
+
+    .nav-links a {
+        color: var(--color-text-muted);
         text-decoration: none;
         font-weight: 500;
+        font-size: 0.9rem;
+        transition: color 0.2s;
+        white-space: nowrap;
+    }
+
+    .nav-links a:hover {
+        color: var(--color-accent);
+    }
+
+    .nav-cta {
+        display: inline-block;
+        padding: 0.6rem 1.4rem;
+        background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+        color: white !important;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .nav-cta:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(58, 100, 140, 0.4);
+    }
+
+    .nav-toggle {
+        display: none;
+        background: none;
+        border: none;
+        color: var(--color-text);
+        font-size: 1.5rem;
+        cursor: pointer;
+    }
+
+    /* Hero Slider */
+    .hero-slider {
+        position: relative;
+        width: 100%;
+        height: 70vh;
+        min-height: 400px;
+        margin-top: 100px;
+        overflow: hidden;
+    }
+
+    .hero-slides {
+        position: relative;
+        width: 100%;
+        height: 100%;
+    }
+
+    .hero-slide {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        transition: opacity 0.6s ease-in-out;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+
+    .hero-slide.active {
+        opacity: 1;
+        z-index: 1;
+    }
+
+    .hero-slide::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to right, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 50%, transparent 100%);
+        pointer-events: none;
+    }
+
+    .hero-slider-nav {
+        position: absolute;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .hero-slider-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.5);
+        border: 2px solid rgba(255,255,255,0.8);
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .hero-slider-dot:hover,
+    .hero-slider-dot.active {
+        background: white;
+        transform: scale(1.2);
+    }
+
+    .hero-slider-prev,
+    .hero-slider-next {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 10;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.4);
+        color: white;
+        font-size: 1.25rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s;
+    }
+
+    .hero-slider-prev:hover,
+    .hero-slider-next:hover {
+        background: rgba(255,255,255,0.4);
+    }
+
+    .hero-slider-prev { left: 1rem; }
+    .hero-slider-next { right: 1rem; }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.9rem 1.8rem;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        text-decoration: none;
+        transition: all 0.2s;
+        font-family: inherit;
+        cursor: pointer;
+        border: none;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(58, 100, 140, 0.4);
+    }
+
+    .btn-outline {
+        background: transparent;
+        color: var(--color-accent);
+        border: 2px solid var(--color-primary);
+    }
+
+    .btn-outline:hover {
+        background: rgba(58, 100, 140, 0.15);
+    }
+
+    /* Featured Categories */
+    .categories-section {
+        padding-top: 4rem;
+    }
+
+    .categories-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 1.25rem;
+        margin-top: 2rem;
+    }
+
+    .category-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s;
+        text-decoration: none;
+        color: var(--color-text);
+        display: block;
+    }
+
+    .category-card:hover {
+        border-color: var(--color-primary);
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    .category-card .icon {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 1rem;
+        background: rgba(58, 100, 140, 0.2);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: var(--color-accent);
+    }
+
+    .category-card h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+    }
+
+    .category-card p {
+        font-size: 0.8rem;
+        color: var(--color-text-muted);
+    }
+
+    /* Featured Brands */
+    .brands-section {
+        background: var(--color-surface);
+    }
+
+    .brands-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 1.25rem;
+        margin-top: 2rem;
+        align-items: center;
+    }
+
+    .brand-card {
+        background: var(--color-bg);
+        border: 1px solid var(--color-border);
+        border-radius: 10px;
+        padding: 1.25rem;
+        text-align: center;
+        transition: all 0.3s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 90px;
+    }
+
+    .brand-card:hover {
+        border-color: var(--color-primary);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .brand-card .brand-name {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--color-text);
+    }
+
+    .brand-card .brand-logo {
+        width: 100px;
+        height: 60px;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .brand-card .brand-logo img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+
+    /* Section Common */
+    section {
+        padding: 5rem 1.5rem;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .section-header {
+        text-align: center;
+        margin-bottom: 3.5rem;
+    }
+
+    .section-header h2 {
+        font-size: clamp(2rem, 4vw, 2.5rem);
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+    }
+
+    .section-header p {
+        color: var(--color-text-muted);
+        font-size: 1.1rem;
+        max-width: 560px;
+        margin: 0 auto;
+    }
+
+    /* About Section */
+    .about {
+        background: var(--color-surface);
+    }
+
+    .about-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4rem;
+        align-items: center;
+    }
+
+    .about-content h2 {
+        font-size: 2rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .about-content p {
+        color: var(--color-text-muted);
+        margin-bottom: 1rem;
+    }
+
+    .about-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: 1.5rem;
+        background: rgba(58, 100, 140, 0.1);
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+    }
+
+    .stat-item .number {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--color-accent);
+        display: block;
+    }
+
+    .stat-item .label {
+        font-size: 0.9rem;
+        color: var(--color-text-muted);
+    }
+
+    /* Services Section */
+    .services-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+    }
+
+    .service-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 2rem;
+        transition: all 0.3s;
+    }
+
+    .service-card:hover {
+        border-color: var(--color-primary);
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    .service-card .icon {
+        width: 48px;
+        height: 48px;
+        background: rgba(58, 100, 140, 0.2);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: var(--color-accent);
+        margin-bottom: 1.25rem;
+    }
+
+    .service-card h3 {
+        font-size: 1.2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .service-card p {
+        color: var(--color-text-muted);
+        font-size: 0.95rem;
+    }
+
+    /* Features Section */
+    .features {
+        background: var(--color-surface);
+    }
+
+    .features-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2rem;
+    }
+
+    .feature-item {
+        display: flex;
+        gap: 1.25rem;
+        padding: 1.5rem;
+        background: rgba(58, 100, 140, 0.06);
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+    }
+
+    .feature-item .icon {
+        flex-shrink: 0;
+        width: 44px;
+        height: 44px;
+        background: rgba(58, 100, 140, 0.2);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--color-accent);
+    }
+
+    .feature-item h3 {
+        font-size: 1.1rem;
+        margin-bottom: 0.35rem;
+    }
+
+    .feature-item p {
+        color: var(--color-text-muted);
+        font-size: 0.95rem;
+    }
+
+    /* Trust Features */
+    .trust-features {
+        background: var(--color-surface);
+    }
+
+    .trust-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+        margin-top: 2rem;
+    }
+
+    @media (max-width: 968px) {
+        .trust-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 480px) {
+        .trust-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Contact Section */
+    .contact-wrapper {
+        display: grid;
+        grid-template-columns: 1fr 1.5fr;
+        gap: 3rem;
+        align-items: start;
+    }
+
+    .contact-info h3 {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .contact-info p {
+        color: var(--color-text-muted);
+        margin-bottom: 1.5rem;
+    }
+
+    .contact-details {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .contact-detail {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        color: var(--color-text-muted);
+    }
+
+    .contact-detail i {
+        width: 40px;
+        height: 40px;
+        background: rgba(58, 100, 140, 0.2);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--color-accent);
+    }
+
+    .contact-form {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 2rem;
+    }
+
+    .support-links {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+
+    .support-link {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem 1.25rem;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 10px;
+        color: var(--color-text);
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .support-link:hover {
+        border-color: var(--color-primary);
+        color: var(--color-accent);
+    }
+
+    .support-link i {
+        color: var(--color-accent);
+    }
+
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .form-group label {
+        display: block;
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-group input,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.85rem 1rem;
+        background: var(--color-bg);
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        color: var(--color-text);
+        font-family: inherit;
+        font-size: 1rem;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: var(--color-primary);
+    }
+
+    .form-group textarea {
+        min-height: 120px;
+        resize: vertical;
+    }
+
+    .muted {
+        color: var(--color-text-muted);
+        font-weight: 400;
+    }
+
+    /* Footer */
+    footer {
+        background: var(--color-surface);
+        border-top: 1px solid var(--color-border);
+        padding: 4rem 1.5rem 2rem;
+    }
+
+    .footer-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .footer-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr;
+        gap: 3rem;
+        margin-bottom: 3rem;
+    }
+
+    .footer-brand img {
+        height: 100px;
+        margin-bottom: 1rem;
+    }
+
+    .footer-brand p {
+        color: var(--color-text-muted);
+        font-size: 0.95rem;
+        max-width: 280px;
+    }
+
+    .footer-links h4 {
+        font-size: 1rem;
+        margin-bottom: 1rem;
+        color: var(--color-text);
+    }
+
+    .footer-links ul {
+        list-style: none;
+    }
+
+    .footer-links li {
+        margin-bottom: 0.5rem;
+    }
+
+    .footer-links a {
+        color: var(--color-text-muted);
+        text-decoration: none;
+        font-size: 0.95rem;
+        transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+        color: var(--color-accent);
+    }
+
+    .footer-bottom {
+        padding-top: 2rem;
+        border-top: 1px solid var(--color-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .footer-bottom p {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+    }
+
+    .footer-social {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .footer-social a {
+        width: 40px;
+        height: 40px;
+        background: rgba(58, 100, 140, 0.2);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--color-text-muted);
+        transition: all 0.2s;
+    }
+
+    .footer-social a:hover {
+        color: var(--color-accent);
+        background: rgba(58, 100, 140, 0.3);
+    }
+
+    /* Responsive */
+    @media (max-width: 968px) {
+
+        .about-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .services-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .categories-grid,
+        .brands-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .features-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .contact-wrapper {
+            grid-template-columns: 1fr;
+        }
+
+        .footer-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .nav-links {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 280px;
+            height: 100vh;
+            background: var(--color-surface);
+            flex-direction: column;
+            padding: 5rem 2rem 2rem;
+            gap: 1.5rem;
+            border-left: 1px solid var(--color-border);
+            transition: right 0.3s;
+        }
+
+        .nav-links.active {
+            right: 0;
+        }
+
+        .nav-toggle {
+            display: block;
+            z-index: 1001;
+        }
+
+        .about-stats {
+            grid-template-columns: 1fr;
+        }
+
+        .hero-slider {
+            height: 50vh;
+            min-height: 300px;
+        }
+
+        .hero-slider-prev,
+        .hero-slider-next {
+            width: 40px;
+            height: 40px;
+            font-size: 1rem;
+        }
+
+        .hero-slider-prev { left: 0.5rem; }
+        .hero-slider-next { right: 0.5rem; }
+
+        .categories-grid,
+        .brands-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .footer-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .footer-bottom {
+            flex-direction: column;
+        }
     }
     </style>
 </head>
-
 <body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="#" class="nav-logo">
+                <img src="images/Logo.svg" alt="TechTitans">
+            </a>
+            <ul class="nav-links">
+                <li><a href="#home">Home</a></li>
+                <li><a href="#about">About</a></li>
+                <li><a href="#services">Services</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
+            <button class="nav-toggle" aria-label="Toggle menu" onclick="toggleNav()">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+    </nav>
 
-    <div id="signInCard" class="auth-card">
-        <img src="images/Logo.svg" alt="Logo" style="max-width: 200px; height: auto; margin-bottom: 15px;">
-        <p class="subtitle">Sign in to access your dashboard</p>
+    <!-- Hero Slider -->
+    <section id="home" class="hero-slider">
+        <div class="hero-slides">
+            <div class="hero-slide active" style="background-image: url('images/hero1.png');"></div>
+            <div class="hero-slide" style="background-image: url('images/hero2.png');"></div>
+            <div class="hero-slide" style="background-image: url('images/hero3.png');"></div>
+        </div>
+        <button class="hero-slider-prev" aria-label="Previous slide" onclick="heroPrevSlide()">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+        <button class="hero-slider-next" aria-label="Next slide" onclick="heroNextSlide()">
+            <i class="fas fa-chevron-right"></i>
+        </button>
+        <div class="hero-slider-nav">
+            <button class="hero-slider-dot active" aria-label="Slide 1" onclick="heroGoToSlide(0)"></button>
+            <button class="hero-slider-dot" aria-label="Slide 2" onclick="heroGoToSlide(1)"></button>
+            <button class="hero-slider-dot" aria-label="Slide 3" onclick="heroGoToSlide(2)"></button>
+        </div>
+    </section>
 
-        <form id="loginForm">
-            <label>Email</label>
-            <input type="email" id="loginEmail" required> <br>
-<br>
-            <label>Password</label>
-            <input type="password" id="loginPassword" required>
+    <!-- Featured Categories -->
+    <section id="categories" class="categories-section">
+        <div class="section-header">
+            <h2>Featured Categories</h2>
+            <p>Browse high-performance PC components and peripherals. Find the best hardware for your build.</p>
+        </div>
+        <div class="categories-grid">
+            <a href="store.html?cat=cpu" class="category-card">
+                <div class="icon"><i class="fas fa-microchip"></i></div>
+                <h3>Processors (CPU)</h3>
+                <p>Intel & AMD</p>
+            </a>
+            <a href="store.html?cat=gpu" class="category-card">
+                <div class="icon"><i class="fas fa-server"></i></div>
+                <h3>Graphics Cards</h3>
+                <p>GPU / Video</p>
+            </a>
+            <a href="store.html?cat=motherboard" class="category-card">
+                <div class="icon"><i class="fas fa-th-large"></i></div>
+                <h3>Motherboards</h3>
+                <p>Compatible boards</p>
+            </a>
+            <a href="store.html?cat=ram" class="category-card">
+                <div class="icon"><i class="fas fa-memory"></i></div>
+                <h3>RAM / Memory</h3>
+                <p>DDR4 & DDR5</p>
+            </a>
+            <a href="store.html?cat=storage" class="category-card">
+                <div class="icon"><i class="fas fa-hdd"></i></div>
+                <h3>Storage</h3>
+                <p>SSD & HDD</p>
+            </a>
+            <a href="store.html?cat=cabinet" class="category-card">
+                <div class="icon"><i class="fas fa-box"></i></div>
+                <h3>Cabinets / Cases</h3>
+                <p>PC Enclosures</p>
+            </a>
+            <a href="store.html?cat=psu" class="category-card">
+                <div class="icon"><i class="fas fa-bolt"></i></div>
+                <h3>Power Supply</h3>
+                <p>PSU Units</p>
+            </a>
+            <a href="store.html?cat=cooling" class="category-card">
+                <div class="icon"><i class="fas fa-fan"></i></div>
+                <h3>Cooling Systems</h3>
+                <p>Fans & AIO</p>
+            </a>
+            <a href="store.html?cat=peripherals" class="category-card">
+                <div class="icon"><i class="fas fa-keyboard"></i></div>
+                <h3>Peripherals</h3>
+                <p>Keyboards, Mice & More</p>
+            </a>
+        </div>
+    </section>
 
-            <button type="submit" class="auth-button">Log In</button>
-        </form>
-    </div>
+    <!-- Featured Brands -->
+    <section id="brands" class="brands-section">
+        <div class="section-header">
+            <h2>Featured Brands</h2>
+            <p>Trusted hardware brands we stock. Quality components for every build.</p>
+        </div>
+        <div class="brands-grid">
+            <a href="store.html?brand=intel" class="brand-card" title="Intel">
+                <div class="brand-logo"><img src="images/intel-brand-logo.png" alt="Intel"></div>
+                <span class="brand-name">Intel</span>
+            </a>
+            <a href="store.html?brand=amd" class="brand-card" title="AMD">
+                <div class="brand-logo"><img src="images/amd-brand-logo.png" alt="AMD"></div>
+                <span class="brand-name">AMD</span>
+            </a>
+            <a href="store.html?brand=asus" class="brand-card" title="ASUS">
+                <div class="brand-logo"><img src="images/asus-brand-logo.png" alt="ASUS"></div>
+                <span class="brand-name">ASUS</span>
+            </a>
+            <a href="store.html?brand=msi" class="brand-card" title="MSI">
+                <div class="brand-logo"><img src="images/msi-brand-logo.png" alt="MSI"></div>
+                <span class="brand-name">MSI</span>
+            </a>
+            <a href="store.html?brand=asrock" class="brand-card" title="ASRock">
+                <div class="brand-logo"><img src="images/asrock-brand-logo.png" alt="ASRock"></div>
+                <span class="brand-name">ASRock</span>
+            </a>
+            <a href="store.html?brand=zotac" class="brand-card" title="Zotac">
+                <div class="brand-logo"><img src="images/zotac-brand-logo.png" alt="Zotac"></div>
+                <span class="brand-name">Zotac</span>
+            </a>
+            <a href="store.html?brand=inno3d" class="brand-card" title="Inno3D">
+                <div class="brand-logo"><img src="images/inno3d-brand-logo.png" alt="Inno3D"></div>
+                <span class="brand-name">Inno3D</span>
+            </a>
+            <a href="store.html?brand=corsair" class="brand-card" title="Corsair">
+                <div class="brand-logo"><img src="images/corsair-brand-logo.png" alt="Corsair"></div>
+                <span class="brand-name">Corsair</span>
+            </a>
+            <a href="store.html?brand=gskill" class="brand-card" title="G.Skill">
+                <div class="brand-logo"><img src="images/gskill-brand-logo.png" alt="G.Skill"></div>
+                <span class="brand-name">G.Skill</span>
+            </a>
+            <a href="store.html?brand=samsung" class="brand-card" title="Samsung">
+                <div class="brand-logo"><img src="images/samsung-brand-logo.png" alt="Samsung"></div>
+                <span class="brand-name">Samsung</span>
+            </a>
+            <a href="store.html?brand=deepcool" class="brand-card" title="Deepcool">
+                <div class="brand-logo"><img src="images/deepcool-brand-logo.png" alt="Deepcool"></div>
+                <span class="brand-name">Deepcool</span>
+            </a>
+            <a href="store.html?brand=nzxt" class="brand-card" title="NZXT">
+                <div class="brand-logo"><img src="images/nzxt-brand-logo.png" alt="NZXT"></div>
+                <span class="brand-name">NZXT</span>
+            </a>
+            <a href="store.html?brand=logitech" class="brand-card" title="Logitech">
+                <div class="brand-logo"><img src="images/logitech-brand-logo.png" alt="Logitech"></div>
+                <span class="brand-name">Logitech</span>
+            </a>
+            <a href="store.html?brand=razer" class="brand-card" title="Razer">
+                <div class="brand-logo"><img src="images/razer-brand-logo.png" alt="Razer"></div>
+                <span class="brand-name">Razer</span>
+            </a>
+        </div>
+    </section>
 
-    <script src="js/login.js"></script>
+    <!-- About Section -->
+    <section id="about" class="about">
+        <div class="section-header">
+            <h2>About TechTitans</h2>
+            <p>Karnataka's trusted IT hardware distributor. Technology innovation with a customer delight focus.</p>
+        </div>
+        <div class="about-grid">
+            <div class="about-content">
+                <h2>25+ Years Industry Experience</h2>
+                <p>TechTitans is your go-to destination for PC components, custom builds, and peripherals. We bring you secure transactions and a smooth order-to-delivery experience.</p>
+                <p>Our mission is 100% customer satisfaction. We use a secure payment gateway and safe banking transactions to give you peace of mind. As a Karnataka-based IT distributor, we understand the needs of PC builders, gamers, and tech enthusiasts.</p>
+            </div>
+            <div class="about-stats">
+                <div class="stat-item">
+                    <span class="number">25+</span>
+                    <span class="label">Years Experience</span>
+                </div>
+                <div class="stat-item">
+                    <span class="number">10K+</span>
+                    <span class="label">Orders Delivered</span>
+                </div>
+                <div class="stat-item">
+                    <span class="number">100%</span>
+                    <span class="label">Satisfaction Focus</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Trust / Service Highlights -->
+    <section id="services" class="trust-features">
+        <div class="section-header">
+            <h2>Why Shop With Us</h2>
+            <p>Risk-free shopping with trusted policies and secure checkout.</p>
+        </div>
+        <div class="trust-grid">
+            <div class="service-card">
+                <div class="icon"><i class="fas fa-truck"></i></div>
+                <h3>Free Shipping</h3>
+                <p>On all orders. Except monitor & cabinet.</p>
+            </div>
+            <div class="service-card">
+                <div class="icon"><i class="fas fa-undo"></i></div>
+                <h3>Hassle-Free Returns</h3>
+                <p>7-day easy return policy.</p>
+            </div>
+            <div class="service-card">
+                <div class="icon"><i class="fas fa-lock"></i></div>
+                <h3>Secure Checkout</h3>
+                <p>Trusted payment gateway.</p>
+            </div>
+            <div class="service-card">
+                <div class="icon"><i class="fas fa-boxes"></i></div>
+                <h3>10,000+ Orders Delivered</h3>
+                <p>Proven reliability.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Support / Policies Links -->
+    <section id="support" class="features">
+        <div class="section-header">
+            <h2>Information & Support</h2>
+            <p>Everything you need to shop with confidence.</p>
+        </div>
+        <div class="support-links">
+            <a href="faq.html" class="support-link"><i class="fas fa-question-circle"></i> FAQs</a>
+            <a href="privacy.html" class="support-link"><i class="fas fa-shield-alt"></i> Privacy Policy</a>
+            <a href="shipping.html" class="support-link"><i class="fas fa-truck"></i> Shipping Policy</a>
+            <a href="refund.html" class="support-link"><i class="fas fa-undo"></i> Refund Policy</a>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact">
+        <div class="section-header">
+            <h2>Get In Touch</h2>
+            <p>Have questions about components or custom builds? Reach out and we'll help you.</p>
+        </div>
+        <div class="contact-wrapper">
+            <div class="contact-info">
+                <h3>Contact Information</h3>
+                <p>Reach out for component queries, custom build support, or order assistance.</p>
+                <div class="contact-details">
+                    <div class="contact-detail">
+                        <i class="fas fa-envelope"></i>
+                        <span>contact@techtitans.in.net</span>
+                    </div>
+                    <div class="contact-detail">
+                        <i class="fas fa-phone"></i>
+                        <span>+91 63626 18184 </span>
+                    </div>
+                    <div class="contact-detail">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>1102, second Floor, Before Atithi Satkar Hotel OTC Road, Bangalore 560002, Karnataka, India</span>
+                    </div>
+                </div>
+            </div>
+            <div class="contact-form">
+                <form id="contactForm" onsubmit="return handleContactSubmit(event)">
+                    <div class="form-group">
+                        <label for="name">Your Name</label>
+                        <input type="text" id="name" name="name" required placeholder="Enter your full name">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" name="email" required placeholder="Enter your email address">
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Phone <span class="muted">(Optional)</span></label>
+                        <input type="tel" id="phone" name="phone" placeholder="+1 (555) 123-4567">
+                    </div>
+                    <div class="form-group">
+                        <label for="message">Message</label>
+                        <textarea id="message" name="message" required placeholder="Share your message or inquiry"></textarea>
+                    </div>
+                    <div id="contactFormStatus" class="form-status" style="display:none; margin-bottom:1rem; padding:0.75rem; border-radius:8px; font-size:0.9rem;"></div>
+                    <button type="submit" class="btn btn-primary" id="contactSubmitBtn">
+                        Send Message <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="images/Logo.svg" alt="TechTitans">
+                    <p>TechTitans — Karnataka's trusted IT hardware retailer. PC components, custom builds & peripherals.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="#about">About</a></li>
+                        <li><a href="#contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Policies</h4>
+                    <ul>
+                        <li><a href="privacy.html">Privacy</a></li>
+                        <li><a href="refund.html">Refund</a></li>
+                        <li><a href="shipping.html">Shipping</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Customer Service</h4>
+                    <ul>
+                        <li><a href="faq.html">Help</a></li>
+                        <li><a href="refund.html">Returns</a></li>
+                        <li><a href="faq.html">FAQs</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 TechTitans. All rights reserved.</p>
+                <div class="footer-social">
+                    <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                    <a href="#" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+                    <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+    // Hero Slider
+    let heroCurrentSlide = 0;
+    const heroSlides = document.querySelectorAll('.hero-slide');
+    const heroDots = document.querySelectorAll('.hero-slider-dot');
+    const heroTotalSlides = heroSlides.length;
+    let heroAutoPlayTimer;
+
+    function heroShowSlide(index) {
+        heroCurrentSlide = (index + heroTotalSlides) % heroTotalSlides;
+        heroSlides.forEach((s, i) => s.classList.toggle('active', i === heroCurrentSlide));
+        heroDots.forEach((d, i) => d.classList.toggle('active', i === heroCurrentSlide));
+    }
+
+    function heroNextSlide() {
+        heroShowSlide(heroCurrentSlide + 1);
+        heroResetAutoPlay();
+    }
+
+    function heroPrevSlide() {
+        heroShowSlide(heroCurrentSlide - 1);
+        heroResetAutoPlay();
+    }
+
+    function heroGoToSlide(index) {
+        heroShowSlide(index);
+        heroResetAutoPlay();
+    }
+
+    function heroResetAutoPlay() {
+        clearInterval(heroAutoPlayTimer);
+        heroAutoPlayTimer = setInterval(heroNextSlide, 5000);
+    }
+
+    heroAutoPlayTimer = setInterval(heroNextSlide, 5000);
+
+    function toggleNav() {
+        document.querySelector('.nav-links').classList.toggle('active');
+        const icon = document.querySelector('.nav-toggle i');
+        icon.classList.toggle('fa-bars');
+        icon.classList.toggle('fa-times');
+    }
+
+    document.querySelectorAll('.nav-links a[href^="#"]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            if (this.getAttribute('href') !== '#') {
+                document.querySelector('.nav-links').classList.remove('active');
+            }
+        });
+    });
+
+    async function handleContactSubmit(e) {
+        e.preventDefault();
+        const form = document.getElementById('contactForm');
+        const statusEl = document.getElementById('contactFormStatus');
+        const btn = document.getElementById('contactSubmitBtn');
+        
+        const name = (document.getElementById('name').value || '').trim();
+        const email = (document.getElementById('email').value || '').trim();
+        const phone = (document.getElementById('phone').value || '').trim();
+        const message = (document.getElementById('message').value || '').trim();
+        
+        if (!name || !email || !message) {
+            showContactStatus(statusEl, 'Please fill in all required fields.', 'error');
+            return false;
+        }
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        statusEl.style.display = 'none';
+        
+        try {
+            const response = await fetch('/api/contact-requests', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, phone: phone || undefined, message })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showContactStatus(statusEl, data.message || 'Thank you! We will get back to you soon.', 'success');
+                form.reset();
+            } else {
+                showContactStatus(statusEl, data.error || 'Something went wrong. Please try again.', 'error');
+            }
+        } catch (err) {
+            showContactStatus(statusEl, 'Unable to send. Please check your connection and try again.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Send Message <i class="fas fa-paper-plane"></i>';
+        }
+        return false;
+    }
+    
+    function showContactStatus(el, msg, type) {
+        el.textContent = msg;
+        el.style.display = 'block';
+        el.style.background = type === 'success' ? 'rgba(39, 174, 96, 0.2)' : 'rgba(231, 76, 60, 0.2)';
+        el.style.border = type === 'success' ? '1px solid #27AE60' : '1px solid #E74C3C';
+        el.style.color = type === 'success' ? '#27AE60' : '#E74C3C';
+    }
+    </script>
 </body>
 </html>

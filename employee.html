@@ -7,40 +7,37 @@
     <link rel="icon" type="image/x-icon" href="images/favicon.ico">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet"/>
     <link href="css/employee.css" rel="stylesheet"/>
+    <link href="css/demo-overlay.css" rel="stylesheet"/>
 </head>
-<body>
+<body data-demo-role="employee">
+
+    <div id="demoOverlay" class="demo-overlay" role="dialog" aria-label="Product demo tour"></div>
 
     <aside class="sidebar" role="navigation">
         <div class="brand">
             <img src="images/Logo.svg" alt="Tech Titans Logo" style="height: 120px; width: auto; max-width: 100%;">
         </div>
 
-        <nav class="nav" id="sideNav">
-            <a href="#" data-tab="dashboard" class="active"><i class="fas fa-th-large"></i> Dashboard</a>
-            <a href="#" data-tab="createQuotation"><i class="fas fa-file-invoice-dollar"></i> Create Quotation</a>
-            <a href="#" data-tab="viewHistory"><i class="fas fa-history"></i> History</a>
-            <a href="#" data-tab="viewCustomers"><i class="fas fa-users"></i> Customers</a> 
-        </nav>
-
         <div class="user">
             <div class="avatar" id="userAvatar">E</div>
             <div class="meta" style="flex: 1;"><strong id="userRoleDisplay">Employee</strong><small id="userEmailDisplay">employee@rolewise.app</small></div>
         </div>
+
+        <nav class="nav" id="sideNav">
+            <a href="#" data-tab="dashboard" class="active"><i class="fas fa-th-large"></i> Dashboard</a>
+            <a href="#" data-tab="createQuotation"><i class="fas fa-file-invoice-dollar"></i> Quotations</a>
+            <a href="#" data-tab="viewCustomers"><i class="fas fa-users"></i> Customers</a>
+        </nav>
+
+        <a href="#" id="getDemoBtn" class="btn primary sidebar-cta"><i class="fas fa-play-circle"></i> Get Demo</a>
+
         <button class="btn danger" id="logoutBtn" style="margin-top: 8px; width: 100%; padding: 8px; font-size: 13px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
     </aside>
 
     <main class="main">
-        <header class="header">
-            <h1 id="headerTitle">Employee Dashboard</h1>
-        </header>
+        <header class="header" aria-hidden="true"></header>
 
         <section id="dashboard" class="content-section">
-            <div class="section-tabs" id="dashboardTabs">
-                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
-                <button class="tab-btn" data-tab="viewHistory">History</button>
-                <button class="tab-btn log-tab-btn" data-tab="viewCustomers">Customers</button>
-            </div>
-
             <div class="card">
                 <h2>Overview</h2>
                 <p class="muted">Quick summary of products, quotations and activity.</p>
@@ -83,11 +80,26 @@
             </div>
         </section>
 
+        <section id="quotationDrafts" class="content-section" style="display:none">
+            <div class="section-tabs">
+                <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
+                <button class="tab-btn" data-tab="viewHistory">History</button>
+                <button class="tab-btn" data-tab="viewCustomers">Customers</button>
+                <button class="tab-btn active" data-tab="quotationDrafts">Drafts</button>
+            </div>
+            <div class="card" style="flex-grow: 1;">
+                <h2>Quotation drafts</h2>
+                <p class="muted">Saved when the browser or system stopped. Resume to edit in Create quotation, or convert to a final quotation.</p>
+                <div id="quotationDraftsPageList" style="margin-top:16px; min-height:200px;"><p class="muted" style="text-align:center; padding:24px;">Loading drafts…</p></div>
+            </div>
+        </section>
+
         <section id="createQuotation" class="content-section" style="display:none">
             <div class="section-tabs">
                 <button class="tab-btn active" data-tab="createQuotation">Create Quotation</button>
                 <button class="tab-btn" data-tab="viewHistory">History</button>
-                <button class="tab-btn" data-tab="viewCustomers">Customers</button> 
+                <button class="tab-btn" data-tab="viewCustomers">Customers</button>
+                <button class="tab-btn" data-tab="quotationDrafts">Drafts</button>
             </div>
 
             <div class="card" style="flex-grow: 1;">
@@ -116,7 +128,27 @@
                             <label class="muted">Address</label>
                             <textarea id="cust-address" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)" placeholder="Optional"></textarea>
                         </div>
-                        
+                        <div style="margin-top:10px">
+                            <label class="muted">Upload Image <span class="muted">(Optional, for quotation page 2)</span></label>
+                            <div style="position: relative; border: 2px dashed #cbd5e1; border-radius:8px; padding:20px; text-align:center; background:#f8fafc; transition: all 0.3s ease; cursor: pointer;" 
+                                 onmouseover="this.style.borderColor='#3b82f6'; this.style.background='#eff6ff';" 
+                                 onmouseout="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';">
+                                <input id="quotation-image" type="file" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none;">
+                                <div style="pointer-events: none;">
+                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px;">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                        <polyline points="21 15 16 10 5 21"></polyline>
+                                    </svg>
+                                    <div style="color:#6b7280; font-size:14px; margin-bottom:4px;">Click to upload image</div>
+                                    <div style="color:#9ca3af; font-size:12px;">PNG, JPG, GIF, WebP • Max 10MB • One image only</div>
+                                </div>
+                            </div>
+                            <div id="imagePreview" style="margin-top:12px; display:none; padding:12px; border:1px solid #e5e7eb; border-radius:8px; background:#ffffff;">
+                                <div id="imagePreviewList" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;"></div>
+                                <button type="button" id="removeAllImagesBtn" style="margin-top:8px; padding:6px 12px; border-radius:6px; border:1px solid #dc3545; background:#dc3545; color:white; cursor:pointer; font-size:12px; font-weight:500;">Remove</button>
+                            </div>
+                        </div>
                         <div class="card" style="margin-top:12px">
                             <h2>Quotation Items</h2>
                             <table class="data-table">
@@ -142,6 +174,11 @@
                                 <input id="itemSearchInput" placeholder="Search products by Name or ID..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">
                                 <!-- Dynamic type filters for quotation items to the database -->
                                 <div id="quotationTypeFilters" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:6px;"></div>
+                                <label style="margin-top:10px; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+                                    <input type="checkbox" id="compatibleFilterToggle" style="cursor:pointer;">
+                                    <span>Show compatible products only</span>
+                                </label>
+                                <p class="muted" id="compatibleFilterHint" style="margin-top:4px; font-size:12px; display:none;">Filters products by compatibility with items already in quotation (CPU, Motherboard, RAM, GPU, Case, etc.)</p>
                                 <style>
                                     .type-filter-btn.active {
                                         background: linear-gradient(135deg, #35b3e7 0%, #5490cc 100%) !important;
@@ -169,6 +206,11 @@
                             </div>
                             <button id="createQuotationBtn" class="btn primary" style="width:100%" onclick="createQuotation()"><i class="fas fa-file-invoice-dollar"></i> Create Quotation</button>
                         </div>
+                        <div class="card" style="margin-top:12px" id="quotationDraftsCard">
+                            <h3 style="margin:0 0 10px 0; font-size:16px; color:#34495E;"><i class="fas fa-save"></i> Saved drafts</h3>
+                            <p class="muted" style="font-size:12px; margin-bottom:10px;">Recovered when browser or system stopped. Resume to edit or convert to final quotation.</p>
+                            <div id="quotationDraftsList" style="max-height:200px; overflow-y:auto;"><p class="muted" style="text-align:center; padding:12px; font-size:13px;">No drafts</p></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -178,12 +220,14 @@
             <div class="section-tabs">
                 <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
                 <button class="tab-btn active" data-tab="viewHistory">History</button>
-                <button class="tab-btn" data-tab="viewCustomers">Customers</button> 
+                <button class="tab-btn" data-tab="viewCustomers">Customers</button>
+                <button class="tab-btn" data-tab="quotationDrafts">Drafts</button>
             </div>
 
             <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <h2>Quotation History</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+                    <h2 style="margin: 0;">Quotation History</h2>
+                    <button type="button" class="btn primary" onclick="exportQuotationHistoryToCsv()" title="Export to CSV"><i class="fas fa-file-export"></i> Export</button>
                 </div>
                 <p class="muted">List of all quotations created in the system. **(Search by Quotation ID or Customer Name below)**</p>
                 
@@ -226,6 +270,7 @@
                 <button class="tab-btn" data-tab="createQuotation">Create Quotation</button>
                 <button class="tab-btn" data-tab="viewHistory">History</button>
                 <button class="tab-btn active" data-tab="viewCustomers">Customers</button>
+                <button class="tab-btn" data-tab="quotationDrafts">Drafts</button>
             </div>
 
             <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
@@ -339,7 +384,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-        <script src="js/employee.js"></script>
+    <script src="js/demo-overlay.js"></script>
+    <script src="js/employee.js"></script>
 
     </body>
    </html>

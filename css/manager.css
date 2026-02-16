@@ -77,6 +77,18 @@
             box-shadow: 0 6px 18px rgba(47,142,230,0.12);
         }
         .nav a.active i { color:#fff }
+
+        .sidebar .sidebar-cta {
+            width: 100%;
+            justify-content: center;
+            margin-top: 8px;
+            padding: 10px 12px;
+            font-size: 14px;
+            text-decoration: none;
+            flex-shrink: 0;
+        }
+        .sidebar .sidebar-cta:hover { opacity: 0.92; }
+
         .sidebar .user {
             margin-top:auto;
             padding-top:10px;

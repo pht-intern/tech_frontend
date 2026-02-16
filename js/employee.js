@@ -77,6 +77,28 @@
         }
         
         const CURRENT_USER_ROLE = localStorage.getItem(LS_KEYS.role) || "Employee";
+
+        // --- Employee Image Upload ---
+        const EMP_MAX_IMAGE_MB = 10;
+        const EMP_MAX_IMAGES = 1;
+        const EMP_ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+        let employeeUploadedImages = [];
+        function validateEmployeeImageFile(file) {
+            if (!EMP_ALLOWED_TYPES.includes(file.type)) return 'Invalid format. Use PNG, JPG, GIF or WebP.';
+            if (file.size > EMP_MAX_IMAGE_MB * 1024 * 1024) return `File too large. Max ${EMP_MAX_IMAGE_MB}MB.`;
+            return null;
+        }
+        function renderEmployeeImagePreviews() {
+            const c = document.getElementById('imagePreviewList');
+            const p = document.getElementById('imagePreview');
+            if (!c || !p) return;
+            if (employeeUploadedImages.length === 0) { p.style.display = 'none'; return; }
+            c.innerHTML = employeeUploadedImages.map((d, i) => `<div style="position:relative;"><img src="${d}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;"><button type="button" class="emp-rm" data-i="${i}" style="position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:none;background:#dc3545;color:white;cursor:pointer;">×</button></div>`).join('');
+            p.style.display = 'block';
+            c.querySelectorAll('.emp-rm').forEach(b => { b.onclick = () => { employeeUploadedImages.splice(parseInt(b.dataset.i), 1); renderEmployeeImagePreviews(); }; });
+        }
+        function getEmployeeUploadedImages() { return [...(employeeUploadedImages || [])]; }
+        function clearEmployeeImageUpload() { employeeUploadedImages = []; const el = document.getElementById('quotation-image'); if (el) el.value = ''; renderEmployeeImagePreviews(); }
         // Get email from userEmail key, or parse from user object, or use default
         let userEmailFromStorage = localStorage.getItem(LS_KEYS.userEmail);
         let userObjFromStorage = localStorage.getItem(LS_KEYS.user);
@@ -271,8 +293,22 @@
         async function renderAvailableItemsForQuotation(filter = '', typeFilter = '', items = null) {
             console.trace('🔍 renderAvailableItemsForQuotation called');
             try {
-                // Use passed items or get from cache/fetch
-                const itemsData = items || window.cachedItems || await getItems();
+                let itemsData;
+                const compatibleOnly = document.getElementById('compatibleFilterToggle')?.checked;
+                const refIds = Array.isArray(quotationItems) ? quotationItems.map(qi => qi.productId).filter(Boolean) : [];
+
+                if (compatibleOnly && refIds.length > 0) {
+                    try {
+                        const resp = await apiFetch('/items/compatible?with=' + encodeURIComponent(refIds.join(',')));
+                        itemsData = (resp && resp.data) ? resp.data : (resp && Array.isArray(resp) ? resp : []);
+                    } catch (e) {
+                        console.warn('Compatible filter failed, showing all items:', e);
+                        itemsData = items || window.cachedItems || await getItems();
+                    }
+                } else {
+                    itemsData = items || window.cachedItems || await getItems();
+                }
+
                 const listDiv = document.getElementById('availableItemsList');
                 
                 if (!listDiv) return;
@@ -392,6 +428,11 @@
 
                 renderQuotationItems();
                 updateGrandTotal();
+                if (document.getElementById('compatibleFilterToggle')?.checked) {
+                    const searchValue = document.getElementById('itemSearchInput')?.value || '';
+                    const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+                    renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
+                }
                 logAction(`Added product ${itemToAdd.productName || itemToAdd.name} to quotation.`);
             } catch (error) {
                 alert('Failed to add item to quotation.');
@@ -402,6 +443,11 @@
             quotationItems = quotationItems.filter(item => item.id !== itemId);
             renderQuotationItems();
             updateGrandTotal();
+            if (document.getElementById('compatibleFilterToggle')?.checked) {
+                const searchValue = document.getElementById('itemSearchInput')?.value || '';
+                const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+                renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
+            }
             logAction(`Removed item ID ${itemId} from quotation.`);
         }
 
@@ -469,6 +515,7 @@
                     quantity: parseInt(item.quantity || 1),
                     gstRate: String(parseFloat(item.gstRate || (SETTINGS.gstRate * 100)).toFixed(2))
                 })),
+                images: (typeof getEmployeeUploadedImages === 'function' ? getEmployeeUploadedImages() : []) || [],
                 subTotal: String(parseFloat(subTotal).toFixed(2)),
                 discountPercent: String(parseFloat(discountPercent).toFixed(2)),
                 discountAmount: String(parseFloat(discountAmount).toFixed(2)),
@@ -513,6 +560,7 @@
                     },
                     dateCreated: dateCreated,
                     items: JSON.parse(JSON.stringify(items)),
+                    images: (typeof getEmployeeUploadedImages === 'function' ? getEmployeeUploadedImages() : []) || [],
                     subTotal,
                     discountPercent,
                     discountAmount,
@@ -525,7 +573,7 @@
                 logAction(`Created new quotation ${quotationId} for ${customerName || phoneNumber}.`);
 
                 // Download as PNG
-                await downloadQuotationAsPngDirect(newQuotation).catch(() => {
+                await downloadQuotationAsPdfDirect(newQuotation).catch(() => {
                     // Silent fail for PNG generation
                 });
 
@@ -560,6 +608,7 @@
                     },
                     dateCreated: dateCreated,
                     items: JSON.parse(JSON.stringify(items)),
+                    images: (typeof getEmployeeUploadedImages === 'function' ? getEmployeeUploadedImages() : []) || [],
                     subTotal,
                     discountPercent,
                     discountAmount,
@@ -572,7 +621,7 @@
                 logAction(`Created new quotation ${quotationId} for ${customerName || phoneNumber}.`);
 
                 // Download as PNG
-                await downloadQuotationAsPngDirect(newQuotation).catch(() => {
+                await downloadQuotationAsPdfDirect(newQuotation).catch(() => {
                     // Silent fail for PNG generation
                 });
 
@@ -669,6 +718,7 @@
         }
 
         function resetQuotationForm() {
+            if (typeof clearEmployeeImageUpload === 'function') clearEmployeeImageUpload();
             // Reset customer fields
             const custName = document.getElementById('cust-name');
             if (custName) custName.value = '';
@@ -717,34 +767,14 @@
         /* ---------- Rendering Functions ---------- */
         async function renderCustomersList() {
             try {
-                // Try to get quotations from API first, fallback to local data
-                const quotationsResponse = await getQuotations();
-                const quotations = Array.isArray(quotationsResponse) ? quotationsResponse : (quotationsResponse?.data || quotationHistory);
+                const customersResponse = await getCustomers();
+                const customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
                 
                 const body = document.getElementById('customersListBody');
                 if (!body) {
                     return;
                 }
                 body.innerHTML = '';
-
-                // Build customers map from quotations
-                const customersMap = new Map();
-                quotations.forEach(q => {
-                    const phone = q.customer?.phone || q.customerPhone;
-                    if (!phone) return;
-
-                    const newCustomerData = {
-                        name: q.customer?.name || q.customerName || 'N/A',
-                        email: q.customer?.email || q.customerEmail || 'N/A',
-                        phone: phone,
-                        address: q.customer?.address || q.customerAddress || 'N/A',
-                        lastQuotationDate: q.dateCreated || q.created_at || 'N/A'
-                    };
-                    // Use phone as key to get unique customers
-                    customersMap.set(phone, newCustomerData);
-                });
-
-                const customers = Array.from(customersMap.values());
                 const customersTable = document.getElementById('customersTable');
                 const paginationDiv = document.getElementById('customersPagination');
 
@@ -784,7 +814,7 @@
                     row.insertCell().textContent = customer.email || 'N/A';
                     row.insertCell().textContent = customer.phone || 'N/A';
                     row.insertCell().textContent = customer.address || 'N/A';
-                    row.insertCell().textContent = customer.lastQuotationDate;
+                    row.insertCell().textContent = customer.lastQuotationDate || 'N/A';
                 });
             } catch (error) {
                 // Fallback to local CUSTOMERS array if API fails
@@ -1252,7 +1282,7 @@
                     pdfBtn.className = 'btn primary';
                     pdfBtn.style.cssText = 'padding: 5px 8px; margin-right: 5px;';
                     pdfBtn.innerHTML = '<i class="fas fa-download"></i>';
-                    pdfBtn.onclick = () => downloadQuotationAsPngDirect(q).catch(() => {
+                    pdfBtn.onclick = () => downloadQuotationAsPdfDirect(q).catch(() => {
                         // Silent fail for PNG generation
                     });
                     actionCell.appendChild(pdfBtn);
@@ -1406,20 +1436,20 @@
                     return;
                 }
                 
-                // Download as PNG instead of PDF
-                await downloadQuotationAsPngDirect(quotation);
+                // Download as PDF
+                await downloadQuotationAsPdfDirect(quotation);
             } catch (error) {
                 // Try local data
                 const localQuote = quotationHistory.find(q => (q.id || q.quotationId) === quotationId);
                 if (localQuote) {
-                    await downloadQuotationAsPngDirect(localQuote);
+                    await downloadQuotationAsPdfDirect(localQuote);
                 } else {
-                    alert('Failed to fetch quotation for PNG download.');
+                    alert('Failed to fetch quotation for PDF download.');
                 }
             }
         }
         
-        async function downloadQuotationAsPngDirect(quotation) {
+        async function downloadQuotationAsPdfDirect(quotation) {
             try {
                 // Generate HTML for quotation
                 const quotationHtml = await generateQuotationHtml(quotation);
@@ -1462,7 +1492,7 @@
                     logging: false, 
                     useCORS: true,
                     allowTaint: true,
-                    backgroundColor: '#1a1a1a',
+                    backgroundColor: '#ffffff',
                     width: 800,
                     height: quotationDiv.scrollHeight || quotationDiv.offsetHeight,
                     x: 0,
@@ -1470,14 +1500,9 @@
                     scrollX: 0,
                     scrollY: 0,
                     onclone: (clonedDoc) => {
-                        // Ensure background image is visible in cloned document
                         const clonedElement = clonedDoc.querySelector('div[style*="width: 800px"]');
                         if (clonedElement) {
-                            clonedElement.style.backgroundImage = "url('../images/Quotation_bg_design.png')";
-                            clonedElement.style.backgroundSize = "contain";
-                            clonedElement.style.backgroundPosition = "center center";
-                            clonedElement.style.backgroundRepeat = "no-repeat";
-                            clonedElement.style.backgroundAttachment = "fixed";
+                            clonedElement.style.backgroundImage = 'none';
                         }
                     }
                 });
@@ -1486,27 +1511,73 @@
                     throw new Error('Canvas is empty');
                 }
                 
-                // Convert to PNG and download
+                // Build PDF and download
+                const { jsPDF } = window.jspdf;
+                const imgWidth = 595.28;
+                const pageHeight = 841.89;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
                 const imgData = canvas.toDataURL('image/png', 1.0);
-                const link = document.createElement('a');
+                const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
+                const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
+                const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
                 
-                // Generate filename
+                if (needsMultiplePages) {
+                    let heightLeft = imgHeight;
+                    let position = 0;
+                    doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                    while (heightLeft >= 0) {
+                        position = heightLeft - imgHeight;
+                        doc.addPage();
+                        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                        heightLeft -= pageHeight;
+                    }
+                } else {
+                    const contentHeight = Math.min(imgHeight, pageHeight);
+                    doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeight, undefined, 'FAST');
+                }
+                try {
+                    let page2Images = [];
+                    const quotationImages = quotation.images;
+                    if (Array.isArray(quotationImages) && quotationImages.length > 0) {
+                        page2Images = quotationImages.map((img, i) => ({ image: img, productName: `Image ${i + 1}` }));
+                    }
+                    if (page2Images.length > 0) {
+                            const page2Html = await generateQuotationHtml(quotation, { page2Images: page2Images });
+                            const page2Container = document.createElement('div');
+                            page2Container.style.cssText = 'position:absolute;left:-9999px;top:0;width:800px;';
+                            page2Container.innerHTML = page2Html;
+                            document.body.appendChild(page2Container);
+                            const page2Div = page2Container.querySelector('div[style*="width: 800px"]');
+                            if (page2Div) {
+                                await Promise.all(Array.from(page2Div.querySelectorAll('img')).map((img) => {
+                                    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+                                    return new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; setTimeout(resolve, 3000); });
+                                }));
+                                await new Promise(r => setTimeout(r, 400));
+                                const page2Canvas = await html2canvas(page2Div, { scale: 2, logging: false, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', width: 800, height: page2Div.scrollHeight || page2Div.offsetHeight, x: 0, y: 0, scrollX: 0, scrollY: 0 });
+                                if (page2Canvas && page2Canvas.width > 0 && page2Canvas.height > 0) {
+                                    doc.addPage();
+                                    const page2ImgData = page2Canvas.toDataURL('image/png', 1.0);
+                                    const page2ImgHeight = (page2Canvas.height * imgWidth) / page2Canvas.width;
+                                    const page2ContentHeight = Math.min(page2ImgHeight, pageHeight);
+                                    doc.addImage(page2ImgData, 'PNG', 0, 0, imgWidth, page2ContentHeight, undefined, 'FAST');
+                                }
+                            }
+                            if (page2Container.parentNode) page2Container.parentNode.removeChild(page2Container);
+                        }
+                } catch (e) { console.warn('Page 2 (images) generation failed:', e); }
+                
                 const customerName = quotation.customer?.name || quotation.customerName || 'Quotation';
                 const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').trim();
-                const quotationId = quotation.quotationId || quotation.id || 'N/A';
-                const filename = `Quotation_${sanitizedName}_${quotationId}.png`;
+                const quotationIdVal = quotation.quotationId || quotation.id || 'N/A';
+                const filename = `Quotation_${sanitizedName}_${quotationIdVal}.pdf`;
+                doc.save(filename);
                 
-                link.href = imgData;
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                
-                // Clean up temporary container
                 document.body.removeChild(tempContainer);
             } catch (error) {
-                console.error('PNG generation error:', error);
-                alert('Failed to generate PNG image. Please try again.');
+                console.error('PDF generation error:', error);
+                alert('Failed to generate PDF. Please try again.');
             }
         }
 
@@ -1781,7 +1852,8 @@
                     ...options,
                     credentials: 'include'  // Send cookies with cross-origin requests
                 };
-                const response = await fetch(`${API_BASE}${endpoint}`, fetchOptions);
+                const url = endpoint.startsWith('/_') ? endpoint : `${API_BASE}${endpoint}`;
+                const response = await fetch(url, fetchOptions);
                 
                 // Check content type before parsing
                 const contentType = response.headers.get("content-type");
@@ -1873,6 +1945,15 @@
                 return quotations.length > 0 ? quotations : quotationHistory;
             } catch (error) {
                 return quotationHistory; // Fallback to local data
+            }
+        }
+
+        async function getCustomers() {
+            try {
+                const response = await apiFetch('/_api/customers');
+                return Array.isArray(response) ? response : (response?.data || []);
+            } catch (error) {
+                return []; // Fallback to empty for customer list
             }
         }
 
@@ -2123,7 +2204,8 @@
                 // Get action icon based on action type
                 let actionIcon = 'fa-circle';
                 const actionText = log.action || '';
-                if (actionText.toLowerCase().includes('product') || actionText.toLowerCase().includes('item')) actionIcon = 'fa-box';
+                if (actionText.toLowerCase().includes('price')) actionIcon = 'fa-rupee-sign';
+                else if (actionText.toLowerCase().includes('product') || actionText.toLowerCase().includes('item')) actionIcon = 'fa-box';
                 else if (actionText.toLowerCase().includes('quotation') || actionText.toLowerCase().includes('quote')) actionIcon = 'fa-file-invoice-dollar';
                 else if (actionText.toLowerCase().includes('customer')) actionIcon = 'fa-users';
                 else if (actionText.toLowerCase().includes('delete')) actionIcon = 'fa-trash-alt';
@@ -2260,6 +2342,26 @@
                 });
             }
 
+            document.getElementById('compatibleFilterToggle')?.addEventListener('change', function() {
+                const hint = document.getElementById('compatibleFilterHint');
+                if (hint) hint.style.display = this.checked ? 'block' : 'none';
+                const searchValue = document.getElementById('itemSearchInput')?.value || '';
+                const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+                renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
+            });
+
+            document.getElementById('quotation-image')?.addEventListener('change', function(e) {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const err = validateEmployeeImageFile(file);
+                if (err) { alert(err); e.target.value = ''; return; }
+                const r = new FileReader();
+                r.onload = (ev) => { employeeUploadedImages = [ev.target.result]; renderEmployeeImagePreviews(); };
+                r.readAsDataURL(file);
+                e.target.value = '';
+            });
+            document.getElementById('removeAllImagesBtn')?.addEventListener('click', clearEmployeeImageUpload);
+
             // Type filter button handlers - use event delegation (only once)
             if (!typeFilterHandlersSet) {
                 typeFilterHandlersSet = true;
@@ -2326,12 +2428,24 @@
                 brand: 'RoleWise Tech',
                 companyGstId: 'N/A',
                 validityDays: 3,
+                defaultValidityDays: 3,
+                pdfTheme: 'default',
                 companyAddress: '123 Business Lane, City, State 400001',
                 companyEmail: 'contact@rolewise.app'
             };
         }
 
-        async function generateQuotationHtml(quotation) {
+        const PDF_THEMES = {
+            default: { name: 'Default (Blue)', primary: '#3A648C', secondary: '#111827', border: '#e5e7eb', accent: '#35b3e7', pastelBg: '#f0f7ff' },
+            green: { name: 'Green', primary: '#059669', secondary: '#064e3b', border: '#d1fae5', accent: '#10b981', pastelBg: '#f0fdf4' },
+            red: { name: 'Red', primary: '#dc2626', secondary: '#7f1d1d', border: '#fee2e2', accent: '#ef4444', pastelBg: '#fef2f2' },
+            purple: { name: 'Purple', primary: '#7c3aed', secondary: '#4c1d95', border: '#ede9fe', accent: '#8b5cf6', pastelBg: '#faf5ff' },
+            orange: { name: 'Orange', primary: '#ea580c', secondary: '#7c2d12', border: '#fed7aa', accent: '#f97316', pastelBg: '#fff7ed' },
+            teal: { name: 'Teal', primary: '#0d9488', secondary: '#134e4a', border: '#ccfbf1', accent: '#14b8a6', pastelBg: '#f0fdfa' },
+            gray: { name: 'Gray', primary: '#374151', secondary: '#111827', border: '#f3f4f6', accent: '#6b7280', pastelBg: '#f8fafc' }
+        };
+
+        async function generateQuotationHtml(quotation, options = {}) {
             // Normalize quotation data (handle both API format and local format)
             const quotationId = quotation.quotationId || quotation.id;
             const dateCreated = quotation.dateCreated || quotation.date_created;
@@ -2422,97 +2536,61 @@
             const logoBase64 = settings.logo || '';
             const brandName = settings.brand || 'TECHTITANS';
             const companyGstId = settings.companyGstId || 'N/A';
-            const validityDays = quotation.validityDays || settings.validityDays || 3;
-            
-            // Company details - using defaults if not in settings
+            const validityDays = quotation.validityDays || settings.validityDays || settings.defaultValidityDays || 3;
+            const pdfThemeName = settings.pdfTheme || 'default';
+            const theme = PDF_THEMES[pdfThemeName] || PDF_THEMES.default;
             const companyAddress = settings.companyAddress || '1102, second Floor, Before Atithi Satkar Hotel OTC Road, Bangalore 560002';
             const companyEmail = settings.companyEmail || 'advanceinfotech21@gmail.com';
+            const companyPhone = settings.companyPhone || '+91 63626 18184';
+
+            if (options.page2Images && options.page2Images.length > 0) {
+                const imagesGridHtml = options.page2Images.map(item => {
+                    const imgSrc = item.image || '';
+                    if (!imgSrc) return '';
+                    return `<div style="margin-bottom: 24px; text-align: center;"><img src="${imgSrc}" alt="Preview" style="max-width: 100%; max-height: 400px; object-fit: contain; border: 1px solid ${theme.border}; border-radius: 8px;"></div>`;
+                }).join('');
+                return `<div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;"><style>.theme-border { border-color: ${theme.border} !important; }</style><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;"><div>${logoBase64 ? `<img src="${logoBase64}" alt="Logo" style="max-width: 160px; max-height: 48px; object-fit: contain; margin-left: 12px;">` : `<div style="font-size: 24px; font-weight: 700; color: ${theme.primary}; letter-spacing: -0.02em; margin-left: 12px;">${brandName}</div>`}<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: 12px; color: #6b7280;">${companyAddress}</div><div style="font-size: 12px; color: #6b7280;">${companyEmail}</div><div style="font-size: 12px; color: #6b7280;">${companyPhone}</div></div><div style="text-align: right;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em;">Quotation</h1></div></div><div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}</div><div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div></div><div style="margin-top: 24px; margin-bottom: 24px;">${imagesGridHtml}</div><div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;"><div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div></div>`;
+            }
 
             return `
-                <div style="width: 800px; height: 1123px; margin: 0; background: #1a1a1a; background-image: url('images/Quotation_bg_design.png'); background-size: contain; background-position: center center; background-repeat: no-repeat; background-attachment: fixed; font-family: Arial, sans-serif; padding: 0; position: relative;">
+                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
                     <style>
-                        @page {
-                            size: A4;
-                            margin: 0;
-                            background: url('images/Quotation_bg_design.png') no-repeat center center;
-                            background-size: contain;
-                        }
-                        .pdf-table { width: calc(100% - 40px); border-collapse: collapse; margin: 0 20px; border: none; }
-                        .pdf-table th { 
-                            background: rgba(138, 43, 226, 0.3); 
-                            color: #ffffff; 
-                            font-weight: bold; 
-                            padding: 12px 15px; 
-                            text-align: left; 
-                            border: none; 
-                            border-bottom: 2px solid rgba(255, 105, 180, 0.5);
-                            border-right: 1px solid rgba(255, 255, 255, 0.1);
-                        }
-                        .pdf-table td { 
-                            background: rgba(138, 43, 226, 0.2); 
-                            color: #ffffff; 
-                            padding: 12px 15px; 
-                            text-align: left; 
-                            border: none; 
-                            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                            border-right: 1px solid rgba(255, 255, 255, 0.1);
-                        }
-                        .pdf-table tbody tr:hover {
-                            background: rgba(138, 43, 226, 0.3) !important;
-                        }
-                        .text-right { text-align: right !important; }
-                        .pdf-table{
-                        margin-top: 5px;
-                        font-size: 12px;
-                        }
+                        .q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 14px; }
+                        .q-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid ${theme.primary}; color: ${theme.secondary}; font-weight: 600; }
+                        .q-table td { padding: 14px 12px; border-bottom: 1px solid ${theme.border}; }
+                        .q-table .text-right { text-align: right; }
+                        .theme-header { color: ${theme.primary}; }
+                        .theme-accent { color: ${theme.accent}; }
+                        .theme-border { border-color: ${theme.border} !important; }
                     </style>
-                    
-                    <!-- Logo -->
-                    <div style="position: absolute; top: 0; left: 0; z-index: 10; margin-top: 0px;">
-                        <img src="images/logo_white.png" alt="Logo" style="width: 180px; height: auto;">
-                    </div>
-                    
-                    <!-- Title -->
-                    <div style="text-align: center; margin: 0; padding-top: 90px;">
-                        <h2 style="margin: 0; font-size: 40px; font-weight: bold; color: #ff69b4;">QUOTATION</h2>
-                    </div>
-
-                    <!-- Company Info -->
-                    <div style="margin-top: 0px; padding: 20px; padding-top: 5px; color: #ffffff;">
-                        <div style="display: flex; justify-content: space-between;">
-                            <div>
-                                <strong style="color: #ff69b4; font-size: 18px;">Advance Infotech</strong><br>
-                                <span style="color: #ffffff;">No. 1102, 2nd Floor, Sri Dharmaraya <br> Swamy Temple Road, Bangalore 560002</span><br>
-                                <span style="color: #ffffff;">advanceinfotech21@gmail.com</span><br>
-                                <span style="color: #ffffff;">+91 6362618184 | +91 8050702019</span><br>
-                            </div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
+                        <div>
+                            ${logoBase64 ? `<img src="${logoBase64}" alt="Logo" style="max-width: 160px; max-height: 48px; object-fit: contain; margin-left: 12px;">` : `<div style="font-size: 24px; font-weight: 700; color: ${theme.primary}; letter-spacing: -0.02em; margin-left: 12px;">${brandName}</div>`}
+                            <div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div>
+                            <div style="font-size: 12px; color: #6b7280;">${companyAddress}</div>
+                            <div style="font-size: 12px; color: #6b7280;">${companyEmail}</div>
+                            <div style="font-size: 12px; color: #6b7280;">${companyPhone}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em;">Quotation</h1>
                         </div>
                     </div>
-
-                    <!-- Customer and Quotation Info -->
-                    <div style="margin-top: 0px; padding: 20px; padding-top: 0px; color: #ffffff;">
-                        <div style="display: flex; justify-content: space-between;">
-                            <div>
-                                <strong style="color: #ff69b4; font-size: 18px;">Quotation To:</strong><br>
-                                <span style="color: #ffffff;">${customer?.name || 'N/A'}</span><br>
-                                ${customer?.phone ? `<span style="color: #ffffff;">${customer.phone}</span><br>` : ''}
-                                ${customer?.email ? `<span style="color: #ffffff;">${customer.email}</span><br>` : ''}
-                                ${customer?.address ? `<span style="color: #ffffff;">${customer.address}</span><br>` : ''}
-                            </div>
-                            <div style="text-align: right;">
-                                <strong style="color: #ff69b4;">Date:</strong> <span style="color: #ffffff;">${dateCreated}</span>
-                            </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
+                        <div>
+                            ${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div>
+                            <div style="font-size: 14px;">${dateCreated}</div>
                         </div>
                     </div>
-
-                    <!-- Items Table -->
-                    <table class="pdf-table">
+                    <table class="q-table">
                         <thead>
                             <tr>
                                 <th>Description</th>
                                 <th class="text-right">Qty</th>
-                                <th class="text-right">Unit Price</th>
-                                <th class="text-right">Total</th>
+                                <th class="text-right">Unit price</th>
+                                <th class="text-right">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -2528,40 +2606,32 @@
                                         <td class="text-right">${formatRupee(itemTotal)}</td>
                                     </tr>
                                 `;
-                            }).join('') : '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ffffff; background: rgba(138, 43, 226, 0.2);">No items added</td></tr>'}
+                            }).join('') : '<tr><td colspan="4" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}
                         </tbody>
                     </table>
-
-                    <!-- Pricing Summary -->
-                    <div style="margin: 0; padding: 20px; text-align: right; color: #ffffff;">
-                        <div style="display: inline-block; width: 300px;">
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                                <span style="color: #ffffff;">Subtotal (Excl. GST):</span>
-                                <span style="color: #ffffff;">${formatRupee(totalAfterDiscount)}</span>
+                    <div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
+                        <div style="display: inline-block; width: 260px; text-align: right;">
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px;">
+                                <span style="color: #6b7280;">Subtotal (incl. GST)</span>
+                                <span>${formatRupee(totalAfterDiscount)}</span>
                             </div>
-                            <div style="text-align: right; margin-top: 10px; margin-bottom: 5px;">
-                                <span style="color: #ffffff; font-size: 11px; opacity: 0.8;">(inclusive of GST)</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 15px; border-top: 2px solid #ff69b4; font-weight: bold; font-size: 16px;">
-                                <span style="color: #ff69b4;">TOTAL:</span>
-                                <span style="color: #ffa500; font-size: 18px;">${formatRupee(grandTotal)}</span>
-                                <span style="color: #ffffff; font-size: 11px; opacity: 0.8;">(inclusive of GST)</span>
+                            <div style="display: flex; justify-content: space-between; padding: 12px 0; margin-top: 8px; border-top: 2px solid ${theme.primary}; font-size: 16px; font-weight: 600;">
+                                <span>Total</span>
+                                <span>${formatRupee(grandTotal)}</span>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Footer Note -->
-                    <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 20px; font-size: 16px; color: #ffffff; text-align: center; opacity: 0.8;">
-                        <p style="margin: 0;">All prices are valid for <strong style="color: #ff69b4;">${validityDays} days</strong> from the date of quotation.</p>
-                        <p style="margin: 5px 0 0 0;">"<strong style="color: #ff69b4;">Free</strong> pan India warranty" • <strong style="color: #ff69b4;">3-year</strong> call support <strong style="color: #ffa500;">Monday to Saturday 12pm to 7pm</strong></p>
-                        <p style="margin: 5px 0 0 0;">All products from <strong style="color: #ff69b4;">direct manufacture</strong> or <strong style="color: #ff69b4;">store warranty</strong></p>
+                    <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;">
+                        <div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div>
+                        <div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div>
+                        <div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div>
                     </div>
                 </div>
             `;
         }
 
-        // --- PNG Download Logic ---
-        async function downloadQuotationAsPng(quotation) {
+        // --- PDF Download Logic (modal) ---
+        async function downloadQuotationAsPdf(quotation) {
             const content = document.getElementById('quotationViewContent');
             
             if (!content) {
@@ -2578,12 +2648,11 @@
             }
 
             try {
-                // Show loading
                 const downloadBtn = document.getElementById('downloadQuotationPng');
-                const originalBtnText = downloadBtn?.textContent;
+                const originalBtnText = downloadBtn?.innerHTML || downloadBtn?.textContent;
                 if (downloadBtn) {
                     downloadBtn.disabled = true;
-                    downloadBtn.textContent = 'Generating...';
+                    downloadBtn.innerHTML = 'Generating...';
                 }
 
                 // Wait for images to load
@@ -2606,7 +2675,7 @@
                     logging: false, 
                     useCORS: true,
                     allowTaint: true,
-                    backgroundColor: '#1a1a1a',
+                    backgroundColor: '#ffffff',
                     width: 800,
                     height: quotationDiv.scrollHeight || quotationDiv.offsetHeight,
                     x: 0,
@@ -2614,14 +2683,9 @@
                     scrollX: 0,
                     scrollY: 0,
                     onclone: (clonedDoc) => {
-                        // Ensure background image is visible in cloned document
                         const clonedElement = clonedDoc.querySelector('div[style*="width: 800px"]');
                         if (clonedElement) {
-                            clonedElement.style.backgroundImage = "url('../images/Quotation_bg_design.png')";
-                            clonedElement.style.backgroundSize = "contain";
-                            clonedElement.style.backgroundPosition = "center center";
-                            clonedElement.style.backgroundRepeat = "no-repeat";
-                            clonedElement.style.backgroundAttachment = "fixed";
+                            clonedElement.style.backgroundImage = 'none';
                         }
                     }
                 });
@@ -2630,36 +2694,47 @@
                     throw new Error('Canvas is empty');
                 }
 
-                // Convert to PNG and download
+                // Build PDF and download
+                const { jsPDF } = window.jspdf;
+                const imgWidth = 595.28;
+                const pageHeight = 841.89;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
                 const imgData = canvas.toDataURL('image/png', 1.0);
-                const link = document.createElement('a');
-                
-                // Generate filename
+                const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
+                const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
+                const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
+                if (needsMultiplePages) {
+                    let heightLeft = imgHeight;
+                    let position = 0;
+                    doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                    while (heightLeft >= 0) {
+                        position = heightLeft - imgHeight;
+                        doc.addPage();
+                        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                        heightLeft -= pageHeight;
+                    }
+                } else {
+                    const contentHeight = Math.min(imgHeight, pageHeight);
+                    doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeight, undefined, 'FAST');
+                }
                 const customerName = quotation.customer?.name || quotation.customerName || 'Quotation';
                 const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').trim();
-                const quotationId = quotation.quotationId || quotation.id || 'N/A';
-                const filename = `Quotation_${sanitizedName}_${quotationId}.png`;
-                
-                link.href = imgData;
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                const quotationIdVal = quotation.quotationId || quotation.id || 'N/A';
+                const filename = `Quotation_${sanitizedName}_${quotationIdVal}.pdf`;
+                doc.save(filename);
 
-                // Restore button
                 if (downloadBtn) {
                     downloadBtn.disabled = false;
-                    downloadBtn.textContent = originalBtnText;
+                    downloadBtn.innerHTML = originalBtnText || '<i class="fas fa-file-pdf"></i> PDF';
                 }
             } catch (error) {
-                console.error('PNG generation error:', error);
-                alert('Failed to generate PNG image. Please try again.');
-                
-                // Restore button
+                console.error('PDF generation error:', error);
+                alert('Failed to generate PDF. Please try again.');
                 const downloadBtn = document.getElementById('downloadQuotationPng');
                 if (downloadBtn) {
                     downloadBtn.disabled = false;
-                    downloadBtn.textContent = '<i class="fas fa-image"></i> PNG';
+                    downloadBtn.innerHTML = '<i class="fas fa-file-pdf"></i> PDF';
                 }
             }
         }
@@ -2754,7 +2829,7 @@
                     logging: false, 
                     useCORS: true,
                     allowTaint: true,
-                    backgroundColor: '#1a1a1a', // Dark background to match template
+                    backgroundColor: '#ffffff', // Dark background to match template
                     width: 800,
                     height: pdfTemplate.scrollHeight || pdfTemplate.offsetHeight,
                     x: 0,
@@ -2762,14 +2837,9 @@
                     scrollX: 0,
                     scrollY: 0,
                     onclone: (clonedDoc) => {
-                        // Ensure background image is visible in cloned document (page-fixed)
                         const clonedElement = clonedDoc.querySelector('#quotationPdfTemplate > div');
                         if (clonedElement) {
-                            clonedElement.style.backgroundImage = "url('../images/Quotation_bg_design.png')";
-                            clonedElement.style.backgroundSize = "contain";
-                            clonedElement.style.backgroundPosition = "center center";
-                            clonedElement.style.backgroundRepeat = "no-repeat";
-                            clonedElement.style.backgroundAttachment = "fixed";
+                            clonedElement.style.backgroundImage = 'none';
                         }
                     }
                 });
@@ -2871,12 +2941,10 @@
             const userRoleDisplay = document.getElementById('userRoleDisplay');
             const userEmailDisplay = document.getElementById('userEmailDisplay');
             const userAvatar = document.getElementById('userAvatar');
-            const headerTitle = document.getElementById('headerTitle');
 
             if (userRoleDisplay) userRoleDisplay.textContent = CURRENT_USER_ROLE;
             if (userEmailDisplay) userEmailDisplay.textContent = CURRENT_USER_EMAIL;
             if (userAvatar) userAvatar.textContent = CURRENT_USER_ROLE.charAt(0).toUpperCase();
-            if (headerTitle) headerTitle.textContent = `${CURRENT_USER_ROLE} Dashboard`;
 
             // Add event listeners for navigation tabs (only once)
             if (!eventListenersInitialized) {
@@ -2970,7 +3038,7 @@
                 });
 
                 // Redirect to login page
-                window.location.href = '/index.html';
+                window.location.href = '/login.html';
             } catch (error) {
                 // Even if API call fails, clear local storage and redirect
                 const allKeys = [
@@ -2987,7 +3055,7 @@
                     localStorage.removeItem(key);
                 });
                 
-                window.location.href = '/index.html';
+                window.location.href = '/login.html';
             }
         }
 
@@ -3002,7 +3070,7 @@
             localStorage.removeItem('rolewise_user_id');
             localStorage.removeItem('rolewise_session_timeout');
             // Redirect to login
-            window.location.href = '/index.html';
+            window.location.href = '/login.html';
         }
 
         // Immediate session check before page loads (runs as soon as script loads)

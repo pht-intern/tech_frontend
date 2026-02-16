@@ -116,12 +116,12 @@ let itemsCurrentPage = 1;
 const itemsPerPage = 5;
 // Current type filter for Products table (items list)
 let itemsCurrentTypeFilter = '';
-let logsCurrentPage = 1;
-const logsPerPage = 10;
 let historyCurrentPage = 1;
 const historyPerPage = 10;
 let customersCurrentPage = 1;
 const customersPerPage = 10;
+let customerDetailsCurrentPage = 1;
+const customerDetailsPerPage = 10;
 
 // --- Utility Functions ---
 function formatRupee(amount) {
@@ -151,12 +151,16 @@ function generateProductId() {
 // --- API Helper Functions ---
 async function apiFetch(endpoint, options = {}) {
     try {
-        // Ensure credentials (cookies/sessions) are sent with requests
+        const isFormData = options.body instanceof FormData;
+        const headers = (isFormData || !options.body) ? {} : { 'Content-Type': 'application/json' };
         const fetchOptions = {
             ...options,
-            credentials: 'include'  // Send cookies with cross-origin requests
+            credentials: 'include',
+            headers: { ...headers, ...(options.headers || {}) }
         };
-        const response = await fetch(`${API_BASE}${endpoint}`, fetchOptions);
+        if (isFormData) delete fetchOptions.headers['Content-Type'];
+        const url = endpoint.startsWith('/_') ? endpoint : `${API_BASE}${endpoint}`;
+        const response = await fetch(url, fetchOptions);
         
         // Check content type before parsing
         const contentType = response.headers.get("content-type");
@@ -198,9 +202,19 @@ async function getQuotations() {
     return Array.isArray(response) ? response : (response.data || []);
 }
 
+async function getCustomers() {
+    const response = await apiFetch('/_api/customers');
+    return Array.isArray(response) ? response : (response.data || []);
+}
+
 async function getLogs() {
     const response = await apiFetch('/logs');
     // API returns {success: true, data: [...]} or just the array
+    return Array.isArray(response) ? response : (response.data || []);
+}
+
+async function getContactRequests() {
+    const response = await apiFetch('/_api/contact-requests');
     return Array.isArray(response) ? response : (response.data || []);
 }
 
@@ -211,7 +225,10 @@ async function getGstRules() {
 }
 
 async function getSettings() {
-    return await apiFetch('/settings');
+    const response = await apiFetch('/settings');
+    // API returns { success, data: { pdfTheme, gstRate, ... } } - unwrap so settings.pdfTheme works
+    const data = response?.data ?? response ?? {};
+    return typeof data === 'object' && data !== null ? data : {};
 }
 
 async function addLog(action, userRole, details) {
@@ -244,11 +261,9 @@ function switchRole(newRole) {
         const userRoleDisplay = document.getElementById('userRoleDisplay');
         const userEmailDisplay = document.getElementById('userEmailDisplay');
         const userAvatar = document.getElementById('userAvatar');
-        const headerTitle = document.getElementById('headerTitle');
         if (userRoleDisplay) userRoleDisplay.textContent = newRole;
         if (userEmailDisplay) userEmailDisplay.textContent = CURRENT_USER_EMAIL;
         if (userAvatar) userAvatar.textContent = newRole.charAt(0).toUpperCase();
-        if (headerTitle) headerTitle.textContent = `${newRole} Dashboard`;
         addLog('Role Switched', newRole, `Switched to role: ${newRole}`);
     }
 }
@@ -286,6 +301,117 @@ function applyRoleRestrictions() {
 
 // --- Data Manipulation ---
 let isSubmittingItem = false; // Prevent double submissions
+
+function getCompatPayload(prefix) {
+    const p = prefix || '';
+    const v = (id) => { const el = document.getElementById(p + id); return el ? el.value.trim() : ''; };
+    const n = (id) => { const val = v(id); return val === '' ? undefined : (isNaN(parseFloat(val)) ? val : (val.includes('.') ? parseFloat(val) : parseInt(val, 10))); };
+    const payload = {};
+    if (v('compat-socket')) payload.socket = v('compat-socket');
+    if (n('compat-tdp') !== undefined) payload.tdp = n('compat-tdp');
+    if (v('compat-memory-type')) payload.memoryType = v('compat-memory-type');
+    if (v('compat-max-memory-speed')) payload.maxMemorySpeed = v('compat-max-memory-speed');
+    if (v('compat-pcie-version')) payload.pcieVersion = v('compat-pcie-version');
+    if (v('compat-generation')) payload.generation = v('compat-generation');
+    if (v('compat-bios-version')) payload.biosVersionRequired = v('compat-bios-version');
+    if (v('compat-chipset')) payload.chipset = v('compat-chipset');
+    if (v('compat-form-factor')) payload.formFactor = v('compat-form-factor');
+    if (n('compat-memory-slots') !== undefined) payload.memorySlots = n('compat-memory-slots');
+    if (v('compat-max-memory')) payload.maxMemory = v('compat-max-memory');
+    if (n('compat-pcie-x16-slots') !== undefined) payload.pcieX16Slots = n('compat-pcie-x16-slots');
+    if (n('compat-m2-slots') !== undefined) payload.m2Slots = n('compat-m2-slots');
+    if (n('compat-sata-ports') !== undefined) payload.sataPorts = n('compat-sata-ports');
+    if (v('compat-supported-cpu-generations')) payload.supportedCpuGenerations = v('compat-supported-cpu-generations');
+    if (v('compat-wifi-support')) payload.wifiSupport = v('compat-wifi-support');
+    if (v('compat-capacity-per-module')) payload.capacityPerModule = v('compat-capacity-per-module');
+    if (n('compat-modules-count') !== undefined) payload.modulesCount = n('compat-modules-count');
+    if (v('compat-speed')) payload.speed = v('compat-speed');
+    if (v('compat-voltage')) payload.voltage = v('compat-voltage');
+    if (n('compat-length-mm') !== undefined) payload.lengthMm = n('compat-length-mm');
+    if (n('compat-height-mm') !== undefined) payload.heightMm = n('compat-height-mm');
+    if (n('compat-thickness-slots') !== undefined) payload.thicknessSlots = n('compat-thickness-slots');
+    if (v('compat-required-pcie')) payload.requiredPcieConnectors = v('compat-required-pcie');
+    if (n('compat-recommended-psu-wattage') !== undefined) payload.recommendedPsuWattage = n('compat-recommended-psu-wattage');
+    if (n('compat-wattage') !== undefined) payload.wattage = n('compat-wattage');
+    if (v('compat-pcie-connectors')) payload.pcieConnectors = v('compat-pcie-connectors');
+    if (v('compat-cpu-power-connectors')) payload.cpuPowerConnectors = v('compat-cpu-power-connectors');
+    if (n('compat-sata-connectors') !== undefined) payload.sataConnectors = n('compat-sata-connectors');
+    if (v('compat-modular-type')) payload.modularType = v('compat-modular-type');
+    if (v('compat-supported-form-factors')) payload.supportedFormFactors = v('compat-supported-form-factors');
+    if (n('compat-max-gpu-length') !== undefined) payload.maxGpuLength = n('compat-max-gpu-length');
+    if (n('compat-max-cpu-cooler-height') !== undefined) payload.maxCpuCoolerHeight = n('compat-max-cpu-cooler-height');
+    if (v('compat-psu-support')) payload.psuSupport = v('compat-psu-support');
+    if (n('compat-drive-bays-25') !== undefined) payload.driveBays25 = n('compat-drive-bays-25');
+    if (n('compat-drive-bays-35') !== undefined) payload.driveBays35 = n('compat-drive-bays-35');
+    if (v('compat-supported-sockets')) payload.supportedSockets = v('compat-supported-sockets');
+    if (n('compat-tdp-rating') !== undefined) payload.tdpRating = n('compat-tdp-rating');
+    if (v('compat-radiator-size')) payload.radiatorSize = v('compat-radiator-size');
+    if (v('compat-interface-type')) payload.interfaceType = v('compat-interface-type');
+    if (v('compat-storage-form-factor')) payload.storageFormFactor = v('compat-storage-form-factor');
+    return payload;
+}
+
+function normalizeTypeForCompat(typeVal) {
+    if (!typeVal) return '';
+    const t = String(typeVal).trim().toLowerCase();
+    if (t.includes('cpu') || t === 'processor') return 'cpu';
+    if (t.includes('motherboard') || t === 'mb') return 'motherboard';
+    if (t.includes('ram') || t === 'memory') return 'ram';
+    if (t.includes('gpu') || t.includes('graphics')) return 'gpu';
+    if (t.includes('psu') || t.includes('power supply')) return 'psu';
+    if (t.includes('case') || t === 'cabinet') return 'case';
+    if (t.includes('cooler') || t.includes('cooling')) return 'cooler';
+    if (t.includes('storage') || t === 'ssd' || t === 'hdd') return 'storage';
+    return '';
+}
+
+function updateCompatFieldsVisibility(typeElId, containerId) {
+    const typeEl = document.getElementById(typeElId);
+    const cId = containerId || 'compatFieldsContainer';
+    const container = document.getElementById(cId);
+    const hintId = cId === 'editCompatFieldsContainer' ? 'editCompatTypeHint' : 'compatTypeHint';
+    const hint = document.getElementById(hintId);
+    if (!typeEl || !container) return;
+    const normType = normalizeTypeForCompat(typeEl.value);
+    const fields = container.querySelectorAll('.compat-field');
+    let visibleCount = 0;
+    fields.forEach(f => {
+        const forTypes = (f.getAttribute('data-compat-for') || '').split(/\s+/).filter(Boolean);
+        const show = normType && forTypes.includes(normType);
+        f.style.display = show ? '' : 'none';
+        if (show) visibleCount++;
+    });
+    if (hint) {
+        hint.textContent = normType
+            ? `Showing ${visibleCount} field(s) for ${normType}.`
+            : 'Select a product type to see compatibility fields.';
+    }
+}
+
+function setCompatFields(prefix, item) {
+    const p = prefix || '';
+    const s = (id, val) => { const el = document.getElementById(p + id); if (el && val != null) el.value = val; };
+    s('compat-socket', item?.socket); s('compat-tdp', item?.tdp); s('compat-memory-type', item?.memoryType);
+    s('compat-max-memory-speed', item?.maxMemorySpeed); s('compat-pcie-version', item?.pcieVersion);
+    s('compat-generation', item?.generation); s('compat-bios-version', item?.biosVersionRequired);
+    s('compat-chipset', item?.chipset); s('compat-form-factor', item?.formFactor);
+    s('compat-memory-slots', item?.memorySlots); s('compat-max-memory', item?.maxMemory);
+    s('compat-pcie-x16-slots', item?.pcieX16Slots); s('compat-m2-slots', item?.m2Slots);
+    s('compat-sata-ports', item?.sataPorts); s('compat-supported-cpu-generations', item?.supportedCpuGenerations);
+    s('compat-wifi-support', item?.wifiSupport); s('compat-capacity-per-module', item?.capacityPerModule);
+    s('compat-modules-count', item?.modulesCount); s('compat-speed', item?.speed); s('compat-voltage', item?.voltage);
+    s('compat-length-mm', item?.lengthMm); s('compat-height-mm', item?.heightMm);
+    s('compat-thickness-slots', item?.thicknessSlots); s('compat-required-pcie', item?.requiredPcieConnectors);
+    s('compat-recommended-psu-wattage', item?.recommendedPsuWattage); s('compat-wattage', item?.wattage);
+    s('compat-pcie-connectors', item?.pcieConnectors); s('compat-cpu-power-connectors', item?.cpuPowerConnectors);
+    s('compat-sata-connectors', item?.sataConnectors); s('compat-modular-type', item?.modularType);
+    s('compat-supported-form-factors', item?.supportedFormFactors); s('compat-max-gpu-length', item?.maxGpuLength);
+    s('compat-max-cpu-cooler-height', item?.maxCpuCoolerHeight); s('compat-psu-support', item?.psuSupport);
+    s('compat-drive-bays-25', item?.driveBays25); s('compat-drive-bays-35', item?.driveBays35);
+    s('compat-supported-sockets', item?.supportedSockets); s('compat-tdp-rating', item?.tdpRating);
+    s('compat-radiator-size', item?.radiatorSize); s('compat-interface-type', item?.interfaceType);
+    s('compat-storage-form-factor', item?.storageFormFactor);
+}
 
 async function saveItem(event) {
     event.preventDefault();
@@ -338,6 +464,8 @@ async function saveItem(event) {
     if (gst !== null && !isNaN(gst)) {
         payload.gst = gst;
     }
+
+    Object.assign(payload, getCompatPayload(''));
 
     const submitBtn = document.querySelector('#addItemForm button[type="submit"]');
     const isUpdate = submitBtn.textContent === 'Update Product';
@@ -457,6 +585,9 @@ async function editItem(productId) {
                 }
             }
 
+            setCompatFields('edit-', item);
+            updateCompatFieldsVisibility('edit-type', 'editCompatFieldsContainer');
+
             // Show modal
             const modal = document.getElementById('editProductModal');
             if (modal) {
@@ -517,10 +648,16 @@ async function saveEditProduct(event) {
         payload.gst = gst;
     }
 
+    Object.assign(payload, getCompatPayload('edit-'));
+
     const submitBtn = form.querySelector('button[type="submit"]');
     const originalBtnText = submitBtn.textContent;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Updating...';
+
+    const items = await getItems();
+    const originalItem = items.find(i => i.productId === productId);
+    const originalPrice = originalItem != null ? parseFloat(originalItem.price) : NaN;
 
     try {
         await apiFetch(`/items/${productId}`, {
@@ -554,6 +691,13 @@ async function saveEditProduct(event) {
         }
 
         alert('Product updated successfully!');
+        
+        // Log: Price Updated if price changed, otherwise Edited
+        if (originalItem && !isNaN(originalPrice) && originalPrice !== price) {
+            addLog('Price Updated', CURRENT_USER_ROLE, `Updated price of ${productName} (${productId}): ₹${originalPrice} → ₹${price}`);
+        } else {
+            addLog('Edited', CURRENT_USER_ROLE, `Edited product: ${productName} (${productId})`);
+        }
         
         // Close modal
         const modal = document.getElementById('editProductModal');
@@ -695,29 +839,8 @@ async function handleCsvImport(event) {
 
 // --- Customer Management ---
 async function renderCustomersList() {
-    const quotationsResponse = await getQuotations();
-    // Handle API response format - ensure we have an array
-    const quotations = Array.isArray(quotationsResponse) ? quotationsResponse : (quotationsResponse?.data || []);
-    
-    const customersMap = new Map();
-
-    if (Array.isArray(quotations)) {
-        quotations.forEach(q => {
-            const phone = q.customer?.phone || q.customerPhone;
-            if (!phone) return;
-
-            const newCustomerData = {
-                name: q.customer?.name || q.customerName || 'N/A',
-                email: q.customer?.email || q.customerEmail || 'N/A',
-                phone: phone,
-                address: q.customer?.address || q.customerAddress || 'N/A',
-                lastQuotationDate: q.dateCreated || q.created_at || 'N/A'
-            };
-            customersMap.set(phone, newCustomerData);
-        });
-    }
-
-    const customers = Array.from(customersMap.values());
+    const customersResponse = await getCustomers();
+    const customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
     const body = document.getElementById('customersListBody');
     const customersTable = document.getElementById('customersTable');
     const paginationDiv = document.getElementById('customersPagination');
@@ -726,7 +849,7 @@ async function renderCustomersList() {
     body.innerHTML = '';
 
     if (customers.length === 0) {
-        body.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center">No customer data available.</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center">No customer data available.</td></tr>';
         if (customersTable) customersTable.style.display = 'none';
         if (paginationDiv) paginationDiv.style.display = 'none';
         return;
@@ -760,8 +883,92 @@ async function renderCustomersList() {
         row.insertCell().textContent = customer.email || 'N/A';
         row.insertCell().textContent = customer.phone || 'N/A';
         row.insertCell().textContent = customer.address || 'N/A';
-        row.insertCell().textContent = customer.lastQuotationDate;
+        row.insertCell().textContent = customer.lastQuotationDate || 'N/A';
+        const actionsCell = row.insertCell();
+        const phoneEscaped = (customer.phone || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        actionsCell.innerHTML = `<button class="btn" style="padding: 5px 8px;" onclick="openEditCustomerModal('${phoneEscaped}')" title="Edit customer"><i class="fas fa-edit"></i></button>`;
     });
+}
+
+let currentEditCustomerPhone = null;
+
+async function openEditCustomerModal(phone) {
+    if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE) && !AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE)) {
+        alert('You are not authorized to edit customers.');
+        return;
+    }
+    try {
+        const customersResponse = await getCustomers();
+        const customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
+        const cust = customers.find(c => c.phone === phone);
+        if (!cust) {
+            alert('Customer data not found.');
+            return;
+        }
+        currentEditCustomerPhone = phone;
+        document.getElementById('edit-cust-phone').value = cust.phone || phone;
+        document.getElementById('edit-cust-name').value = cust.name || '';
+        document.getElementById('edit-cust-email').value = cust.email || '';
+        document.getElementById('edit-cust-address').value = cust.address || '';
+        const modal = document.getElementById('editCustomerModal');
+        if (modal) modal.style.display = 'block';
+    } catch (e) {
+        console.error('Error loading customer for edit:', e);
+        alert('Failed to load customer data.');
+    }
+}
+
+async function saveEditCustomer(event) {
+    event.preventDefault();
+    const phone = currentEditCustomerPhone;
+    if (!phone) return;
+    const name = document.getElementById('edit-cust-name').value.trim();
+    const email = document.getElementById('edit-cust-email').value.trim() || null;
+    const address = document.getElementById('edit-cust-address').value.trim() || null;
+    if (!name) {
+        alert('Name is required.');
+        return;
+    }
+    try {
+        const res = await apiFetch('/customers/update-by-phone', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, name, email, address })
+        });
+        if (res && (res.success !== false)) {
+            closeEditCustomerModal();
+            renderCustomersList();
+            renderCustomerDetailsList();
+            alert('Customer updated successfully.');
+        } else {
+            alert(res?.message || 'Failed to update customer.');
+        }
+    } catch (e) {
+        console.error('Save customer error:', e);
+        alert('Failed to update customer.');
+    }
+}
+
+function closeEditCustomerModal() {
+    const modal = document.getElementById('editCustomerModal');
+    if (modal) modal.style.display = 'none';
+    currentEditCustomerPhone = null;
+}
+
+function initEditCustomerModal() {
+    const modal = document.getElementById('editCustomerModal');
+    if (!modal) return;
+    document.getElementById('editCustomerForm')?.addEventListener('submit', saveEditCustomer);
+    document.getElementById('closeEditCustomerModal')?.addEventListener('click', closeEditCustomerModal);
+    document.getElementById('cancelEditCustomerBtn')?.addEventListener('click', closeEditCustomerModal);
+    modal.onclick = (e) => { if (e.target === modal) closeEditCustomerModal(); };
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display === 'block') closeEditCustomerModal();
+    });
+}
+
+async function editCustomer(phone) {
+    openEditCustomerModal(phone);
 }
 
 function updateCustomersPaginationControls(totalPages, totalItems) {
@@ -884,26 +1091,318 @@ function goToCustomersPage(direction) {
     customersCurrentPage += direction;
     if (customersCurrentPage < 1) customersCurrentPage = 1;
     
-    // Get total pages to limit max page
-    getQuotations().then(quotations => {
-        const customersMap = new Map();
-        quotations.forEach(q => {
-            const phone = q.customer?.phone;
-            if (!phone) return;
-            const newCustomerData = {
-                name: q.customer?.name || null,
-                email: q.customer?.email || null,
-                phone: phone,
-                address: q.customer?.address || null,
-                lastQuotationDate: q.dateCreated
-            };
-            customersMap.set(phone, newCustomerData);
-        });
-        const customers = Array.from(customersMap.values());
-        const totalPages = Math.ceil(customers.length / customersPerPage);
+    getCustomers().then(customers => {
+        const arr = Array.isArray(customers) ? customers : (customers?.data || []);
+        const totalPages = Math.ceil(arr.length / customersPerPage);
         if (customersCurrentPage > totalPages) customersCurrentPage = totalPages;
         renderCustomersList();
     });
+}
+
+// --- Customer Details Management ---
+async function renderCustomerDetailsList() {
+    const customersResponse = await getCustomers();
+    const customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
+    const body = document.getElementById('customerDetailsListBody');
+    const customersTable = document.getElementById('customerDetailsTable');
+    const paginationDiv = document.getElementById('customerDetailsPagination');
+    if (!body) return;
+    
+    body.innerHTML = '';
+
+    if (customers.length === 0) {
+        body.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center">No customer data available.</td></tr>';
+        if (customersTable) customersTable.style.display = 'none';
+        if (paginationDiv) paginationDiv.style.display = 'none';
+        return;
+    }
+
+    if (customersTable) customersTable.style.display = 'table';
+    if (paginationDiv) paginationDiv.style.display = 'flex';
+
+    customers.sort((a, b) => {
+        try {
+            const dateA = new Date(a.lastQuotationDate);
+            const dateB = new Date(b.lastQuotationDate);
+            return dateB - dateA; // Most recent first
+        } catch (e) {
+            return 0;
+        }
+    });
+
+    // Calculate pagination
+    const totalPages = Math.ceil(customers.length / customerDetailsPerPage);
+    const startIndex = (customerDetailsCurrentPage - 1) * customerDetailsPerPage;
+    const endIndex = startIndex + customerDetailsPerPage;
+    const paginatedCustomers = customers.slice(startIndex, endIndex);
+
+    // Update pagination controls
+    updateCustomerDetailsPaginationControls(totalPages, customers.length);
+
+    paginatedCustomers.forEach((customer, index) => {
+        const row = body.insertRow();
+        row.className = 'customer-row';
+        const phoneEscaped = (customer.phone || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        row.innerHTML = `
+            <td>${startIndex + index + 1}</td>
+            <td>${(customer.name || 'N/A').replace(/</g, '&lt;')}</td>
+            <td>${(customer.email || 'N/A').replace(/</g, '&lt;')}</td>
+            <td>${(customer.phone || 'N/A').replace(/</g, '&lt;')}</td>
+            <td>${(customer.address || 'N/A').replace(/</g, '&lt;')}</td>
+            <td>${(customer.lastQuotationDate || '').replace(/</g, '&lt;')}</td>
+            <td><button class="btn" style="padding: 5px 8px;" onclick="event.stopPropagation(); openEditCustomerModal('${phoneEscaped}')" title="Edit customer"><i class="fas fa-edit"></i></button></td>
+        `;
+        
+        // Add click event to toggle quotations
+        row.addEventListener('click', () => toggleCustomerQuotations(customer.phone, row));
+    });
+}
+
+function updateCustomerDetailsPaginationControls(totalPages, totalItems) {
+    const pageNumbersDiv = document.getElementById('customerDetailsPageNumbers');
+    const nextBtn = document.getElementById('customerDetailsNextBtn');
+    const prevBtn = document.getElementById('customerDetailsPrevBtn');
+    const pageInfo = document.getElementById('customerDetailsPageInfo');
+
+    if (pageNumbersDiv) {
+        pageNumbersDiv.innerHTML = '';
+        
+        if (totalPages === 0) {
+            if (pageInfo) pageInfo.textContent = '';
+            return;
+        }
+
+        // Update page info
+        if (pageInfo) {
+            const startItem = (customerDetailsCurrentPage - 1) * customerDetailsPerPage + 1;
+            const endItem = Math.min(customerDetailsCurrentPage * customerDetailsPerPage, totalItems);
+            pageInfo.textContent = `Page ${customerDetailsCurrentPage} of ${totalPages} • Showing ${startItem}-${endItem} of ${totalItems}`;
+        }
+
+        // Show up to 7 page numbers with ellipsis
+        const maxPagesToShow = 7;
+        let startPage, endPage;
+        let showStartEllipsis = false;
+        let showEndEllipsis = false;
+        
+        if (totalPages <= maxPagesToShow) {
+            // Show all pages if 7 or fewer
+            startPage = 1;
+            endPage = totalPages;
+        } else {
+            // Calculate which pages to show
+            if (customerDetailsCurrentPage <= 4) {
+                // Show first pages
+                startPage = 1;
+                endPage = maxPagesToShow - 1;
+                showEndEllipsis = true;
+            } else if (customerDetailsCurrentPage >= totalPages - 3) {
+                // Show last pages
+                startPage = totalPages - (maxPagesToShow - 2);
+                endPage = totalPages;
+                showStartEllipsis = true;
+            } else {
+                // Show pages around current
+                startPage = customerDetailsCurrentPage - 2;
+                endPage = customerDetailsCurrentPage + 2;
+                showStartEllipsis = true;
+                showEndEllipsis = true;
+            }
+        }
+
+        // Add first page and ellipsis if needed
+        if (showStartEllipsis) {
+            const firstBtn = document.createElement('button');
+            firstBtn.className = 'pagination-page-btn';
+            firstBtn.textContent = '1';
+            firstBtn.onclick = () => {
+                customerDetailsCurrentPage = 1;
+                renderCustomerDetailsList();
+            };
+            pageNumbersDiv.appendChild(firstBtn);
+
+            const ellipsis = document.createElement('div');
+            ellipsis.className = 'pagination-ellipsis';
+            ellipsis.textContent = '...';
+            pageNumbersDiv.appendChild(ellipsis);
+        }
+
+        // Add page number buttons
+        for (let i = startPage; i <= endPage; i++) {
+            const pageBtn = document.createElement('button');
+            pageBtn.className = 'pagination-page-btn';
+            if (i === customerDetailsCurrentPage) {
+                pageBtn.classList.add('active');
+            }
+            pageBtn.textContent = i;
+            
+            pageBtn.onclick = () => {
+                customerDetailsCurrentPage = i;
+                renderCustomerDetailsList();
+            };
+            
+            pageNumbersDiv.appendChild(pageBtn);
+        }
+
+        // Add last page and ellipsis if needed
+        if (showEndEllipsis) {
+            const ellipsis = document.createElement('div');
+            ellipsis.className = 'pagination-ellipsis';
+            ellipsis.textContent = '...';
+            pageNumbersDiv.appendChild(ellipsis);
+
+            const lastBtn = document.createElement('button');
+            lastBtn.className = 'pagination-page-btn';
+            lastBtn.textContent = totalPages;
+            lastBtn.onclick = () => {
+                customerDetailsCurrentPage = totalPages;
+                renderCustomerDetailsList();
+            };
+            pageNumbersDiv.appendChild(lastBtn);
+        }
+    }
+
+    // Update Previous and Next buttons
+    if (prevBtn) {
+        prevBtn.disabled = customerDetailsCurrentPage <= 1;
+    }
+    if (nextBtn) {
+        nextBtn.disabled = customerDetailsCurrentPage >= totalPages;
+    }
+}
+
+function goToCustomerDetailsPage(direction) {
+    const body = document.getElementById('customerDetailsListBody');
+    if (!body) return;
+    
+    customerDetailsCurrentPage += direction;
+    if (customerDetailsCurrentPage < 1) customerDetailsCurrentPage = 1;
+    
+    // Get total pages to limit max page
+    getCustomers().then(customers => {
+        const arr = Array.isArray(customers) ? customers : (customers?.data || []);
+        const totalPages = Math.ceil(arr.length / customerDetailsPerPage);
+        if (customerDetailsCurrentPage > totalPages) customerDetailsCurrentPage = totalPages;
+        renderCustomerDetailsList();
+    });
+}
+
+// Toggle customer quotations dropdown
+async function toggleCustomerQuotations(customerPhone, customerRow) {
+    const existingQuotationsRow = customerRow.nextElementSibling;
+    const isExpanded = customerRow.classList.contains('expanded');
+    
+    // Close all other expanded rows
+    document.querySelectorAll('.customer-row.expanded').forEach(row => {
+        row.classList.remove('expanded');
+        const nextRow = row.nextElementSibling;
+        if (nextRow && nextRow.classList.contains('customer-quotation-row')) {
+            nextRow.remove();
+        }
+    });
+    
+    if (isExpanded) {
+        // Close current row
+        customerRow.classList.remove('expanded');
+        if (existingQuotationsRow && existingQuotationsRow.classList.contains('customer-quotation-row')) {
+            existingQuotationsRow.remove();
+        }
+        return;
+    }
+    
+    // Expand current row
+    customerRow.classList.add('expanded');
+    
+    try {
+        const quotationsResponse = await getQuotations();
+        const quotations = Array.isArray(quotationsResponse) ? quotationsResponse : (quotationsResponse?.data || []);
+        
+        // Filter quotations for this customer
+        const customerQuotations = quotations.filter(q => {
+            const phone = q.customer?.phone || q.customerPhone;
+            return phone === customerPhone;
+        });
+        
+        if (customerQuotations.length === 0) {
+            return;
+        }
+        
+        // Get customer serial number from the table
+        const customerRows = Array.from(document.querySelectorAll('#customerDetailsListBody .customer-row'));
+        const customerIndex = customerRows.findIndex(row => {
+            const rowPhone = row.cells[3]?.textContent; // Phone is in 4th column (index 3)
+            return rowPhone === customerPhone;
+        });
+        const customerSerialNumber = customerIndex + 1;
+        
+        // Create quotations row
+        const quotationsRow = document.createElement('tr');
+        quotationsRow.className = 'customer-quotation-row';
+        quotationsRow.innerHTML = `
+            <td colspan="6">
+                <div class="quotation-details">
+                    <table class="data-table" style="margin: 0; background: white;">
+                        <thead>
+                            <tr>
+                                <th>Quotation ID</th>
+                                <th>Date</th>
+                                <th>Timestamp</th>
+                                <th>Total Amount</th>
+                                <th>Items Count</th>
+                                <th>Created By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${customerQuotations.map((quotation, qIndex) => `
+                                <tr>
+                                    <td>${customerSerialNumber}.${qIndex + 1}</td>
+                                    <td>${new Date(quotation.dateCreated || quotation.created_at).toLocaleDateString()}</td>
+                                    <td>${quotation.created_at ? new Date(quotation.created_at).toLocaleString() : new Date(quotation.dateCreated).toLocaleString()}</td>
+                                    <td>${formatRupee(quotation.totalAmount || quotation.total)}</td>
+                                    <td>${quotation.items ? quotation.items.length : 0}</td>
+                                    <td>${quotation.createdBy || quotation.user || 'N/A'}</td>
+                                </tr>
+                                ${quotation.items && quotation.items.length > 0 ? `
+                                    <tr>
+                                        <td colspan="6" style="padding: 0;">
+                                            <table class="data-table" style="margin: 10px 0 0 20px; width: calc(100% - 20px); background: #fafafa;">
+                                                <thead>
+                                                    <tr>
+                                                        <th style="text-align: left; padding-left: 20px;">Item Details</th>
+                                                        <th>Quantity</th>
+                                                        <th>Unit Price</th>
+                                                        <th>Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${quotation.items.map((item, itemIndex) => `
+                                                        <tr>
+                                                            <td style="text-align: left; padding-left: 20px;">
+                                                                <div>${customerSerialNumber}.${qIndex + 1}.${itemIndex + 1}. ${item.productName || item.name}</div>
+                                                            </td>
+                                                            <td>${item.quantity || item.qty}</td>
+                                                            <td>${formatRupee(item.unitPrice || item.price)}</td>
+                                                            <td>${formatRupee((item.unitPrice || item.price) * (item.quantity || item.qty))}</td>
+                                                        </tr>
+                                                    `).join('')}
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                ` : ''}
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </td>
+        `;
+        
+        // Insert after customer row
+        customerRow.parentNode.insertBefore(quotationsRow, customerRow.nextSibling);
+        
+    } catch (error) {
+        console.error('Error loading customer quotations:', error);
+    }
 }
 
 async function getCustomerByPhone(phoneNumber) {
@@ -1012,8 +1511,22 @@ async function renderQuotationTypeFilters(items = null) {
 async function renderAvailableItemsForQuotation(filter = '', typeFilter = '', items = null) {
     console.trace('🔍 renderAvailableItemsForQuotation called');
     try {
-        // Use passed items or get from cache/fetch
-        const itemsData = items || window.cachedItems || await getItems();
+        let itemsData;
+        const compatibleOnly = document.getElementById('compatibleFilterToggle')?.checked;
+        const refIds = Array.isArray(quotationItems) ? quotationItems.map(qi => qi.productId).filter(Boolean) : [];
+
+        if (compatibleOnly && refIds.length > 0) {
+            try {
+                const resp = await apiFetch('/items/compatible?with=' + encodeURIComponent(refIds.join(',')));
+                itemsData = (resp && resp.data) ? resp.data : (resp && Array.isArray(resp) ? resp : []);
+            } catch (e) {
+                console.warn('Compatible filter failed, showing all items:', e);
+                itemsData = items || window.cachedItems || await getItems();
+            }
+        } else {
+            itemsData = items || window.cachedItems || await getItems();
+        }
+
         const listDiv = document.getElementById('availableItemsList');
         
         if (!listDiv) return;
@@ -1115,12 +1628,22 @@ async function addItemToQuotation(productId) {
 
     renderQuotationItems();
     updateGrandTotal();
+    if (document.getElementById('compatibleFilterToggle')?.checked) {
+        const searchValue = document.getElementById('itemSearchInput')?.value || '';
+        const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+        renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
+    }
 }
 
 function removeItemFromQuotation(productId) {
     quotationItems = quotationItems.filter(item => item.productId !== productId);
     renderQuotationItems();
     updateGrandTotal();
+    if (document.getElementById('compatibleFilterToggle')?.checked) {
+        const searchValue = document.getElementById('itemSearchInput')?.value || '';
+        const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+        renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
+    }
 }
 
 function updateItemQuantity(productId, newQuantity) {
@@ -1381,6 +1904,7 @@ async function createQuotation() {
             address: customerAddress || null
         },
         items: itemsForApi,
+        images: await adminEnsureImagesAreUrls(typeof getAdminUploadedImages === 'function' ? getAdminUploadedImages() : []),
         subTotal: String(parseFloat(subTotal).toFixed(2)),
         discountPercent: String(parseFloat(discountPercent).toFixed(2)),
         discountAmount: String(parseFloat(discountAmount).toFixed(2)),
@@ -1416,8 +1940,8 @@ async function createQuotation() {
             quotationData.grandTotal = parseFloat(quotationData.grandTotal || 0);
         }
 
-        // Download as PNG
-        await downloadQuotationAsPngDirect(quotationData);
+        // Download as PDF
+        await downloadQuotationAsPdfDirect(quotationData);
 
         // Reset
         quotationItems = [];
@@ -1430,6 +1954,7 @@ async function createQuotation() {
         if (discountPercentInput) discountPercentInput.value = '0';
         const customerDetailsDisplay = document.getElementById('customer-details-display');
         if (customerDetailsDisplay) customerDetailsDisplay.innerHTML = '';
+        if (typeof clearAdminImageUpload === 'function') clearAdminImageUpload();
         renderQuotationItems();
         updateGrandTotal();
         document.getElementById('itemSearchInput').value = '';
@@ -1511,7 +2036,7 @@ async function generateQuotationPdf(quotation) {
             logging: false, 
             useCORS: true,
             allowTaint: true,
-            backgroundColor: '#1a1a1a', // Dark background to match template
+            backgroundColor: '#ffffff', // Dark background to match template
             width: 800,
             height: pdfTemplate.scrollHeight || pdfTemplate.offsetHeight,
             x: 0,
@@ -1519,14 +2044,9 @@ async function generateQuotationPdf(quotation) {
             scrollX: 0,
             scrollY: 0,
             onclone: (clonedDoc) => {
-                // Ensure background image is visible in cloned document (page-fixed)
                 const clonedElement = clonedDoc.querySelector('#quotationPdfTemplate > div');
                 if (clonedElement) {
-                    clonedElement.style.backgroundImage = "url('../images/Quotation_bg_design.png')";
-                    clonedElement.style.backgroundSize = "contain";
-                    clonedElement.style.backgroundPosition = "center center";
-                    clonedElement.style.backgroundRepeat = "no-repeat";
-                    clonedElement.style.backgroundAttachment = "fixed";
+                    clonedElement.style.backgroundImage = 'none';
                 }
             }
         });
@@ -1614,16 +2134,21 @@ async function generateQuotationPdf(quotation) {
     }
 }
 
-async function generateQuotationHtml(quotation) {
+async function generateQuotationHtml(quotation, options = {}) {
     const settings = await getSettings();
     const logoBase64 = settings.logo || '';
     const brandName = settings.brand || 'TECHTITANS';
     const companyGstId = settings.companyGstId || 'N/A';
-    const validityDays = quotation.validityDays || settings.validityDays || 3;
+    const validityDays = quotation.validityDays || settings.validityDays || settings.defaultValidityDays || 3;
+
+    // Get PDF theme colors
+    const pdfThemeName = settings.pdfTheme || 'default';
+    const theme = PDF_THEMES[pdfThemeName] || PDF_THEMES.default;
 
     // Company details - using defaults if not in settings
     const companyAddress = settings.companyAddress || '1102, second Floor, Before Atithi Satkar Hotel OTC Road, Bangalore 560002';
     const companyEmail = settings.companyEmail || 'advanceinfotech21@gmail.com';
+    const companyPhone = settings.companyPhone || '+91 63626 18184';
 
     // Safely access customer data
     const customer = quotation.customer || {};
@@ -1710,91 +2235,55 @@ async function generateQuotationHtml(quotation) {
     const quotationId = quotation.quotationId || quotation.id || 'N/A';
     const dateCreated = quotation.dateCreated || new Date().toLocaleDateString('en-IN');
 
+    // Page 2: Images attached to quotation (same header/footer, images instead of table)
+    if (options.page2Images && options.page2Images.length > 0) {
+        const imagesGridHtml = options.page2Images.map(item => {
+            const imgSrc = item.image || '';
+            if (!imgSrc) return '';
+            return `<div style="margin-bottom: 24px; text-align: center;"><img src="${imgSrc}" alt="Preview" style="max-width: 100%; max-height: 400px; object-fit: contain; border: 1px solid ${theme.border}; border-radius: 8px;"></div>`;
+        }).join('');
+        return `<div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;"><style>.theme-border { border-color: ${theme.border} !important; }</style><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;"><div>${logoBase64 ? `<img src="${logoBase64}" alt="Logo" style="max-width: 160px; max-height: 48px; object-fit: contain; margin-left: 12px;">` : `<div style="font-size: 24px; font-weight: 700; color: ${theme.primary}; letter-spacing: -0.02em; margin-left: 12px;">${brandName}</div>`}<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: 12px; color: #6b7280;">${companyAddress}</div><div style="font-size: 12px; color: #6b7280;">${companyEmail}</div><div style="font-size: 12px; color: #6b7280;">${companyPhone}</div></div><div style="text-align: right;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em;">Preview</h1></div></div><div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}</div><div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div></div><div style="margin-top: 24px; margin-bottom: 24px;">${imagesGridHtml}</div><div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;"><div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div></div>`;
+    }
+
     return `
-                <div style="width: 800px; height: 1123px; margin: 0; background: #1a1a1a; background-image: url('images/Quotation_bg_design.png'); background-size: contain; background-position: center center; background-repeat: no-repeat; background-attachment: fixed; font-family: Arial, sans-serif; padding: 0; position: relative;">
+                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
                     <style>
-                        @page {
-                            size: A4;
-                            margin: 0;
-                            background: url('images/Quotation_bg_design.png') no-repeat center center;
-                            background-size: contain;
-                        }
-                        .pdf-table { width: calc(100% - 40px); border-collapse: collapse; margin: 0 20px; border: none; }
-                        .pdf-table th { 
-                            background: rgba(138, 43, 226, 0.3); 
-                            color: #ffffff; 
-                            font-weight: bold; 
-                            padding: 12px 15px; 
-                            text-align: left; 
-                            border: none; 
-                            border-bottom: 2px solid rgba(255, 105, 180, 0.5);
-                            border-right: 1px solid rgba(255, 255, 255, 0.1);
-                        }
-                        .pdf-table td { 
-                            background: rgba(138, 43, 226, 0.2); 
-                            color: #ffffff; 
-                            padding: 12px 15px; 
-                            text-align: left; 
-                            border: none; 
-                            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                            border-right: 1px solid rgba(255, 255, 255, 0.1);
-                        }
-                        .pdf-table tbody tr:hover {
-                            background: rgba(138, 43, 226, 0.3) !important;
-                        }
-                        .text-right { text-align: right !important; }
-                        .pdf-table{
-                        margin-top: 5px;
-                        font-size: 12px;
-                        }
+                        .q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 14px; }
+                        .q-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid ${theme.primary}; color: ${theme.secondary}; font-weight: 600; }
+                        .q-table td { padding: 14px 12px; border-bottom: 1px solid ${theme.border}; }
+                        .q-table .text-right { text-align: right; }
+                        .theme-header { color: ${theme.primary}; }
+                        .theme-accent { color: ${theme.accent}; }
+                        .theme-border { border-color: ${theme.border} !important; }
                     </style>
-                    
-                    <!-- Logo -->
-                    <div style="position: absolute; top: 0; left: 0; z-index: 10; margin-top: 0px;">
-                        <img src="images/logo_white.png" alt="Logo" style="width: 180px; height: auto;">
-                    </div>
-                    
-                    <!-- Title -->
-                    <div style="text-align: center; margin: 0; padding-top: 90px;">
-                        <h2 style="margin: 0; font-size: 40px; font-weight: bold; color: #ff69b4;">QUOTATION</h2>
-                    </div>
-
-                    <!-- Company Info -->
-                    <div style="margin-top: 0px; padding: 20px; padding-top: 5px; color: #ffffff;">
-                        <div style="display: flex; justify-content: space-between;">
-                            <div>
-                                <strong style="color: #ff69b4; font-size: 18px;">Advance Infotech</strong><br>
-                                <span style="color: #ffffff;">No. 1102, 2nd Floor, Sri Dharmaraya <br> Swamy Temple Road, Bangalore 560002</span><br>
-                                <span style="color: #ffffff;">advanceinfotech21@gmail.com</span><br>
-                                <span style="color: #ffffff;">+91 6362618184 | +91 8050702019</span><br>
-                            </div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
+                        <div>
+                            ${logoBase64 ? `<img src="${logoBase64}" alt="Logo" style="max-width: 160px; max-height: 48px; object-fit: contain; margin-left: 12px;">` : `<div style="font-size: 24px; font-weight: 700; color: ${theme.primary}; letter-spacing: -0.02em; margin-left: 12px;">${brandName}</div>`}
+                            <div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div>
+                            <div style="font-size: 12px; color: #6b7280;">${companyAddress}</div>
+                            <div style="font-size: 12px; color: #6b7280;">${companyEmail}</div>
+                            <div style="font-size: 12px; color: #6b7280;">${companyPhone}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em;">Quotation</h1>
                         </div>
                     </div>
-
-                    <!-- Customer and Quotation Info -->
-                    <div style="margin-top: 0px; padding: 20px; padding-top: 0px; color: #ffffff;">
-                        <div style="display: flex; justify-content: space-between;">
-                            <div>
-                                <strong style="color: #ff69b4; font-size: 18px;">Quotation To:</strong><br>
-                                <span style="color: #ffffff;">${customer?.name || 'N/A'}</span><br>
-                                ${customer?.phone ? `<span style="color: #ffffff;">${customer.phone}</span><br>` : ''}
-                                ${customer?.email ? `<span style="color: #ffffff;">${customer.email}</span><br>` : ''}
-                                ${customer?.address ? `<span style="color: #ffffff;">${customer.address}</span><br>` : ''}
-                            </div>
-                            <div style="text-align: right;">
-                                <strong style="color: #ff69b4;">Date:</strong> <span style="color: #ffffff;">${dateCreated}</span>
-                            </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
+                        <div>
+                            ${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div>
+                            <div style="font-size: 14px;">${dateCreated}</div>
                         </div>
                     </div>
-
-                    <!-- Items Table -->
-                    <table class="pdf-table">
+                    <table class="q-table">
                         <thead>
                             <tr>
                                 <th>Description</th>
                                 <th class="text-right">Qty</th>
-                                <th class="text-right">Unit Price</th>
-                                <th class="text-right">Total</th>
+                                <th class="text-right">Unit price</th>
+                                <th class="text-right">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1810,85 +2299,66 @@ async function generateQuotationHtml(quotation) {
                                         <td class="text-right">${formatRupee(itemTotal)}</td>
                                     </tr>
                                 `;
-                            }).join('') : '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #ffffff; background: rgba(138, 43, 226, 0.2);">No items added</td></tr>'}
+                            }).join('') : '<tr><td colspan="4" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}
                         </tbody>
                     </table>
-
-                    <!-- Pricing Summary -->
-                    <div style="margin: 0; padding: 20px; text-align: right; color: #ffffff;">
-                        <div style="display: inline-block; width: 300px;">
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                                <span style="color: #ffffff;">Subtotal (Excl. GST):</span>
-                                <span style="color: #ffffff;">${formatRupee(totalAfterDiscount)}</span>
+                    <div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
+                        <div style="display: inline-block; width: 260px; text-align: right;">
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px;">
+                                <span style="color: #6b7280;">Subtotal (incl. GST)</span>
+                                <span>${formatRupee(totalAfterDiscount)}</span>
                             </div>
-                            <div style="text-align: right; margin-top: 10px; margin-bottom: 5px;">
-                                <span style="color: #ffffff; font-size: 11px; opacity: 0.8;">(inclusive of GST)</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 15px; border-top: 2px solid #ff69b4; font-weight: bold; font-size: 16px;">
-                                <span style="color: #ff69b4;">TOTAL:</span>
-                                <span style="color: #ffa500; font-size: 18px;">${formatRupee(grandTotal)}</span>
-                                <span style="color: #ffffff; font-size: 11px; opacity: 0.8;">(inclusive of GST)</span>
+                            <div style="display: flex; justify-content: space-between; padding: 12px 0; margin-top: 8px; border-top: 2px solid ${theme.primary}; font-size: 16px; font-weight: 600;">
+                                <span>Total</span>
+                                <span>${formatRupee(grandTotal)}</span>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Footer Note -->
-                    <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 20px; font-size: 16px; color: #ffffff; text-align: center; opacity: 0.8;">
-                        <p style="margin: 0;">All prices are valid for <strong style="color: #ff69b4;">${validityDays} days</strong> from the date of quotation.</p>
-                        <p style="margin: 5px 0 0 0;">"<strong style="color: #ff69b4;">Free</strong> pan India warranty" • <strong style="color: #ff69b4;">3-year</strong> call support <strong style="color: #ffa500;">Monday to Saturday 12pm to 7pm</strong></p>
-                        <p style="margin: 5px 0 0 0;">All products from <strong style="color: #ff69b4;">direct manufacture</strong> or <strong style="color: #ff69b4;">store warranty</strong></p>
+                    <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;">
+                        <div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div>
+                        <div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div>
+                        <div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div>
                     </div>
                 </div>
     `;
 }
 
-// --- PNG Download Logic ---
+// --- PDF Download Logic (modal; keep name for backward compatibility) ---
 async function downloadQuotationAsPng(quotation) {
     const content = document.getElementById('quotationViewContent');
-    
     if (!content) {
         alert('Quotation content not found.');
         return;
     }
-
-    // Get the quotation div inside the content
     const quotationDiv = content.querySelector('div[style*="width: 800px"]');
-    
     if (!quotationDiv) {
         alert('Quotation template not found in modal.');
         return;
     }
-
     try {
-        // Show loading
         const downloadBtn = document.getElementById('downloadQuotationPng');
-        const originalBtnText = downloadBtn?.textContent;
+        const originalBtnText = downloadBtn?.innerHTML || downloadBtn?.textContent;
         if (downloadBtn) {
             downloadBtn.disabled = true;
-            downloadBtn.textContent = 'Generating...';
+            downloadBtn.innerHTML = 'Generating...';
         }
-
-        // Wait for images to load
         const images = quotationDiv.querySelectorAll('img');
         const imagePromises = Array.from(images).map(img => {
             if (img.complete) return Promise.resolve();
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
                 img.onload = resolve;
                 img.onerror = resolve;
                 setTimeout(resolve, 2000);
             });
         });
-        
         await Promise.all(imagePromises);
         await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Capture as canvas
         const canvas = await html2canvas(quotationDiv, { 
             scale: 2, 
             logging: false, 
             useCORS: true,
             allowTaint: true,
-            backgroundColor: '#1a1a1a',
+            backgroundColor: '#ffffff',
             width: 800,
             height: quotationDiv.scrollHeight || quotationDiv.offsetHeight,
             x: 0,
@@ -1896,52 +2366,52 @@ async function downloadQuotationAsPng(quotation) {
             scrollX: 0,
             scrollY: 0,
             onclone: (clonedDoc) => {
-                // Ensure background image is visible in cloned document
                 const clonedElement = clonedDoc.querySelector('div[style*="width: 800px"]');
                 if (clonedElement) {
-                    clonedElement.style.backgroundImage = "url('../images/Quotation_bg_design.png')";
-                    clonedElement.style.backgroundSize = "contain";
-                    clonedElement.style.backgroundPosition = "center center";
-                    clonedElement.style.backgroundRepeat = "no-repeat";
-                    clonedElement.style.backgroundAttachment = "fixed";
+                    clonedElement.style.backgroundImage = 'none';
                 }
             }
         });
-        
         if (!canvas || canvas.width === 0 || canvas.height === 0) {
             throw new Error('Canvas is empty');
         }
-
-        // Convert to PNG and download
+        const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true });
+        const imgWidth = 595.28;
+        const pageHeight = 841.89;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
         const imgData = canvas.toDataURL('image/png', 1.0);
-        const link = document.createElement('a');
-        
-        // Generate filename
+        const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
+        const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
+        if (needsMultiplePages) {
+            let heightLeft = imgHeight;
+            let position = 0;
+            doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+            while (heightLeft >= 0) {
+                position = heightLeft - imgHeight;
+                doc.addPage();
+                doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+        } else {
+            const contentHeight = Math.min(imgHeight, pageHeight);
+            doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeight, undefined, 'FAST');
+        }
         const customerName = quotation.customer?.name || quotation.customerName || 'Quotation';
         const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').trim();
-        const quotationId = quotation.quotationId || quotation.id || 'N/A';
-        const filename = `Quotation_${sanitizedName}_${quotationId}.png`;
-        
-        link.href = imgData;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        // Restore button
+        const quotationIdVal = quotation.quotationId || quotation.id || 'N/A';
+        doc.save(`Quotation_${sanitizedName}_${quotationIdVal}.pdf`);
         if (downloadBtn) {
             downloadBtn.disabled = false;
-            downloadBtn.textContent = originalBtnText;
+            downloadBtn.innerHTML = originalBtnText || '<i class="fas fa-file-pdf"></i> PDF';
         }
     } catch (error) {
-        console.error('PNG generation error:', error);
-        alert('Failed to generate PNG image. Please try again.');
-        
-        // Restore button
+        console.error('PDF generation error:', error);
+        alert('Failed to generate PDF. Please try again.');
         const downloadBtn = document.getElementById('downloadQuotationPng');
         if (downloadBtn) {
             downloadBtn.disabled = false;
-            downloadBtn.textContent = '<i class="fas fa-image"></i> PNG';
+            downloadBtn.innerHTML = '<i class="fas fa-file-pdf"></i> PDF';
         }
     }
 }
@@ -2302,10 +2772,12 @@ async function renderHistoryList() {
         row.insertCell().textContent = quote.createdBy || quote.created_by || 'N/A';
 
         const actionsCell = row.insertCell();
+        const quoteId = quote.quotationId || quote.id;
         actionsCell.innerHTML = `
-                    <button class="btn primary" style="padding: 5px 8px; margin-right: 5px;" onclick="fetchQuotationAndGeneratePdf('${quote.quotationId || quote.id}')"><i class="fas fa-download"></i></button>
-                    <button class="btn secondary" style="padding: 5px 8px; margin-right: 5px;" onclick="viewQuotationDetails('${quote.quotationId || quote.id}')"><i class="fas fa-eye"></i></button>
-                    <button class="btn danger" style="padding: 5px 8px;" onclick="deleteQuotation('${quote.quotationId || quote.id}')"><i class="fas fa-trash-alt"></i></button>
+                    <button class="btn primary" style="padding: 5px 8px; margin-right: 5px;" onclick="fetchQuotationAndGeneratePdf('${quoteId}')" title="Download PDF"><i class="fas fa-download"></i></button>
+                    <button class="btn secondary" style="padding: 5px 8px; margin-right: 5px;" onclick="viewQuotationDetails('${quoteId}')" title="View"><i class="fas fa-eye"></i></button>
+                    <button class="btn" style="padding: 5px 8px; margin-right: 5px;" onclick="openEditQuotationModal('${quoteId}')" title="Edit"><i class="fas fa-edit"></i></button>
+                    <button class="btn danger" style="padding: 5px 8px;" onclick="deleteQuotation('${quoteId}')" title="Delete"><i class="fas fa-trash-alt"></i></button>
                 `;
     });
 }
@@ -2533,20 +3005,17 @@ async function fetchQuotationAndGeneratePdf(quotationId) {
             quotationData.items = [];
         }
         
-        // Download as PNG instead of PDF
-        await downloadQuotationAsPngDirect(quotationData);
+        // Download as PDF
+        await downloadQuotationAsPdfDirect(quotationData);
     } catch (e) {
-        console.error('Error fetching quotation for PNG:', e);
-        alert('Failed to fetch quotation for PNG download: ' + (e.message || 'Unknown error'));
+        console.error('Error fetching quotation for PDF:', e);
+        alert('Failed to fetch quotation for PDF download: ' + (e.message || 'Unknown error'));
     }
 }
 
-async function downloadQuotationAsPngDirect(quotation) {
+async function downloadQuotationAsPdfDirect(quotation) {
     try {
-        // Generate HTML for quotation
         const quotationHtml = await generateQuotationHtml(quotation);
-        
-        // Create a temporary hidden container
         const tempContainer = document.createElement('div');
         tempContainer.style.position = 'absolute';
         tempContainer.style.left = '-9999px';
@@ -2555,36 +3024,31 @@ async function downloadQuotationAsPngDirect(quotation) {
         tempContainer.innerHTML = quotationHtml;
         document.body.appendChild(tempContainer);
         
-        // Get the quotation div
         const quotationDiv = tempContainer.querySelector('div[style*="width: 800px"]');
-        
         if (!quotationDiv) {
             alert('Failed to generate quotation template');
             document.body.removeChild(tempContainer);
             return;
         }
         
-        // Wait for images to load
         const images = quotationDiv.querySelectorAll('img');
         const imagePromises = Array.from(images).map(img => {
             if (img.complete) return Promise.resolve();
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
                 img.onload = resolve;
                 img.onerror = resolve;
                 setTimeout(resolve, 2000);
             });
         });
-        
         await Promise.all(imagePromises);
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Capture as canvas
         const canvas = await html2canvas(quotationDiv, { 
             scale: 2, 
             logging: false, 
             useCORS: true,
             allowTaint: true,
-            backgroundColor: '#1a1a1a',
+            backgroundColor: '#ffffff',
             width: 800,
             height: quotationDiv.scrollHeight || quotationDiv.offsetHeight,
             x: 0,
@@ -2592,14 +3056,9 @@ async function downloadQuotationAsPngDirect(quotation) {
             scrollX: 0,
             scrollY: 0,
             onclone: (clonedDoc) => {
-                // Ensure background image is visible in cloned document
                 const clonedElement = clonedDoc.querySelector('div[style*="width: 800px"]');
                 if (clonedElement) {
-                    clonedElement.style.backgroundImage = "url('../images/Quotation_bg_design.png')";
-                    clonedElement.style.backgroundSize = "contain";
-                    clonedElement.style.backgroundPosition = "center center";
-                    clonedElement.style.backgroundRepeat = "no-repeat";
-                    clonedElement.style.backgroundAttachment = "fixed";
+                    clonedElement.style.backgroundImage = 'none';
                 }
             }
         });
@@ -2608,27 +3067,70 @@ async function downloadQuotationAsPngDirect(quotation) {
             throw new Error('Canvas is empty');
         }
         
-        // Convert to PNG and download
+        const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true });
+        const imgWidth = 595.28;
+        const pageHeight = 841.89;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
         const imgData = canvas.toDataURL('image/png', 1.0);
-        const link = document.createElement('a');
+        const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
+        const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
         
-        // Generate filename
+        if (needsMultiplePages) {
+            let heightLeft = imgHeight;
+            let position = 0;
+            doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+            while (heightLeft >= 0) {
+                position = heightLeft - imgHeight;
+                doc.addPage();
+                doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+        } else {
+            const contentHeight = Math.min(imgHeight, pageHeight);
+            doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeight, undefined, 'FAST');
+        }
+        // Page 2: Images added to quotation (if any)
+        try {
+            let page2Images = [];
+            const quotationImages = quotation.images;
+            if (Array.isArray(quotationImages) && quotationImages.length > 0) {
+                page2Images = quotationImages.slice(0, 1).map(img => ({ image: img }));
+            }
+            if (page2Images.length > 0) {
+                    const page2Html = await generateQuotationHtml(quotation, { page2Images: page2Images });
+                    const page2Container = document.createElement('div');
+                    page2Container.style.cssText = 'position:absolute;left:-9999px;top:0;width:800px;';
+                    page2Container.innerHTML = page2Html;
+                    document.body.appendChild(page2Container);
+                    const page2Div = page2Container.querySelector('div[style*="width: 800px"]');
+                    if (page2Div) {
+                        await Promise.all(Array.from(page2Div.querySelectorAll('img')).map((img) => {
+                            if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+                            return new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; setTimeout(resolve, 3000); });
+                        }));
+                        await new Promise(r => setTimeout(r, 400));
+                        const page2Canvas = await html2canvas(page2Div, { scale: 2, logging: false, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', width: 800, height: page2Div.scrollHeight || page2Div.offsetHeight, x: 0, y: 0, scrollX: 0, scrollY: 0 });
+                        if (page2Canvas && page2Canvas.width > 0 && page2Canvas.height > 0) {
+                            doc.addPage();
+                            const page2ImgData = page2Canvas.toDataURL('image/png', 1.0);
+                            const page2ImgHeight = (page2Canvas.height * imgWidth) / page2Canvas.width;
+                            const page2ContentHeight = Math.min(page2ImgHeight, pageHeight);
+                            doc.addImage(page2ImgData, 'PNG', 0, 0, imgWidth, page2ContentHeight, undefined, 'FAST');
+                        }
+                    }
+                    if (page2Container.parentNode) page2Container.parentNode.removeChild(page2Container);
+                }
+        } catch (e) { console.warn('Page 2 (images) generation failed:', e); }
+
         const customerName = quotation.customer?.name || quotation.customerName || 'Quotation';
         const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').trim();
-        const quotationId = quotation.quotationId || quotation.id || 'N/A';
-        const filename = `Quotation_${sanitizedName}_${quotationId}.png`;
-        
-        link.href = imgData;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Clean up temporary container
+        const quotationIdVal = quotation.quotationId || quotation.id || 'N/A';
+        doc.save(`Quotation_${sanitizedName}_${quotationIdVal}.pdf`);
         document.body.removeChild(tempContainer);
     } catch (error) {
-        console.error('PNG generation error:', error);
-        alert('Failed to generate PNG image. Please try again.');
+        console.error('PDF generation error:', error);
+        alert('Failed to generate PDF. Please try again.');
     }
 }
 
@@ -2705,6 +3207,288 @@ async function viewQuotationDetails(quotationId) {
     }
 }
 
+let currentEditQuotationId = null;
+let editQuotationItems = [];
+
+function recalcEditQuotationTotal() {
+    let subTotal = 0;
+    let totalGst = 0;
+    editQuotationItems.forEach(it => {
+        const price = parseFloat(it.price) || 0;
+        const qty = parseInt(it.quantity, 10) || 1;
+        const gstRate = parseFloat(it.gstRate) || 0;
+        subTotal += price * qty;
+        totalGst += price * qty * (gstRate / 100);
+    });
+    const discountPct = parseFloat(document.getElementById('edit-quote-discount')?.value || 0);
+    const grandTotal = (subTotal - subTotal * (discountPct / 100)) + totalGst;
+    const el = document.getElementById('editQuotationGrandTotal');
+    if (el) el.textContent = grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function renderEditQuotationItems() {
+    const tbody = document.getElementById('editQuotationItemsBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    editQuotationItems.forEach((it, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" value="${(it.productName || '').replace(/"/g, '&quot;')}" data-field="productName" data-idx="${idx}" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;" placeholder="Product name"></td>
+            <td><input type="number" value="${it.price || 0}" data-field="price" data-idx="${idx}" min="0" step="0.01" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px;"></td>
+            <td><input type="number" value="${it.quantity || 1}" data-field="quantity" data-idx="${idx}" min="1" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:4px;"></td>
+            <td><input type="number" value="${it.gstRate || 0}" data-field="gstRate" data-idx="${idx}" min="0" max="100" step="0.01" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:4px;"></td>
+            <td><button type="button" class="btn danger" style="padding:4px 8px;" data-remove-idx="${idx}"><i class="fas fa-trash-alt"></i></button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll('input').forEach(inp => {
+        inp.addEventListener('input', () => {
+            const idx = parseInt(inp.dataset.idx, 10);
+            const field = inp.dataset.field;
+            if (editQuotationItems[idx]) {
+                editQuotationItems[idx][field] = field === 'quantity' ? parseInt(inp.value, 10) || 1 : (field === 'price' || field === 'gstRate' ? parseFloat(inp.value) || 0 : inp.value);
+                recalcEditQuotationTotal();
+            }
+        });
+    });
+    tbody.querySelectorAll('[data-remove-idx]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idx = parseInt(btn.dataset.removeIdx, 10);
+            editQuotationItems.splice(idx, 1);
+            renderEditQuotationItems();
+            recalcEditQuotationTotal();
+        });
+    });
+    recalcEditQuotationTotal();
+}
+
+async function openEditQuotationModal(quotationId) {
+    if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE) && !AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE)) {
+        alert('You are not authorized to edit quotations.');
+        return;
+    }
+    try {
+        const data = await apiFetch(`/quotations/${quotationId}`);
+        const quote = data?.data || data;
+        if (!quote || (!quote.quotationId && !quote.id)) {
+            alert('Quotation not found.');
+            return;
+        }
+        const qid = quote.quotationId || quote.id;
+        currentEditQuotationId = qid;
+        document.getElementById('editQuotationIdLabel').textContent = qid;
+        const cust = quote.customer || {};
+        document.getElementById('edit-quote-name').value = cust.name || quote.customerName || '';
+        document.getElementById('edit-quote-phone').value = cust.phone || quote.customerPhone || '';
+        document.getElementById('edit-quote-email').value = cust.email || quote.customerEmail || '';
+        document.getElementById('edit-quote-address').value = cust.address || quote.customerAddress || '';
+        document.getElementById('edit-quote-discount').value = quote.discountPercent ?? 0;
+        editQuotationItems = (quote.items || []).map(it => ({
+            productId: it.productId,
+            productName: it.productName,
+            price: it.price,
+            quantity: it.quantity || 1,
+            gstRate: it.gstRate ?? 0
+        }));
+        adminEditImagesArray = Array.isArray(quote.images) && quote.images.length > 0 ? [quote.images[0]] : [];
+        if (typeof renderEditAdminQuoteImagePreviews === 'function') renderEditAdminQuoteImagePreviews();
+        renderEditQuotationItems();
+        const modal = document.getElementById('editQuotationModal');
+        if (modal) modal.style.display = 'block';
+    } catch (e) {
+        console.error('Error loading quotation for edit:', e);
+        alert('Failed to load quotation.');
+    }
+}
+
+document.getElementById('editQuoteAddItemBtn')?.addEventListener('click', () => {
+    editQuotationItems.push({ productId: '', productName: '', price: 0, quantity: 1, gstRate: 0 });
+    renderEditQuotationItems();
+});
+
+document.getElementById('edit-quote-discount')?.addEventListener('input', recalcEditQuotationTotal);
+
+// --- Admin Image Upload (Production: upload file, store URL) ---
+const ADMIN_MAX_IMAGE_SIZE_MB = 2;
+const ADMIN_MAX_IMAGES = 1;
+const ADMIN_ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+let adminUploadedImagesArray = [];
+let adminEditImagesArray = [];
+
+function validateAdminImageFile(file) {
+    if (!ADMIN_ALLOWED_TYPES.includes(file.type)) return 'Invalid format. Use PNG, JPG or WebP.';
+    if (file.size > ADMIN_MAX_IMAGE_SIZE_MB * 1024 * 1024) return `File too large. Max ${ADMIN_MAX_IMAGE_SIZE_MB}MB.`;
+    return null;
+}
+
+function adminImageSrcForDisplay(urlOrDataUrl) {
+    if (!urlOrDataUrl) return '';
+    if (typeof urlOrDataUrl === 'string' && urlOrDataUrl.startsWith('data:')) return urlOrDataUrl;
+    return urlOrDataUrl.startsWith('/') ? urlOrDataUrl : '/' + urlOrDataUrl;
+}
+
+async function adminUploadImageFile(file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await fetch(`${API_BASE}/upload-image`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Image upload failed');
+    }
+    return (data.data && data.data.url) || data.url || data.path;
+}
+
+async function adminEnsureImagesAreUrls(images) {
+    if (!Array.isArray(images) || images.length === 0) return [];
+    const out = [];
+    for (const img of images) {
+        if (typeof img === 'string' && img.startsWith('data:image/')) {
+            const res = await apiFetch('/upload-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataUrl: img }) });
+            const d = res.data || res;
+            out.push((d && d.url) || (d && d.path) || img);
+        } else if (typeof img === 'string') out.push(img);
+    }
+    return out;
+}
+
+function renderAdminImagePreviews() {
+    const container = document.getElementById('imagePreviewList');
+    const previewDiv = document.getElementById('imagePreview');
+    if (!container || !previewDiv) return;
+    if (adminUploadedImagesArray.length === 0) { previewDiv.style.display = 'none'; return; }
+    container.innerHTML = adminUploadedImagesArray.map((url, idx) => `
+        <div style="position:relative;"><img src="${adminImageSrcForDisplay(url)}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;">
+        <button type="button" class="admin-rm-img" data-idx="${idx}" style="position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:none;background:#dc3545;color:white;cursor:pointer;">×</button></div>
+    `).join('');
+    previewDiv.style.display = 'block';
+    container.querySelectorAll('.admin-rm-img').forEach(btn => {
+        btn.onclick = () => { adminUploadedImagesArray.splice(parseInt(btn.dataset.idx), 1); renderAdminImagePreviews(); };
+    });
+}
+
+function renderEditAdminQuoteImagePreviews() {
+    const container = document.getElementById('editQuoteImagePreviewList');
+    const previewDiv = document.getElementById('editQuoteImagePreview');
+    if (!container || !previewDiv) return;
+    if (!adminEditImagesArray || adminEditImagesArray.length === 0) { previewDiv.style.display = 'none'; return; }
+    container.innerHTML = adminEditImagesArray.map((url, idx) => `
+        <div style="position:relative;"><img src="${adminImageSrcForDisplay(url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;">
+        <button type="button" class="admin-edit-rm" data-idx="${idx}" style="position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;border:none;background:#dc3545;color:white;cursor:pointer;">×</button></div>
+    `).join('');
+    previewDiv.style.display = 'block';
+    container.querySelectorAll('.admin-edit-rm').forEach(btn => {
+        btn.onclick = () => { adminEditImagesArray.splice(parseInt(btn.dataset.idx), 1); renderEditAdminQuoteImagePreviews(); };
+    });
+}
+
+function getAdminUploadedImages() { return [...(adminUploadedImagesArray || [])]; }
+function clearAdminImageUpload() {
+    adminUploadedImagesArray = [];
+    const el = document.getElementById('quotation-image');
+    if (el) el.value = '';
+    renderAdminImagePreviews();
+}
+
+document.getElementById('quotation-image')?.addEventListener('change', async function(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const err = validateAdminImageFile(file);
+    if (err) { alert(err); e.target.value = ''; return; }
+    try {
+        adminUploadedImagesArray = [await adminUploadImageFile(file)];
+        renderAdminImagePreviews();
+    } catch (ex) { alert(ex.message || 'Upload failed'); }
+    e.target.value = '';
+});
+
+document.getElementById('removeAllImagesBtn')?.addEventListener('click', clearAdminImageUpload);
+
+document.getElementById('edit-quote-image')?.addEventListener('change', async function(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const err = validateAdminImageFile(file);
+    if (err) { alert(err); e.target.value = ''; return; }
+    try {
+        adminEditImagesArray = [await adminUploadImageFile(file)];
+        renderEditAdminQuoteImagePreviews();
+    } catch (ex) { alert(ex.message || 'Upload failed'); }
+    e.target.value = '';
+});
+
+document.getElementById('editQuoteRemoveAllImages')?.addEventListener('click', () => { adminEditImagesArray = []; renderEditAdminQuoteImagePreviews(); });
+
+async function saveEditQuotation(event) {
+    event.preventDefault();
+    const qid = currentEditQuotationId;
+    if (!qid) return;
+    const cust = {
+        name: document.getElementById('edit-quote-name').value.trim() || '',
+        phone: document.getElementById('edit-quote-phone').value.trim() || '',
+        email: document.getElementById('edit-quote-email').value.trim() || null,
+        address: document.getElementById('edit-quote-address').value.trim() || null
+    };
+    if (!cust.phone || cust.phone.length < 10) {
+        alert('Valid phone number is required.');
+        return;
+    }
+    const items = editQuotationItems.filter(it => it.productName && (parseFloat(it.price) || 0) > 0).map((it, idx) => ({
+        productId: it.productId || `custom-${Date.now()}-${idx}`,
+        productName: it.productName,
+        price: parseFloat(it.price) || 0,
+        quantity: parseInt(it.quantity, 10) || 1,
+        gstRate: parseFloat(it.gstRate) || 0
+    }));
+    if (items.length === 0) {
+        alert('Add at least one item with a valid price.');
+        return;
+    }
+    const discountPercent = parseFloat(document.getElementById('edit-quote-discount')?.value || 0);
+    try {
+        const imagesForSave = await adminEnsureImagesAreUrls(adminEditImagesArray || []);
+        const res = await apiFetch(`/quotations/${qid}/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customer: cust, items, discountPercent, images: imagesForSave })
+        });
+        if (res && (res.success !== false)) {
+            closeEditQuotationModal();
+            renderHistoryList();
+            renderCustomersList();
+            renderCustomerDetailsList();
+            alert('Quotation updated successfully.');
+        } else {
+            alert(res?.message || 'Failed to update quotation.');
+        }
+    } catch (e) {
+        console.error('Save quotation error:', e);
+        alert('Failed to update quotation.');
+    }
+}
+
+function closeEditQuotationModal() {
+    const modal = document.getElementById('editQuotationModal');
+    if (modal) modal.style.display = 'none';
+    currentEditQuotationId = null;
+    editQuotationItems = [];
+    adminEditImagesArray = [];
+}
+
+function initEditQuotationModal() {
+    const modal = document.getElementById('editQuotationModal');
+    if (!modal) return;
+    document.getElementById('editQuotationForm')?.addEventListener('submit', saveEditQuotation);
+    document.getElementById('closeEditQuotationModal')?.addEventListener('click', closeEditQuotationModal);
+    document.getElementById('cancelEditQuotationBtn')?.addEventListener('click', closeEditQuotationModal);
+    modal.onclick = (e) => { if (e.target === modal) closeEditQuotationModal(); };
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display === 'block') closeEditQuotationModal();
+    });
+}
+
 async function cloneQuotation(quotationId) {
     if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE)) {
         alert('You are not authorized to create/clone quotations.');
@@ -2751,33 +3535,70 @@ async function cloneQuotation(quotationId) {
     }
 }
 
+async function renderContactRequestsList() {
+    const body = document.getElementById('contactRequestsListBody');
+    const noMsg = document.getElementById('noContactRequestsMessage');
+    if (!body) return;
+    body.innerHTML = '';
+
+    try {
+        const requests = await getContactRequests();
+        if (requests.length === 0) {
+            noMsg.style.display = 'block';
+            return;
+        }
+        noMsg.style.display = 'none';
+
+        requests.forEach(r => {
+            const row = body.insertRow();
+            const created = r.created_at ? new Date(r.created_at).toLocaleString('en-IN') : '—';
+            const msgShort = (r.message || '').length > 60 ? (r.message.substring(0, 60) + '…') : (r.message || '—');
+            const status = r.isRead ? '<span style="color:#27AE60;">Read</span>' : '<span style="color:#E74C3C;">New</span>';
+            row.insertCell().textContent = created;
+            row.insertCell().textContent = r.name || '—';
+            row.insertCell().innerHTML = `<a href="mailto:${r.email || ''}">${r.email || '—'}</a>`;
+            row.insertCell().textContent = r.phone || '—';
+            row.insertCell().innerHTML = `<span title="${(r.message || '').replace(/"/g, '&quot;')}">${msgShort}</span>`;
+            row.insertCell().innerHTML = status;
+            const actionsCell = row.insertCell();
+            if (!r.isRead) {
+                const markBtn = document.createElement('button');
+                markBtn.className = 'btn';
+                markBtn.style.cssText = 'padding:4px 8px; font-size:12px; margin-right:4px;';
+                markBtn.textContent = 'Mark Read';
+                markBtn.setAttribute('data-action', 'mark-contact-read');
+                markBtn.setAttribute('data-id', r.id);
+                actionsCell.appendChild(markBtn);
+            }
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn danger';
+            delBtn.style.cssText = 'padding:4px 8px; font-size:12px;';
+            delBtn.textContent = 'Delete';
+            delBtn.setAttribute('data-action', 'delete-contact-request');
+            delBtn.setAttribute('data-id', r.id);
+            actionsCell.appendChild(delBtn);
+        });
+    } catch (e) {
+        noMsg.textContent = 'Failed to load contact requests.';
+        noMsg.style.display = 'block';
+    }
+}
+
 async function renderLogsList() {
     if (!AUTHORIZED_TO_VIEW_LOGS.includes(CURRENT_USER_ROLE)) return;
 
     const logs = await getLogs();
     const body = document.getElementById('logsListBody');
     const noLogsMessage = document.getElementById('noLogsMessage');
-    const paginationDiv = document.getElementById('logsPagination');
     body.innerHTML = '';
 
     if (logs.length === 0) {
         noLogsMessage.style.display = 'block';
-        if (paginationDiv) paginationDiv.style.display = 'none';
         return;
     }
     noLogsMessage.style.display = 'none';
-    if (paginationDiv) paginationDiv.style.display = 'flex';
 
-    // Calculate pagination
-    const totalPages = Math.ceil(logs.length / logsPerPage);
-    const startIndex = (logsCurrentPage - 1) * logsPerPage;
-    const endIndex = startIndex + logsPerPage;
-    const paginatedLogs = logs.slice(startIndex, endIndex);
-
-    // Update pagination controls
-    updateLogsPaginationControls(totalPages, logs.length);
-
-    paginatedLogs.forEach(log => {
+    logs.forEach(log => {
         const row = body.insertRow();
         row.insertCell().textContent = log.timestamp;
         row.insertCell().textContent = log.user;
@@ -2787,134 +3608,18 @@ async function renderLogsList() {
     });
 }
 
-function updateLogsPaginationControls(totalPages, totalLogs) {
-    const pageNumbersDiv = document.getElementById('logsPageNumbers');
-    const nextBtn = document.getElementById('logsNextBtn');
-    const prevBtn = document.getElementById('logsPrevBtn');
-    const pageInfo = document.getElementById('logsPageInfo');
-
-    if (pageNumbersDiv) {
-        pageNumbersDiv.innerHTML = '';
-        
-        if (totalPages === 0) {
-            if (pageInfo) pageInfo.textContent = '';
-            return;
-        }
-
-        // Update page info
-        if (pageInfo) {
-            const startItem = (logsCurrentPage - 1) * logsPerPage + 1;
-            const endItem = Math.min(logsCurrentPage * logsPerPage, totalLogs);
-            pageInfo.textContent = `Page ${logsCurrentPage} of ${totalPages} • Showing ${startItem}-${endItem} of ${totalLogs}`;
-        }
-
-        // Show up to 7 page numbers with ellipsis
-        const maxPagesToShow = 7;
-        let startPage, endPage;
-        let showStartEllipsis = false;
-        let showEndEllipsis = false;
-        
-        if (totalPages <= maxPagesToShow) {
-            // Show all pages if 7 or fewer
-            startPage = 1;
-            endPage = totalPages;
-        } else {
-            // Calculate which pages to show
-            if (logsCurrentPage <= 4) {
-                // Show first pages
-                startPage = 1;
-                endPage = maxPagesToShow - 1;
-                showEndEllipsis = true;
-            } else if (logsCurrentPage >= totalPages - 3) {
-                // Show last pages
-                startPage = totalPages - (maxPagesToShow - 2);
-                endPage = totalPages;
-                showStartEllipsis = true;
-            } else {
-                // Show pages around current
-                startPage = logsCurrentPage - 2;
-                endPage = logsCurrentPage + 2;
-                showStartEllipsis = true;
-                showEndEllipsis = true;
-            }
-        }
-
-        // Add first page and ellipsis if needed
-        if (showStartEllipsis) {
-            const firstBtn = document.createElement('button');
-            firstBtn.className = 'pagination-page-btn';
-            firstBtn.textContent = '1';
-            firstBtn.onclick = () => {
-                logsCurrentPage = 1;
-                renderLogsList();
-            };
-            pageNumbersDiv.appendChild(firstBtn);
-
-            const ellipsis = document.createElement('div');
-            ellipsis.className = 'pagination-ellipsis';
-            ellipsis.textContent = '...';
-            pageNumbersDiv.appendChild(ellipsis);
-        }
-
-        // Add page number buttons
-        for (let i = startPage; i <= endPage; i++) {
-            const pageBtn = document.createElement('button');
-            pageBtn.className = 'pagination-page-btn';
-            if (i === logsCurrentPage) {
-                pageBtn.classList.add('active');
-            }
-            pageBtn.textContent = i;
-            
-            pageBtn.onclick = () => {
-                logsCurrentPage = i;
-                renderLogsList();
-            };
-            
-            pageNumbersDiv.appendChild(pageBtn);
-        }
-
-        // Add last page and ellipsis if needed
-        if (showEndEllipsis) {
-            const ellipsis = document.createElement('div');
-            ellipsis.className = 'pagination-ellipsis';
-            ellipsis.textContent = '...';
-            pageNumbersDiv.appendChild(ellipsis);
-
-            const lastBtn = document.createElement('button');
-            lastBtn.className = 'pagination-page-btn';
-            lastBtn.textContent = totalPages;
-            lastBtn.onclick = () => {
-                logsCurrentPage = totalPages;
-                renderLogsList();
-            };
-            pageNumbersDiv.appendChild(lastBtn);
-        }
-    }
-
-    // Update Previous and Next buttons
-    if (prevBtn) {
-        prevBtn.disabled = logsCurrentPage <= 1;
-    }
-    if (nextBtn) {
-        nextBtn.disabled = logsCurrentPage >= totalPages;
-    }
-}
-
-function goToLogsPage(direction) {
-    logsCurrentPage += direction;
-    if (logsCurrentPage < 1) logsCurrentPage = 1;
-    
-    // Call renderLogsList which will handle async getLogs
-    renderLogsList();
-}
-
 async function renderSettings() {
     const settings = await getSettings();
 
     document.getElementById('settings-brand-name').value = settings.brand || '';
     document.getElementById('settings-company-gst-id').value = settings.companyGstId || '';
-    document.getElementById('settings-validity-days').value = settings.validityDays || 3;
-    document.getElementById('validityDaysDisplay').textContent = settings.validityDays || 3;
+    document.getElementById('settings-validity-days').value = settings.validityDays ?? settings.defaultValidityDays ?? 3;
+    document.getElementById('validityDaysDisplay').textContent = settings.validityDays ?? settings.defaultValidityDays ?? 3;
+
+    // PDF Theme
+    const pdfTheme = settings.pdfTheme || 'default';
+    document.getElementById('settings-pdf-theme').value = pdfTheme;
+    updateThemePreview(pdfTheme);
 
     // Logo
     const logoBase64 = settings.logo;
@@ -3024,6 +3729,13 @@ async function updateSummary() {
             avgQuotationElement.textContent = formatRupee(avgQuotation);
         }
 
+        // Contact requests count (Admin only)
+        try {
+            const contactRequests = await getContactRequests();
+            const crCountEl = document.getElementById('summaryContactRequestsCount');
+            if (crCountEl) crCountEl.textContent = contactRequests.length || 0;
+        } catch (e) { /* silent */ }
+
         // Display recent quotations (last 5)
         const recentQuotations = quotations
             .sort((a, b) => new Date(b.created_at || b.dateCreated) - new Date(a.created_at || a.dateCreated))
@@ -3089,6 +3801,7 @@ async function updateSummary() {
         const monthlyQuotationsCountElement = document.getElementById('summaryMonthlyQuotations');
         const monthlyValueElement = document.getElementById('summaryMonthlyValue');
         const avgQuotationElement = document.getElementById('summaryAvgQuotation');
+        const summaryContactRequestsCount = document.getElementById('summaryContactRequestsCount');
         
         if (summaryItemsCount) summaryItemsCount.textContent = '0';
         if (summaryQuotationsCount) summaryQuotationsCount.textContent = '0';
@@ -3108,12 +3821,17 @@ async function updateSummary() {
         if (avgQuotationElement) {
             avgQuotationElement.textContent = formatRupee(0);
         }
+        if (summaryContactRequestsCount) summaryContactRequestsCount.textContent = '0';
     }
 }
 
 // --- Event Handlers & Initializers ---
 document.getElementById('addItemForm')?.addEventListener('submit', saveItem);
 document.getElementById('addItemForm')?.addEventListener('reset', handleItemEditReset);
+document.getElementById('type')?.addEventListener('input', () => updateCompatFieldsVisibility('type', 'compatFieldsContainer'));
+document.getElementById('type')?.addEventListener('change', () => updateCompatFieldsVisibility('type', 'compatFieldsContainer'));
+document.getElementById('edit-type')?.addEventListener('input', () => updateCompatFieldsVisibility('edit-type', 'editCompatFieldsContainer'));
+document.getElementById('edit-type')?.addEventListener('change', () => updateCompatFieldsVisibility('edit-type', 'editCompatFieldsContainer'));
 document.getElementById('editProductForm')?.addEventListener('submit', saveEditProduct);
 document.getElementById('closeEditProductModal')?.addEventListener('click', closeEditProductModal);
 document.getElementById('cancelEditProductBtn')?.addEventListener('click', closeEditProductModal);
@@ -3121,6 +3839,38 @@ document.getElementById('createQuotationBtn')?.addEventListener('click', createQ
 document.getElementById('itemSearchInput')?.addEventListener('input', (e) => {
     const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
     renderAvailableItemsForQuotation(e.target.value, activeTypeFilter);
+});
+
+document.getElementById('compatibleFilterToggle')?.addEventListener('change', function() {
+    const hint = document.getElementById('compatibleFilterHint');
+    if (hint) hint.style.display = this.checked ? 'block' : 'none';
+    const searchValue = document.getElementById('itemSearchInput')?.value || '';
+    const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+    renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
+});
+
+// Event delegation for contact request buttons
+document.addEventListener('click', async function(e) {
+    const btn = e.target.closest('[data-action][data-id]');
+    if (btn) {
+        const action = btn.getAttribute('data-action');
+        const id = parseInt(btn.getAttribute('data-id'), 10);
+        if (action === 'mark-contact-read') {
+            try {
+                const res = await apiFetch(`/contact-requests/${id}/read`, { method: 'PUT' });
+                if (res && res.success !== false) renderContactRequestsList();
+            } catch (err) { console.error(err); }
+            return;
+        }
+        if (action === 'delete-contact-request') {
+            if (!confirm('Delete this contact request?')) return;
+            try {
+                const res = await apiFetch(`/contact-requests/${id}`, { method: 'DELETE' });
+                if (res && res.success !== false) renderContactRequestsList();
+            } catch (err) { console.error(err); }
+            return;
+        }
+    }
 });
 
 // Type filter button handlers - use event delegation
@@ -3187,8 +3937,14 @@ function showSection(sectionId) {
 
     const tabBtn = document.querySelector(`#dashboardTabs button[data-tab="${sectionId}"]`);
     if (tabBtn) tabBtn.classList.add('active');
+    const curSection = document.getElementById(sectionId);
+    const tabInSection = curSection?.querySelector(`.section-tabs .tab-btn[data-tab="${sectionId}"]`);
+    if (tabInSection) tabInSection.classList.add('active');
 
-    if (sectionId === 'addItem') handleItemEditReset();
+    if (sectionId === 'addItem') {
+        handleItemEditReset();
+        updateCompatFieldsVisibility('type', 'compatFieldsContainer');
+    }
     if (sectionId === 'itemsList') {
         // Clear search when showing items list
         const searchInput = document.getElementById('productListSearchInput');
@@ -3221,7 +3977,11 @@ function showSection(sectionId) {
     }
     if (sectionId === 'viewHistory') renderHistoryList();
     if (sectionId === 'viewLogs') renderLogsList();
-    if (sectionId === 'viewCustomers') renderCustomersList();
+    if (sectionId === 'viewContactRequests') renderContactRequestsList();
+    if (sectionId === 'viewCustomers') {
+        renderCustomersList();
+        showCustomerSubtab('customerHistory');
+    }
 }
 
 document.querySelectorAll('[data-tab]').forEach(el => {
@@ -3230,6 +3990,31 @@ document.querySelectorAll('[data-tab]').forEach(el => {
         const sectionId = this.getAttribute('data-tab');
         showSection(sectionId);
     });
+});
+
+function showCustomerSubtab(subtabId) {
+    const historyView = document.getElementById('customerHistoryView');
+    const detailsView = document.getElementById('customerDetailsView');
+    const section = document.getElementById('viewCustomers');
+    if (!section || !historyView || !detailsView) return;
+    section.querySelectorAll('.section-tabs .tab-btn[data-subtab]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-subtab') === subtabId);
+    });
+    if (subtabId === 'customerHistory') {
+        historyView.style.display = '';
+        detailsView.style.display = 'none';
+    } else {
+        historyView.style.display = 'none';
+        detailsView.style.display = '';
+        renderCustomerDetailsList(); // Load customer details when tab is selected
+    }
+}
+document.querySelector('.main')?.addEventListener('click', function (e) {
+    const btn = e.target.closest('.section-tabs .tab-btn[data-subtab]');
+    if (btn) {
+        e.preventDefault();
+        showCustomerSubtab(btn.getAttribute('data-subtab'));
+    }
 });
 
 // --- Settings Saving Logic ---
@@ -3282,6 +4067,98 @@ document.getElementById('saveValidityBtn')?.addEventListener('click', async func
         alert('Quotation validity saved successfully!');
     } catch (e) { }
 });
+
+// PDF Theme color definitions
+const PDF_THEMES = {
+    default: {
+        name: 'Default (Blue)',
+        primary: '#3A648C',
+        secondary: '#111827',
+        border: '#e5e7eb',
+        accent: '#35b3e7',
+        pastelBg: '#f0f7ff'
+    },
+    green: {
+        name: 'Green',
+        primary: '#059669',
+        secondary: '#064e3b',
+        border: '#d1fae5',
+        accent: '#10b981',
+        pastelBg: '#f0fdf4'
+    },
+    red: {
+        name: 'Red',
+        primary: '#dc2626',
+        secondary: '#7f1d1d',
+        border: '#fee2e2',
+        accent: '#ef4444',
+        pastelBg: '#fef2f2'
+    },
+    purple: {
+        name: 'Purple',
+        primary: '#7c3aed',
+        secondary: '#4c1d95',
+        border: '#ede9fe',
+        accent: '#8b5cf6',
+        pastelBg: '#faf5ff'
+    },
+    orange: {
+        name: 'Orange',
+        primary: '#ea580c',
+        secondary: '#7c2d12',
+        border: '#fed7aa',
+        accent: '#f97316',
+        pastelBg: '#fff7ed'
+    },
+    teal: {
+        name: 'Teal',
+        primary: '#0d9488',
+        secondary: '#134e4a',
+        border: '#ccfbf1',
+        accent: '#14b8a6',
+        pastelBg: '#f0fdfa'
+    },
+    gray: {
+        name: 'Gray',
+        primary: '#374151',
+        secondary: '#111827',
+        border: '#f3f4f6',
+        accent: '#6b7280',
+        pastelBg: '#f8fafc'
+    }
+};
+
+// Update theme preview when selection changes
+document.getElementById('settings-pdf-theme')?.addEventListener('change', function() {
+    updateThemePreview(this.value);
+});
+
+// Save PDF theme
+document.getElementById('savePdfThemeBtn')?.addEventListener('click', async function () {
+    const selectedTheme = document.getElementById('settings-pdf-theme').value;
+    try {
+        await apiFetch('/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pdfTheme: selectedTheme })
+        });
+        alert('PDF theme saved successfully!');
+    } catch (e) { }
+});
+
+// Function to update theme preview
+function updateThemePreview(themeName) {
+    const theme = PDF_THEMES[themeName];
+    if (!theme) return;
+    
+    const previewHeader = document.getElementById('previewHeader');
+    const previewAccent = document.getElementById('previewAccent');
+    const previewBorder = document.getElementById('previewBorder');
+    
+    if (previewHeader) previewHeader.style.background = theme.primary;
+    if (previewAccent) previewAccent.style.background = theme.secondary;
+    if (previewBorder) previewBorder.style.background = theme.border;
+}
 
 // --- Logo Handling ---
 async function handleLogoUpload(event) {
@@ -3416,13 +4293,11 @@ async function initializeDashboard() {
     const userRoleDisplay = document.getElementById('userRoleDisplay');
     const userEmailDisplay = document.getElementById('userEmailDisplay');
     const userAvatar = document.getElementById('userAvatar');
-    const headerTitle = document.getElementById('headerTitle');
     const productIdInput = document.getElementById('product-id');
 
     if (userRoleDisplay) userRoleDisplay.textContent = CURRENT_USER_ROLE;
     if (userEmailDisplay) userEmailDisplay.textContent = CURRENT_USER_EMAIL;
     if (userAvatar) userAvatar.textContent = CURRENT_USER_ROLE.charAt(0).toUpperCase();
-    if (headerTitle) headerTitle.textContent = `${CURRENT_USER_ROLE} Dashboard`;
 
     applyRoleRestrictions();
 
@@ -3448,6 +4323,9 @@ async function initializeDashboard() {
 // Connect search input to filter products
 // Initialize edit product modal
 initEditProductModal();
+// Initialize edit customer and quotation modals
+initEditCustomerModal();
+initEditQuotationModal();
 
 document.addEventListener('DOMContentLoaded', function() {
     // Connect search input to filter products
@@ -3526,7 +4404,7 @@ async function handleLogout() {
         });
 
         // Redirect to login page
-        window.location.href = '/index.html';
+        window.location.href = '/login.html';
     } catch (error) {
         // Even if API call fails, clear local storage and redirect
         const allKeys = [
@@ -3543,7 +4421,7 @@ async function handleLogout() {
             localStorage.removeItem(key);
         });
         
-        window.location.href = '/index.html';
+        window.location.href = '/login.html';
     }
 }
 
@@ -3555,7 +4433,7 @@ function redirectToLogin() {
     localStorage.removeItem(LS_KEYS.userEmail);
     localStorage.removeItem(LS_KEYS.sessionExpiry);
     // Redirect to login
-    window.location.href = '/index.html';
+    window.location.href = '/login.html';
 }
 
 // Immediate session check before page loads (runs as soon as script loads)
