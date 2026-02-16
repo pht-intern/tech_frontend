@@ -2198,6 +2198,14 @@ async function generateQuotationHtml(quotation, options = {}) {
         console.warn('Failed to fetch temp items, using original items:', error);
     }
     
+    // Ensure numeric values are parsed (declare first so they can be used in priceUpdated block)
+    let subTotal = parseFloat(quotation.subTotal || 0);
+    let discountAmount = parseFloat(quotation.discountAmount || 0);
+    const discountPercent = parseFloat(quotation.discountPercent || 0);
+    let totalGstAmount = parseFloat(quotation.totalGstAmount || 0);
+    let grandTotal = parseFloat(quotation.grandTotal || 0);
+    let totalAfterDiscount = subTotal - discountAmount;
+    
     // Recalculate totals if prices were updated
     if (priceUpdated) {
         const newSubTotal = items.reduce((sum, item) => {
@@ -2222,14 +2230,6 @@ async function generateQuotationHtml(quotation, options = {}) {
         totalGstAmount = newTotalGstAmount;
         grandTotal = newGrandTotal;
     }
-
-    // Ensure numeric values are parsed
-    let subTotal = parseFloat(quotation.subTotal || 0);
-    let discountAmount = parseFloat(quotation.discountAmount || 0);
-    const discountPercent = parseFloat(quotation.discountPercent || 0);
-    let totalGstAmount = parseFloat(quotation.totalGstAmount || 0);
-    let grandTotal = parseFloat(quotation.grandTotal || 0);
-    let totalAfterDiscount = subTotal - discountAmount;
     
     // Ensure quotation ID and date are available
     const quotationId = quotation.quotationId || quotation.id || 'N/A';
