@@ -2659,6 +2659,22 @@ async function generateQuotationHtml(quotation, options = {}) {
     const quotationId = quotation.quotationId || quotation.id || 'N/A';
     const dateCreated = quotation.dateCreated || new Date().toLocaleDateString('en-IN');
 
+    // PDF pagination: 6 products per page, with header and footer on every page
+    const pdfPage = options.pdfPage || null;
+    let itemsForTable = items;
+    let showTotals = true;
+    let pageNumFooter = '';
+    let snoOffset = 0;
+    if (pdfPage) {
+        const { pageIndex, itemsPerPage, totalPages, isLastPage } = pdfPage;
+        const start = pageIndex * itemsPerPage;
+        const end = Math.min(start + itemsPerPage, items.length);
+        itemsForTable = items.slice(start, end);
+        showTotals = isLastPage;
+        snoOffset = start;
+        pageNumFooter = `Page ${pageIndex + 1} of ${totalPages}`;
+    }
+
     const fallbackLogoUrl = (typeof window !== 'undefined' && window.location && window.location.pathname)
         ? (window.location.pathname.replace(/\/[^/]*$/, '') || '') + '/images/Logo.png'
         : 'images/Logo.png';
@@ -2760,13 +2776,13 @@ async function generateQuotationHtml(quotation, options = {}) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${items.length > 0 ? items.map((item, idx) => {
+                            ${itemsForTable.length > 0 ? itemsForTable.map((item, idx) => {
                                 const itemPrice = parseFloat(item.price || 0);
                                 const itemQuantity = parseInt(item.quantity || 1);
                                 const itemTotal = itemPrice * itemQuantity;
                                 return `
                                     <tr>
-                                        <td>${idx + 1}</td>
+                                        <td>${snoOffset + idx + 1}</td>
                                         <td>${item.type || 'N/A'}</td>
                                         <td>${item.productName || 'N/A'}</td>
                                         <td class="text-right">${itemQuantity}</td>
@@ -2776,7 +2792,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                             }).join('') : '<tr><td colspan="5" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}
                         </tbody>
                     </table>
-                    <div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
+                    ${showTotals ? `<div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
                         <div style="display: inline-block; width: 260px; text-align: right;">
                             <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px;">
                                 <span style="color: #6b7280;">Subtotal (excl). GST)</span>
@@ -2787,8 +2803,9 @@ async function generateQuotationHtml(quotation, options = {}) {
                                 <span>${formatRupee(grandTotal)}</span>
                             </div>
                         </div>
-                    </div>
+                    </div>` : ''}
                     <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;">
+                        ${pageNumFooter ? `<div style="margin-bottom: 8px; font-weight: 600;">${pageNumFooter}</div>` : ''}
                         <div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div>
                         <div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div>
                         <div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div>
@@ -3617,74 +3634,72 @@ async function downloadQuotationAsPdfDirect(quotation) {
         }
         const logoPng = logoDataUrl ? await imageDataUrlToPng(logoDataUrl) : null;
 
-        const quotationHtml = await generateQuotationHtml(quotation);
-        tempContainer = document.createElement('div');
-        tempContainer.style.cssText = 'position:fixed;left:0;top:0;width:800px;z-index:-1;opacity:0.01;pointer-events:none;overflow:visible;';
-        tempContainer.innerHTML = quotationHtml;
-        document.body.appendChild(tempContainer);
-
-        const quotationDiv = tempContainer.querySelector('div[style*="width: 800px"]');
-        if (!quotationDiv) {
-            document.body.removeChild(tempContainer);
-            alert('Failed to generate quotation template');
-            return;
-        }
-
-        const images = quotationDiv.querySelectorAll('img');
-        await Promise.all(Array.from(images).map((img) => {
-            if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-            return new Promise((resolve) => {
-                img.onload = () => resolve();
-                img.onerror = () => resolve();
-                setTimeout(resolve, 3000);
-            });
-        }));
-        await new Promise(r => setTimeout(r, 400));
-
-        const contentHeight = quotationDiv.scrollHeight || quotationDiv.offsetHeight;
-        const canvas = await html2canvas(quotationDiv, {
-            scale: 2,
-            logging: false,
-            useCORS: false,
-            allowTaint: true,
-            backgroundColor: '#ffffff',
-            width: 800,
-            height: contentHeight,
-            windowWidth: 800,
-            windowHeight: contentHeight,
-            x: 0,
-            y: 0,
-            scrollX: 0,
-            scrollY: 0,
-            imageTimeout: 0
-        });
-
-        if (!canvas || canvas.width === 0 || canvas.height === 0) {
-            document.body.removeChild(tempContainer);
-            throw new Error('Canvas is empty');
-        }
+        const PRODUCTS_PER_PAGE = 6;
+        const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
+        const totalPages = Math.max(1, Math.ceil(itemsCount / PRODUCTS_PER_PAGE));
 
         const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true });
         const imgWidth = 595.28;
         const pageHeight = 841.89;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        const imgData = canvas.toDataURL('image/png', 1.0);
-        const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
-        const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
-        if (needsMultiplePages) {
-            let heightLeft = imgHeight;
-            let position = 0;
-            doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
-            while (heightLeft >= 0) {
-                position = heightLeft - imgHeight;
-                doc.addPage();
-                doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
+
+        for (let p = 0; p < totalPages; p++) {
+            const pageHtml = await generateQuotationHtml(quotation, {
+                pdfPage: { pageIndex: p, itemsPerPage: PRODUCTS_PER_PAGE, totalPages, isLastPage: p === totalPages - 1 }
+            });
+            tempContainer = document.createElement('div');
+            tempContainer.style.cssText = 'position:fixed;left:0;top:0;width:800px;z-index:-1;opacity:0.01;pointer-events:none;overflow:visible;';
+            tempContainer.innerHTML = pageHtml;
+            document.body.appendChild(tempContainer);
+
+            const quotationDiv = tempContainer.querySelector('div[style*="width: 800px"]');
+            if (!quotationDiv) {
+                document.body.removeChild(tempContainer);
+                alert('Failed to generate quotation template');
+                return;
             }
-        } else {
+
+            const images = quotationDiv.querySelectorAll('img');
+            await Promise.all(Array.from(images).map((img) => {
+                if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+                return new Promise((resolve) => {
+                    img.onload = () => resolve();
+                    img.onerror = () => resolve();
+                    setTimeout(resolve, 3000);
+                });
+            }));
+            await new Promise(r => setTimeout(r, 400));
+
+            const contentHeight = quotationDiv.scrollHeight || quotationDiv.offsetHeight;
+            const canvas = await html2canvas(quotationDiv, {
+                scale: 2,
+                logging: false,
+                useCORS: false,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                width: 800,
+                height: contentHeight,
+                windowWidth: 800,
+                windowHeight: contentHeight,
+                x: 0,
+                y: 0,
+                scrollX: 0,
+                scrollY: 0,
+                imageTimeout: 0
+            });
+
+            if (!canvas || canvas.width === 0 || canvas.height === 0) {
+                document.body.removeChild(tempContainer);
+                throw new Error('Canvas is empty');
+            }
+
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            const imgData = canvas.toDataURL('image/png', 1.0);
             const contentHeightPdf = Math.min(imgHeight, pageHeight);
+            if (p > 0) doc.addPage();
             doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeightPdf, undefined, 'FAST');
+
+            document.body.removeChild(tempContainer);
+            tempContainer = null;
         }
 
         doc.setPage(1);
