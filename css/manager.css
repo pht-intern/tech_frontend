@@ -167,6 +167,27 @@
         }
         .data-table td { padding:12px 14px;border-bottom:1px solid #f2f6fb; vertical-align:middle; color:#333 }
 
+        /* Sticky Actions Column */
+        .data-table {
+            position: relative;
+        }
+        .data-table thead th:last-child,
+        .data-table tbody td:last-child {
+            position: sticky;
+            right: 0;
+            background: #fff;
+            z-index: 10;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+        }
+        .data-table thead th:last-child {
+            z-index: 11;
+            background: #fbfdff;
+        }
+        .table-container {
+            overflow-x: auto;
+            max-width: 100%;
+        }
+
         /* ====== FORM & INPUTS ====== */
         .form-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px }
         .form-field label { display:block; margin-bottom:6px; font-weight:700; color:#334 }

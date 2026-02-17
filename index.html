@@ -845,7 +845,7 @@
     <nav class="navbar">
         <div class="nav-container">
             <a href="#" class="nav-logo">
-                <img src="images/Logo.svg" alt="TechTitans">
+                <img id="navLogoImg" src="images/Logo.svg" alt="TechTitans">
             </a>
             <ul class="nav-links">
                 <li><a href="#home">Home</a></li>
@@ -1130,7 +1130,7 @@
         <div class="footer-container">
             <div class="footer-grid">
                 <div class="footer-brand">
-                    <img src="images/Logo.svg" alt="TechTitans">
+                    <img id="footerLogoImg" src="images/Logo.svg" alt="TechTitans">
                     <p>TechTitans — Karnataka's trusted IT hardware retailer. PC components, custom builds & peripherals.</p>
                 </div>
                 <div class="footer-links">
@@ -1219,6 +1219,28 @@
             }
         });
     });
+
+    // Apply company logo from settings (nav + footer) — only when served over http(s)
+    (function applyCompanyLogo() {
+        if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') return;
+        var apiBase = (typeof window !== 'undefined' && window.API_BASE) ? window.API_BASE : (window.location.origin + '/api');
+        var url = (apiBase.replace(/\/$/, '')) + '/settings/logo';
+        fetch(url, { method: 'GET' })
+            .then(function(r) {
+                if (!r.ok) return null;
+                return r.json();
+            })
+            .then(function(res) {
+                if (!res) return;
+                var logo = (res.data && res.data.logo) ? res.data.logo : res.logo;
+                if (!logo || typeof logo !== 'string') return;
+                var navImg = document.getElementById('navLogoImg');
+                var footerImg = document.getElementById('footerLogoImg');
+                if (navImg) navImg.src = logo;
+                if (footerImg) footerImg.src = logo;
+            })
+            .catch(function() {});
+    })();
 
     async function handleContactSubmit(e) {
         e.preventDefault();

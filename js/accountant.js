@@ -34,7 +34,9 @@
         const AUTHORIZED_TO_DELETE_LOGS = ['Owner', 'Admin', 'Manager'];
         const AUTHORIZED_TO_VIEW_SETTINGS = ['Owner', 'Admin', 'Manager']; 
         // Accountant should not be able to fix GST/Financial settings (consistent with settings removal)
-        const AUTHORIZED_TO_FIX_GST = ['Owner', 'Admin', 'Manager']; 
+        const AUTHORIZED_TO_FIX_GST = ['Owner', 'Admin', 'Manager'];
+        const AUTHORIZED_TO_DELETE_ITEMS = ['Owner', 'Admin', 'Manager']; // Accountant cannot delete products
+        const AUTHORIZED_TO_DELETE_QUOTATIONS = ['Owner', 'Admin', 'Manager']; // Accountant cannot delete quotations
 
         // --- Session Validation Functions ---
         function isSessionExpired() {
@@ -122,13 +124,18 @@
         })() : `${DEFAULT_ROLE.toLowerCase()}@rolewise.app`);
 
         let quotationItems = [];
+        let currentEditQuotationId = null; // When editing via create section (like resume drafts)
         let isCreatingNewQuotation = true; // Track if we're creating a new quotation (true) or editing existing (false)
         let itemsCurrentPage = 1;
         const itemsPerPage = 5;
+        let itemsCurrentPriceSort = 'none';
+        let itemsCurrentNameSort = 'none';
         let historyCurrentPage = 1;
         const historyPerPage = 10;
         let customersCurrentPage = 1;
         const customersPerPage = 10;
+        let customerDetailsCurrentPage = 1;
+        const customerDetailsPerPage = 10;
 
         const defaultPlaceholderImage = '<svg style="width:48px;height:48px;color:#9aa4ad" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ccc" width="24px" height="24px"><path d="M0 0h24v24H0z" fill="none"/><path d="M22 16V4a2 2 0 00-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2zm-11.5-3c.83 0 1.5-.67 1.5-1.5S11.33 10 10.5 10 9 10.67 9 11.5s.67 1.5 1.5 1.5zM20 18H4v-1.5l3.5-3.5 4.5 6 4-4 4 4z"/></svg>';
 
@@ -136,6 +143,64 @@
 
         function formatRupee(amount) {
             return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+        }
+
+        function updatePriceSortHeader() {
+            const arrowsEl = document.getElementById('priceSortArrows');
+            if (!arrowsEl) return;
+            if (itemsCurrentPriceSort === 'asc') {
+                arrowsEl.innerHTML = ' <i class="fas fa-sort-up" aria-hidden="true"></i>';
+            } else if (itemsCurrentPriceSort === 'desc') {
+                arrowsEl.innerHTML = ' <i class="fas fa-sort-down" aria-hidden="true"></i>';
+            } else {
+                arrowsEl.innerHTML = ' <i class="fas fa-sort" aria-hidden="true"></i>';
+            }
+        }
+
+        function updateNameSortHeader() {
+            const arrowsEl = document.getElementById('nameSortArrows');
+            if (!arrowsEl) return;
+            if (itemsCurrentNameSort === 'asc') {
+                arrowsEl.innerHTML = ' <i class="fas fa-sort-up" aria-hidden="true"></i>';
+            } else if (itemsCurrentNameSort === 'desc') {
+                arrowsEl.innerHTML = ' <i class="fas fa-sort-down" aria-hidden="true"></i>';
+            } else {
+                arrowsEl.innerHTML = ' <i class="fas fa-sort" aria-hidden="true"></i>';
+            }
+        }
+
+        function togglePriceSort() {
+            itemsCurrentNameSort = 'none';
+            updateNameSortHeader();
+            if (itemsCurrentPriceSort === 'none') {
+                itemsCurrentPriceSort = 'asc';
+            } else if (itemsCurrentPriceSort === 'asc') {
+                itemsCurrentPriceSort = 'desc';
+            } else {
+                itemsCurrentPriceSort = 'none';
+            }
+            updatePriceSortHeader();
+            itemsCurrentPage = 1;
+            const searchInput = document.getElementById('productListSearchInput');
+            const filter = searchInput ? searchInput.value.trim() : '';
+            renderItemsList(filter);
+        }
+
+        function toggleNameSort() {
+            itemsCurrentPriceSort = 'none';
+            updatePriceSortHeader();
+            if (itemsCurrentNameSort === 'none') {
+                itemsCurrentNameSort = 'asc';
+            } else if (itemsCurrentNameSort === 'asc') {
+                itemsCurrentNameSort = 'desc';
+            } else {
+                itemsCurrentNameSort = 'none';
+            }
+            updateNameSortHeader();
+            itemsCurrentPage = 1;
+            const searchInput = document.getElementById('productListSearchInput');
+            const filter = searchInput ? searchInput.value.trim() : '';
+            renderItemsList(filter);
         }
 
         function toTitleCase(str) {
@@ -262,7 +327,7 @@
             }
         }
 
-        function writeQuotations(quotations) { writeLS(LS_KEYS.quotations, quotations); updateSummary(); renderHistoryList(); renderCustomersList(); }
+        function writeQuotations(quotations) { writeLS(LS_KEYS.quotations, quotations); updateSummary(); renderHistoryList(); renderCustomersList(); renderCustomerDetailsList(); }
 
         async function getLogs() {
             try {
@@ -374,11 +439,27 @@
                 handleItemEditReset();
                 updateCompatFieldsVisibility('type', 'compatFieldsContainer');
             } else if (sectionId === 'createQuotation') {
-                quotationItems = [];
+                if (!currentEditQuotationId) quotationItems = [];
                 renderQuotationItems();
                 updateGrandTotal();
                 renderQuotationTypeFilters(window.cachedItems);
                 renderAvailableItemsForQuotation('', '', window.cachedItems);
+                const createBtn = document.getElementById('createQuotationBtn');
+                if (currentEditQuotationId) {
+                    if (createBtn) createBtn.textContent = 'Edit Quotation';
+                    document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Edit Quotation'; else el.textContent = 'Edit Quotation'; });
+                    const sectionTitle = document.getElementById('createQuotationSectionTitle');
+                    if (sectionTitle) sectionTitle.textContent = 'Edit Quotation';
+                    const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+                    if (cancelEditBtn) cancelEditBtn.style.display = '';
+                } else {
+                    if (createBtn) createBtn.textContent = 'Create Quotation';
+                    document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create quotation'; else el.textContent = 'Create quotation'; });
+                    const sectionTitle = document.getElementById('createQuotationSectionTitle');
+                    if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
+                    const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+                    if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+                }
             }
         }
 
@@ -396,6 +477,7 @@
             } else {
                 historyView.style.display = 'none';
                 detailsView.style.display = '';
+                renderCustomerDetailsList(); // Load customer details when tab is selected
             }
         }
         document.querySelectorAll('.sidebar, .main').forEach(container => {
@@ -691,7 +773,7 @@
         function deleteItem(productId) {
             if (!confirm(`Are you sure you want to delete product ID ${productId}?`)) return;
 
-            if (!AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE)) {
+            if (!AUTHORIZED_TO_DELETE_ITEMS.includes(CURRENT_USER_ROLE)) {
                 alert('You are not authorized to delete products.');
                 addLog('Unauthorized Attempt', CURRENT_USER_ROLE, `Tried to delete product: ${productId}`);
                 return;
@@ -907,10 +989,21 @@
             }
             
             searchTerm = searchTerm.toLowerCase().trim();
-            const filteredItems = items.filter(item => 
+            let filteredItems = items.filter(item => 
                 (item.productName && item.productName.toLowerCase().includes(searchTerm)) || 
                 (item.productId && item.productId.toLowerCase().includes(searchTerm))
             );
+
+            if (itemsCurrentNameSort === 'asc') {
+                filteredItems.sort((a, b) => (String(a.productName || '').localeCompare(String(b.productName || ''), 'en-IN', { sensitivity: 'base' })));
+            } else if (itemsCurrentNameSort === 'desc') {
+                filteredItems.sort((a, b) => (String(b.productName || '').localeCompare(String(a.productName || ''), 'en-IN', { sensitivity: 'base' })));
+            }
+            if (itemsCurrentPriceSort === 'asc') {
+                filteredItems.sort((a, b) => parseFloat(a.price || 0) - parseFloat(b.price || 0));
+            } else if (itemsCurrentPriceSort === 'desc') {
+                filteredItems.sort((a, b) => parseFloat(b.price || 0) - parseFloat(a.price || 0));
+            }
 
             if (filteredItems.length === 0) {
                 noItemsMessage.style.display = 'block';
@@ -935,8 +1028,11 @@
 
             // Update pagination controls
             updateItemsPaginationControls(totalPages, filteredItems.length);
+            updatePriceSortHeader();
+            updateNameSortHeader();
 
             const isAuthorizedToEdit = AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE);
+            const isAuthorizedToDeleteItems = AUTHORIZED_TO_DELETE_ITEMS.includes(CURRENT_USER_ROLE);
 
             paginatedItems.forEach(item => {
                 const row = body.insertRow();
@@ -973,11 +1069,11 @@
                 row.insertCell().textContent = dateAdded;
 
                 const actionsCell = row.insertCell();
-                if (isAuthorizedToEdit) {
-                    actionsCell.innerHTML += `
-                        <button class="btn" style="padding: 5px 8px; margin-right: 5px;" onclick="editItem('${item.productId}')"><i class="fas fa-edit"></i></button>
-                        <button class="btn danger" style="padding: 5px 8px;" onclick="deleteItem('${item.productId}')"><i class="fas fa-trash-alt"></i></button>
-                    `;
+                if (isAuthorizedToEdit || isAuthorizedToDeleteItems) {
+                    let actionsHtml = '';
+                    if (isAuthorizedToEdit) actionsHtml += `<button class="btn" style="padding: 5px 8px; margin-right: 5px;" onclick="editItem('${item.productId}')"><i class="fas fa-edit"></i></button>`;
+                    if (isAuthorizedToDeleteItems) actionsHtml += `<button class="btn danger" style="padding: 5px 8px;" onclick="deleteItem('${item.productId}')"><i class="fas fa-trash-alt"></i></button>`;
+                    actionsCell.innerHTML = actionsHtml;
                 } else {
                     actionsCell.textContent = 'No Actions';
                 }
@@ -1128,6 +1224,20 @@
         }
 
         document.getElementById('productListSearchInput')?.addEventListener('input', (e) => renderItemsList(e.target.value).catch(err => console.error('Error rendering items list:', err)));
+
+        // Connect customer list search input
+        document.getElementById('customerListSearchInput')?.addEventListener('input', function(e) {
+            const filter = e.target.value.trim();
+            customersCurrentPage = 1; // Reset to first page when searching
+            renderCustomersList(filter);
+        });
+
+        // Connect customer details search input
+        document.getElementById('customerDetailsSearchInput')?.addEventListener('input', function(e) {
+            const filter = e.target.value.trim();
+            customerDetailsCurrentPage = 1; // Reset to first page when searching
+            renderCustomerDetailsList(filter);
+        });
 
         // --- CSV Import/Export ---
 
@@ -1318,7 +1428,7 @@
         }
 
         // --- Customer Management ---
-        async function renderCustomersList() {
+        async function renderCustomersList(searchFilter = '') {
             if (!AUTHORIZED_TO_VIEW_CUSTOMERS.includes(CURRENT_USER_ROLE)) return;
 
             let customers = [];
@@ -1344,6 +1454,18 @@
                 }
                 customers = Array.from(customersMap.values());
             }
+
+            // Apply search filter
+            if (searchFilter.trim()) {
+                const filter = searchFilter.toLowerCase().trim();
+                customers = customers.filter(customer => {
+                    return (customer.name && customer.name.toLowerCase().includes(filter)) ||
+                           (customer.email && customer.email.toLowerCase().includes(filter)) ||
+                           (customer.phone && customer.phone.toLowerCase().includes(filter)) ||
+                           (customer.address && customer.address.toLowerCase().includes(filter));
+                });
+            }
+
             const body = document.getElementById('customersListBody');
             const customersTable = document.getElementById('customersTable');
             const paginationDiv = document.getElementById('customersPagination');
@@ -1386,6 +1508,107 @@
                 row.insertCell().textContent = customer.phone || 'N/A';
                 row.insertCell().textContent = customer.address || 'N/A';
                 row.insertCell().textContent = customer.lastQuotationDate || 'N/A';
+            });
+        }
+
+        // --- Customer Details Management ---
+        async function renderCustomerDetailsList(searchFilter = '') {
+            if (!AUTHORIZED_TO_VIEW_CUSTOMERS.includes(CURRENT_USER_ROLE)) return;
+
+            let customers = [];
+            try {
+                const customersResponse = await getCustomers();
+                customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
+            } catch (e) {
+                // Fallback: derive from quotations in localStorage
+                const quotations = getQuotationsSync();
+                const customersMap = new Map();
+                if (Array.isArray(quotations)) {
+                    quotations.forEach(q => {
+                        const phone = q.customer?.phone || q.customerPhone;
+                        if (!phone) return;
+                        customersMap.set(phone, {
+                            name: q.customer?.name || q.customerName || 'N/A',
+                            email: q.customer?.email || q.customerEmail || 'N/A',
+                            phone: phone,
+                            address: q.customer?.address || q.customerAddress || 'N/A',
+                            lastQuotationDate: q.dateCreated || q.created_at || 'N/A'
+                        });
+                    });
+                }
+                customers = Array.from(customersMap.values());
+            }
+
+            // Apply search filter
+            if (searchFilter.trim()) {
+                const filter = searchFilter.toLowerCase().trim();
+                customers = customers.filter(customer => {
+                    return (customer.name && customer.name.toLowerCase().includes(filter)) ||
+                           (customer.email && customer.email.toLowerCase().includes(filter)) ||
+                           (customer.phone && customer.phone.toLowerCase().includes(filter)) ||
+                           (customer.address && customer.address.toLowerCase().includes(filter));
+                });
+            }
+
+            const body = document.getElementById('customerDetailsListBody');
+            const customersTable = document.getElementById('customerDetailsTable');
+            const paginationDiv = document.getElementById('customerDetailsPagination');
+            if (!body) return;
+
+            body.innerHTML = '';
+
+            if (customers.length === 0) {
+                body.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center">No customer data available.</td></tr>';
+                if (customersTable) customersTable.style.display = 'none';
+                if (paginationDiv) paginationDiv.style.display = 'none';
+                return;
+            }
+            if (customersTable) customersTable.style.display = 'table';
+            if (paginationDiv) paginationDiv.style.display = 'flex';
+
+            customers.sort((a, b) => {
+                try {
+                    const dateA = new Date(a.lastQuotationDate);
+                    const dateB = new Date(b.lastQuotationDate);
+                    return dateB - dateA; // Most recent first
+                } catch (e) {
+                    return 0;
+                }
+            });
+
+            // Calculate pagination
+            const totalPages = Math.ceil(customers.length / customerDetailsPerPage);
+            const startIndex = (customerDetailsCurrentPage - 1) * customerDetailsPerPage;
+            const endIndex = startIndex + customerDetailsPerPage;
+            const paginatedCustomers = customers.slice(startIndex, endIndex);
+
+            // Update pagination controls
+            updateCustomerDetailsPaginationControls(totalPages, customers.length);
+
+            paginatedCustomers.forEach((customer, index) => {
+                // Count quotations for this customer
+                const allQuotations = getQuotationsSync();
+                const customerQuotationCount = allQuotations.filter(q => {
+                    const phone = q.customer?.phone || q.customerPhone;
+                    return phone === customer.phone;
+                }).length;
+
+                const row = body.insertRow();
+                row.className = 'customer-row';
+                const phoneEscaped = (customer.phone || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                row.innerHTML = `
+                    <td>${startIndex + index + 1}</td>
+                    <td>${(customer.name || 'N/A').replace(/</g, '&lt;')}</td>
+                    <td>${(customer.email || 'N/A').replace(/</g, '&lt;')}</td>
+                    <td>${(customer.phone || 'N/A').replace(/</g, '&lt;')}</td>
+                    <td>${(customer.address || 'N/A').replace(/</g, '&lt;')}</td>
+                    <td>${(customer.lastQuotationDate || '').replace(/</g, '&lt;')}</td>
+                    <td>${customerQuotationCount}</td>
+                    <td><button class="btn" style="padding: 5px 8px;" onclick="event.stopPropagation(); openEditCustomerModal('${phoneEscaped}')" title="Edit customer"><i class="fas fa-edit"></i></button></td>
+                `;
+                
+                // Add click event to toggle quotations
+                row.addEventListener('click', () => toggleCustomerQuotations(customer.phone, row));
             });
         }
 
@@ -1440,7 +1663,9 @@
                     firstBtn.textContent = '1';
                     firstBtn.onclick = () => {
                         customersCurrentPage = 1;
-                        renderCustomersList();
+                        const searchInput = document.getElementById('customerListSearchInput');
+                        const filter = searchInput ? searchInput.value.trim() : '';
+                        renderCustomersList(filter);
                     };
                     pageNumbersDiv.appendChild(firstBtn);
 
@@ -1460,7 +1685,9 @@
                     
                     pageBtn.onclick = () => {
                         customersCurrentPage = i;
-                        renderCustomersList();
+                        const searchInput = document.getElementById('customerListSearchInput');
+                        const filter = searchInput ? searchInput.value.trim() : '';
+                        renderCustomersList(filter);
                     };
                     
                     pageNumbersDiv.appendChild(pageBtn);
@@ -1477,7 +1704,9 @@
                     lastBtn.textContent = totalPages;
                     lastBtn.onclick = () => {
                         customersCurrentPage = totalPages;
-                        renderCustomersList();
+                        const searchInput = document.getElementById('customerListSearchInput');
+                        const filter = searchInput ? searchInput.value.trim() : '';
+                        renderCustomersList(filter);
                     };
                     pageNumbersDiv.appendChild(lastBtn);
                 }
@@ -1491,6 +1720,114 @@
             }
         }
 
+        function updateCustomerDetailsPaginationControls(totalPages, totalItems) {
+            const pageNumbersDiv = document.getElementById('customerDetailsPageNumbers');
+            const nextBtn = document.getElementById('customerDetailsNextBtn');
+            const prevBtn = document.getElementById('customerDetailsPrevBtn');
+            const pageInfo = document.getElementById('customerDetailsPageInfo');
+
+            if (pageNumbersDiv) {
+                pageNumbersDiv.innerHTML = '';
+                
+                if (totalPages === 0) {
+                    if (pageInfo) pageInfo.textContent = '';
+                    return;
+                }
+
+                if (pageInfo) {
+                    const startItem = (customerDetailsCurrentPage - 1) * customerDetailsPerPage + 1;
+                    const endItem = Math.min(customerDetailsCurrentPage * customerDetailsPerPage, totalItems);
+                    pageInfo.textContent = `Page ${customerDetailsCurrentPage} of ${totalPages} • Showing ${startItem}-${endItem} of ${totalItems}`;
+                }
+
+                const maxPagesToShow = 7;
+                let startPage, endPage;
+                let showStartEllipsis = false;
+                let showEndEllipsis = false;
+                
+                if (totalPages <= maxPagesToShow) {
+                    startPage = 1;
+                    endPage = totalPages;
+                } else {
+                    if (customerDetailsCurrentPage <= 4) {
+                        startPage = 1;
+                        endPage = maxPagesToShow - 1;
+                        showEndEllipsis = true;
+                    } else if (customerDetailsCurrentPage >= totalPages - 3) {
+                        startPage = totalPages - (maxPagesToShow - 2);
+                        endPage = totalPages;
+                        showStartEllipsis = true;
+                    } else {
+                        startPage = customerDetailsCurrentPage - 2;
+                        endPage = customerDetailsCurrentPage + 2;
+                        showStartEllipsis = true;
+                        showEndEllipsis = true;
+                    }
+                }
+
+                if (showStartEllipsis) {
+                    const firstBtn = document.createElement('button');
+                    firstBtn.className = 'pagination-page-btn';
+                    firstBtn.textContent = '1';
+                    firstBtn.onclick = () => {
+                        customerDetailsCurrentPage = 1;
+                        const searchInput = document.getElementById('customerDetailsSearchInput');
+                        const filter = searchInput ? searchInput.value.trim() : '';
+                        renderCustomerDetailsList(filter);
+                    };
+                    pageNumbersDiv.appendChild(firstBtn);
+
+                    const ellipsis = document.createElement('div');
+                    ellipsis.className = 'pagination-ellipsis';
+                    ellipsis.textContent = '...';
+                    pageNumbersDiv.appendChild(ellipsis);
+                }
+
+                for (let i = startPage; i <= endPage; i++) {
+                    const pageBtn = document.createElement('button');
+                    pageBtn.className = 'pagination-page-btn';
+                    if (i === customerDetailsCurrentPage) {
+                        pageBtn.classList.add('active');
+                    }
+                    pageBtn.textContent = i;
+                    
+                    pageBtn.onclick = () => {
+                        customerDetailsCurrentPage = i;
+                        const searchInput = document.getElementById('customerDetailsSearchInput');
+                        const filter = searchInput ? searchInput.value.trim() : '';
+                        renderCustomerDetailsList(filter);
+                    };
+                    
+                    pageNumbersDiv.appendChild(pageBtn);
+                }
+
+                if (showEndEllipsis) {
+                    const ellipsis = document.createElement('div');
+                    ellipsis.className = 'pagination-ellipsis';
+                    ellipsis.textContent = '...';
+                    pageNumbersDiv.appendChild(ellipsis);
+
+                    const lastBtn = document.createElement('button');
+                    lastBtn.className = 'pagination-page-btn';
+                    lastBtn.textContent = totalPages;
+                    lastBtn.onclick = () => {
+                        customerDetailsCurrentPage = totalPages;
+                        const searchInput = document.getElementById('customerDetailsSearchInput');
+                        const filter = searchInput ? searchInput.value.trim() : '';
+                        renderCustomerDetailsList(filter);
+                    };
+                    pageNumbersDiv.appendChild(lastBtn);
+                }
+            }
+
+            if (prevBtn) {
+                prevBtn.disabled = customerDetailsCurrentPage <= 1;
+            }
+            if (nextBtn) {
+                nextBtn.disabled = customerDetailsCurrentPage >= totalPages;
+            }
+        }
+
         function goToCustomersPage(direction) {
             const body = document.getElementById('customersListBody');
             if (!body) return;
@@ -1498,24 +1835,147 @@
             customersCurrentPage += direction;
             if (customersCurrentPage < 1) customersCurrentPage = 1;
             
-            getCustomers().then(customers => {
-                const arr = Array.isArray(customers) ? customers : (customers?.data || []);
-                const totalPages = Math.ceil(arr.length / customersPerPage);
-                if (customersCurrentPage > totalPages) customersCurrentPage = totalPages;
-                renderCustomersList();
-            }).catch(() => {
-                // Fallback: use quotations-derived count
-                const quotations = getQuotationsSync();
-                const customersMap = new Map();
-                quotations.forEach(q => {
-                    const phone = q.customer?.phone;
-                    if (!phone) return;
-                    customersMap.set(phone, {});
-                });
-                const totalPages = Math.ceil(customersMap.size / customersPerPage);
-                if (customersCurrentPage > totalPages) customersCurrentPage = totalPages;
-                renderCustomersList();
+            // Get current search filter
+            const searchInput = document.getElementById('customerListSearchInput');
+            const filter = searchInput ? searchInput.value.trim() : '';
+            
+            renderCustomersList(filter);
+        }
+
+        // Toggle customer quotations dropdown
+        async function toggleCustomerQuotations(customerPhone, customerRow) {
+            const existingQuotationsRow = customerRow.nextElementSibling;
+            const isExpanded = customerRow.classList.contains('expanded');
+            
+            // Close all other expanded rows
+            document.querySelectorAll('.customer-row.expanded').forEach(row => {
+                row.classList.remove('expanded');
+                const nextRow = row.nextElementSibling;
+                if (nextRow && nextRow.classList.contains('customer-quotation-row')) {
+                    nextRow.remove();
+                }
             });
+            
+            if (isExpanded) {
+                // Close current row
+                customerRow.classList.remove('expanded');
+                if (existingQuotationsRow && existingQuotationsRow.classList.contains('customer-quotation-row')) {
+                    existingQuotationsRow.remove();
+                }
+                return;
+            }
+            
+            // Expand current row
+            customerRow.classList.add('expanded');
+            
+            try {
+                const allQuotations = getQuotationsSync();
+                
+                // Filter quotations for this customer
+                const customerQuotations = allQuotations.filter(q => {
+                    const phone = q.customer?.phone || q.customerPhone;
+                    return phone === customerPhone;
+                });
+                
+                if (customerQuotations.length === 0) {
+                    return;
+                }
+                
+                // Get customer serial number from the table
+                const customerRows = Array.from(document.querySelectorAll('#customerDetailsListBody .customer-row'));
+                const customerIndex = customerRows.findIndex(row => {
+                    const rowPhone = row.cells[3]?.textContent; // Phone is in 4th column (index 3)
+                    return rowPhone === customerPhone;
+                });
+                const customerSerialNumber = customerIndex + 1;
+                
+                // Create quotations row
+                const quotationsRow = document.createElement('tr');
+                quotationsRow.className = 'customer-quotation-row';
+                quotationsRow.innerHTML = `
+                    <td colspan="8">
+                        <div class="quotation-details">
+                            <table class="data-table" style="margin: 0; background: white;">
+                                <thead>
+                                    <tr>
+                                        <th>Quotation ID</th>
+                                        <th>Date</th>
+                                        <th>Timestamp</th>
+                                        <th>Total Amount</th>
+                                        <th>Items Count</th>
+                                        <th>Created By</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${customerQuotations.map((quotation, qIndex) => `
+                                        <tr style="border-bottom: 2px solid #e0e0e0; background-color: #f8f9fa;">
+                                            <td style="font-weight: bold; color: #2196f3;">${customerSerialNumber}.${qIndex + 1}</td>
+                                            <td>${new Date(quotation.dateCreated || quotation.created_at).toLocaleDateString()}</td>
+                                            <td>${quotation.created_at ? new Date(quotation.created_at).toLocaleString() : new Date(quotation.dateCreated).toLocaleString()}</td>
+                                            <td style="font-weight: bold; color: #27ae60;">${formatRupee(quotation.totalAmount || quotation.total)}</td>
+                                            <td>${quotation.items ? quotation.items.length : 0}</td>
+                                            <td>${quotation.createdBy || quotation.user || 'N/A'}</td>
+                                            <td><button class="btn" style="padding: 4px 8px; font-size: 12px;" onclick="event.stopPropagation(); editQuotationInCreateSection('${quotation.quotationId || quotation.id}')" title="Edit quotation"><i class="fas fa-edit"></i></button></td>
+                                        </tr>
+                                        ${quotation.items && quotation.items.length > 0 ? `
+                                            <tr>
+                                                <td colspan="7" style="padding: 0; border-bottom: 1px solid #e0e0e0;">
+                                                    <div style="background: #ffffff; margin: 8px; padding: 12px; border-radius: 8px; border-left: 4px solid #2196f3; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                                        <h4 style="margin: 0 0 10px 0; color: #34495e; font-size: 14px;">Items Details</h4>
+                                                        <table class="data-table" style="margin: 0; width: 100%; background: transparent;">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th style="text-align: left; padding-left: 8px; font-size: 12px;">Item Details</th>
+                                                                    <th style="font-size: 12px;">Quantity</th>
+                                                                    <th style="font-size: 12px;">Unit Price</th>
+                                                                    <th style="font-size: 12px;">Total</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                            ${quotation.items.map((item, itemIndex) => `
+                                                                <tr>
+                                                                    <td style="text-align: left; padding-left: 20px;">
+                                                                        <div>${customerSerialNumber}.${qIndex + 1}.${itemIndex + 1}. ${item.productName || item.name}</div>
+                                                                    </td>
+                                                                    <td>${item.quantity || item.qty}</td>
+                                                                    <td>${formatRupee(item.unitPrice || item.price)}</td>
+                                                                    <td>${formatRupee((item.unitPrice || item.price) * (item.quantity || item.qty))}</td>
+                                                                </tr>
+                                                            `).join('')}
+                                                            </tbody>
+                                                        </table>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ` : ''}
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </td>
+                `;
+                
+                // Insert after customer row
+                customerRow.parentNode.insertBefore(quotationsRow, customerRow.nextSibling);
+                
+            } catch (error) {
+                console.error('Error loading customer quotations:', error);
+            }
+        }
+
+        function goToCustomerDetailsPage(direction) {
+            const body = document.getElementById('customerDetailsListBody');
+            if (!body) return;
+            
+            customerDetailsCurrentPage += direction;
+            if (customerDetailsCurrentPage < 1) customerDetailsCurrentPage = 1;
+            
+            // Get current search filter
+            const searchInput = document.getElementById('customerDetailsSearchInput');
+            const filter = searchInput ? searchInput.value.trim() : '';
+            
+            renderCustomerDetailsList(filter);
         }
 
 
@@ -1654,6 +2114,14 @@
                     }
                     return matchesSearch && matchesType;
                 });
+
+                const priceSortBtn = document.getElementById('quotationPriceSortBtn');
+                const priceSort = priceSortBtn?.getAttribute('data-price-sort') || 'none';
+                if (priceSort === 'lowToHigh') {
+                    filteredItems.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+                } else if (priceSort === 'highToLow') {
+                    filteredItems.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+                }
 
                 if (filteredItems.length === 0) {
                     listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products found matching your search.</p>';
@@ -1886,12 +2354,14 @@
                 const gstCell = row.insertCell();
                 gstCell.innerHTML = `<input type="number" value="${item.gstRate}" min="0" max="50" style="width:50px; padding:5px; border-radius:4px; border:1px solid var(--border);" onchange="updateItemGstRate('${item.productId}', this.value)">`;
 
+                // Actions column – delete item
                 const actionsCell = row.insertCell();
                 const removeBtn = document.createElement('button');
                 removeBtn.className = 'btn danger';
                 removeBtn.style.padding = '5px 8px';
-                removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
-                removeBtn.onclick = () => removeItemFromQuotation(item.productId);
+                removeBtn.title = 'Remove item from quotation';
+                removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
+                removeBtn.onclick = function () { removeItemFromQuotation(item.productId); };
                 actionsCell.appendChild(removeBtn);
             });
         }
@@ -1923,10 +2393,205 @@
             if (grandTotalDisplay) grandTotalDisplay.textContent = formatRupee(grandTotal);
         }
 
+        /** Redirect to create quotation section with quotation data loaded (like owner – API first, then local fallback). */
+        async function editQuotationInCreateSection(quotationId) {
+            if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE) && !AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE)) {
+                alert('You are not authorized to edit quotations.');
+                return;
+            }
+            try {
+                let quote = null;
+                const data = await apiFetch(`/quotations/${quotationId}`);
+                if (data) quote = data?.data || data;
+                if (!quote || (!quote.quotationId && !quote.id)) {
+                    const local = getQuotationsSync();
+                    const found = Array.isArray(local) ? local.find(q => (q.quotationId || q.id) === quotationId) : null;
+                    if (found) {
+                        quote = {
+                            quotationId: found.quotationId || found.id,
+                            id: found.id || found.quotationId,
+                            customer: found.customer || { name: found.customerName, phone: found.customerPhone, email: found.customerEmail, address: found.customerAddress },
+                            customerName: found.customerName,
+                            customerPhone: found.customerPhone,
+                            customerEmail: found.customerEmail,
+                            customerAddress: found.customerAddress,
+                            items: found.items || [],
+                            discountPercent: found.discountPercent != null ? found.discountPercent : 0,
+                            images: Array.isArray(found.images) ? found.images : []
+                        };
+                    }
+                }
+                if (!quote || (!quote.quotationId && !quote.id)) {
+                    alert('Quotation not found.');
+                    return;
+                }
+                const qid = quote.quotationId || quote.id;
+                currentEditQuotationId = qid;
+                const cust = quote.customer || {};
+                document.getElementById('cust-name').value = cust.name || quote.customerName || '';
+                document.getElementById('phone-number').value = cust.phone || quote.customerPhone || '';
+                document.getElementById('cust-email').value = cust.email || quote.customerEmail || '';
+                document.getElementById('cust-address').value = cust.address || quote.customerAddress || '';
+                const discountPercentInput = document.getElementById('discount-percent');
+                if (discountPercentInput) discountPercentInput.value = quote.discountPercent != null ? quote.discountPercent : 0;
+                quotationItems = (quote.items || []).map(it => ({
+                    productId: it.productId,
+                    productName: it.productName,
+                    price: it.price,
+                    quantity: it.quantity || 1,
+                    gstRate: it.gstRate != null ? it.gstRate : 0
+                }));
+                if (typeof setAccountantUploadedImages === 'function') setAccountantUploadedImages(Array.isArray(quote.images) && quote.images.length > 0 ? [quote.images[0]] : []);
+                renderQuotationItems();
+                updateGrandTotal();
+                const createBtn = document.getElementById('createQuotationBtn');
+                if (createBtn) createBtn.innerHTML = '<i class="fas fa-edit"></i> Edit Quotation';
+                document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> Edit Quotation' : 'Edit Quotation'; });
+                const sectionTitle = document.getElementById('createQuotationSectionTitle');
+                if (sectionTitle) sectionTitle.textContent = 'Edit Quotation';
+                const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+                if (cancelEditBtn) cancelEditBtn.style.display = '';
+                showSection('createQuotation');
+            } catch (e) {
+                console.error('Error loading quotation for edit:', e);
+                alert('Failed to load quotation.');
+            }
+        }
+
+        function cancelEditInCreateSection() {
+            if (!currentEditQuotationId) return;
+            currentEditQuotationId = null;
+            const createBtn = document.getElementById('createQuotationBtn');
+            if (createBtn) createBtn.textContent = 'Create Quotation';
+            document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create quotation'; else el.textContent = 'Create quotation'; });
+            const sectionTitle = document.getElementById('createQuotationSectionTitle');
+            if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
+            const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+            if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+            quotationItems = [];
+            document.getElementById('cust-name').value = '';
+            document.getElementById('phone-number').value = '';
+            document.getElementById('cust-email').value = '';
+            document.getElementById('cust-address').value = '';
+            const discountPercentInput = document.getElementById('discount-percent');
+            if (discountPercentInput) discountPercentInput.value = '0';
+            if (typeof setAccountantUploadedImages === 'function') setAccountantUploadedImages([]);
+            renderQuotationItems();
+            updateGrandTotal();
+        }
+
         async function createQuotation() {
             if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE)) {
                 alert('You are not authorized to create quotations.');
                 addLog('Unauthorized Attempt', CURRENT_USER_ROLE, `Tried to create quotation`);
+                return;
+            }
+
+            // Edit mode: update existing quotation via create section (same flow as resume drafts)
+            if (currentEditQuotationId) {
+                const qid = currentEditQuotationId;
+                const customerName = document.getElementById('cust-name')?.value.trim() || null;
+                const phoneNumber = document.getElementById('phone-number')?.value.trim();
+                const customerEmail = document.getElementById('cust-email')?.value.trim() || null;
+                const customerAddress = document.getElementById('cust-address')?.value.trim() || null;
+                if (!phoneNumber || phoneNumber.length !== 10) {
+                    alert('Please enter a valid 10-digit phone number for the customer.');
+                    return;
+                }
+                if (quotationItems.length === 0) {
+                    alert('Please add at least one item to the quotation.');
+                    return;
+                }
+                const discountPercent = parseFloat(document.getElementById('discount-percent')?.value || 0);
+                const cust = { name: customerName || '', phone: phoneNumber, email: customerEmail || null, address: customerAddress || null };
+                const itemsForUpdate = quotationItems.filter(it => it.productName && (parseFloat(it.price) || 0) > 0).map((it, idx) => ({
+                    productId: it.productId || `custom-${Date.now()}-${idx}`,
+                    productName: it.productName,
+                    price: parseFloat(it.price) || 0,
+                    quantity: parseInt(it.quantity, 10) || 1,
+                    gstRate: parseFloat(it.gstRate) || 0
+                }));
+                if (itemsForUpdate.length === 0) {
+                    alert('Add at least one item with a valid price.');
+                    return;
+                }
+                const imagesForSave = (typeof getAccountantUploadedImages === 'function' ? getAccountantUploadedImages() : []) || [];
+                const applyEditSuccess = () => {
+                    currentEditQuotationId = null;
+                    const createBtn = document.getElementById('createQuotationBtn');
+                    if (createBtn) createBtn.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create Quotation';
+                    document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> Create quotation' : 'Create quotation'; });
+                    const sectionTitle = document.getElementById('createQuotationSectionTitle');
+                    if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
+                    const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+                    if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+                    quotationItems = [];
+                    document.getElementById('cust-name').value = '';
+                    document.getElementById('phone-number').value = '';
+                    document.getElementById('cust-email').value = '';
+                    document.getElementById('cust-address').value = '';
+                    const discountPercentInput = document.getElementById('discount-percent');
+                    if (discountPercentInput) discountPercentInput.value = '0';
+                    if (typeof clearAccountantImageUpload === 'function') clearAccountantImageUpload();
+                    renderQuotationItems();
+                    updateGrandTotal();
+                    renderHistoryList();
+                    renderCustomerDetailsList();
+                    addLog('Quotation Updated', CURRENT_USER_ROLE, `Updated quotation: ${qid}`);
+                    alert('Quotation updated successfully.');
+                };
+                try {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (CURRENT_USER_EMAIL) headers['X-User-Email'] = CURRENT_USER_EMAIL;
+                    const res = await apiFetch(`/quotations/${qid}/update`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ customer: cust, items: itemsForUpdate, discountPercent, images: imagesForSave })
+                    });
+                    if (res && (res.success !== false)) {
+                        try {
+                            const list = await apiFetch('/quotations');
+                            const arr = Array.isArray(list) ? list : (list && list.data);
+                            if (arr) writeQuotations(arr);
+                        } catch (e) { /* sync from API */ }
+                        applyEditSuccess();
+                    } else {
+                        alert(res?.message || 'Failed to update quotation.');
+                    }
+                } catch (e) {
+                    const list = getQuotationsSync();
+                    const idx = Array.isArray(list) ? list.findIndex(q => (q.quotationId || q.id) === qid) : -1;
+                    if (idx >= 0) {
+                        let subTotal = itemsForUpdate.reduce((s, it) => s + it.price * (it.quantity || 1), 0);
+                        const discountAmount = subTotal * (discountPercent / 100);
+                        const totalAfterDiscount = subTotal - discountAmount;
+                        const totalGst = itemsForUpdate.reduce((s, it) => s + (it.price * (it.quantity || 1) * (it.gstRate || 0) / 100), 0);
+                        const grandTotal = totalAfterDiscount + totalGst;
+                        const updated = {
+                            ...list[idx],
+                            quotationId: qid,
+                            id: list[idx].id || qid,
+                            customer: cust,
+                            customerName: cust.name,
+                            customerPhone: cust.phone,
+                            customerEmail: cust.email,
+                            customerAddress: cust.address,
+                            items: itemsForUpdate,
+                            discountPercent,
+                            images: imagesForSave,
+                            grandTotal,
+                            dateCreated: list[idx].dateCreated || list[idx].created_at,
+                            created_at: list[idx].created_at || list[idx].dateCreated
+                        };
+                        const newList = list.slice();
+                        newList[idx] = updated;
+                        writeQuotations(newList);
+                        applyEditSuccess();
+                    } else {
+                        console.error('Update quotation error:', e);
+                        alert('Failed to update quotation.');
+                    }
+                }
                 return;
             }
 
@@ -2051,9 +2716,9 @@
 
             quotations.sort((a, b) => {
                 try {
-                    const dateA = new Date(a.dateCreated || a.created_at || 0);
-                    const dateB = new Date(b.dateCreated || b.created_at || 0);
-                    return dateB - dateA; // Most recent first
+                    const dateA = new Date(a.updated_at || a.dateCreated || a.created_at || 0);
+                    const dateB = new Date(b.updated_at || b.dateCreated || b.created_at || 0);
+                    return dateB - dateA; // Most recent activity first (includes updates)
                 } catch (e) {
                     return 0;
                 }
@@ -2068,6 +2733,8 @@
             // Update pagination controls
             updateHistoryPaginationControls(totalPages, quotations.length);
 
+            const isAuthorizedToDeleteQuotations = AUTHORIZED_TO_DELETE_QUOTATIONS.includes(CURRENT_USER_ROLE);
+
             paginatedQuotations.forEach(quote => {
                 const row = body.insertRow();
                 row.insertCell().textContent = quote.quotationId || quote.id || 'N/A';
@@ -2075,16 +2742,24 @@
                 const customerPhone = quote.customer?.phone || quote.customerPhone || '';
                 row.insertCell().textContent = customerName !== 'N/A' ? customerName : (customerPhone || 'N/A');
                 row.insertCell().textContent = quote.dateCreated || quote.created_at || 'N/A';
+                const updatedAt = quote.updated_at;
+                const lastUpdatedStr = updatedAt ? new Date(updatedAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+                row.insertCell().textContent = lastUpdatedStr;
                 row.insertCell().textContent = formatRupee(parseFloat(quote.grandTotal) || 0);
                 row.insertCell().textContent = (quote.items?.length || 0);
                 row.insertCell().textContent = quote.createdBy || quote.created_by || 'N/A';
 
                 const actionsCell = row.insertCell();
-                actionsCell.innerHTML = `
-                    <button class="btn primary" style="padding: 5px 8px; margin-right: 5px;" onclick="viewQuotationPdf('${quote.quotationId || quote.id}')"><i class="fas fa-download"></i></button>
-                    <button class="btn secondary" style="padding: 5px 8px; margin-right: 5px;" onclick="viewQuotationDetails('${quote.quotationId || quote.id}')"><i class="fas fa-eye"></i></button>
-                    <button class="btn danger" style="padding: 5px 8px;" onclick="deleteQuotation('${quote.quotationId || quote.id}')" title="Delete Quotation"><i class="fas fa-trash-alt"></i></button>
+                const quoteId = quote.quotationId || quote.id;
+                let actionsHtml = `
+                    <button class="btn primary" style="padding: 5px 8px; margin-right: 5px;" onclick="viewQuotationPdf('${quoteId}')" title="Download PDF"><i class="fas fa-download"></i></button>
+                    <button class="btn secondary" style="padding: 5px 8px; margin-right: 5px;" onclick="viewQuotationDetails('${quoteId}')" title="View"><i class="fas fa-eye"></i></button>
+                    <button class="btn" style="padding: 5px 8px; margin-right: 5px;" onclick="editQuotationInCreateSection('${quoteId}')" title="Edit"><i class="fas fa-edit"></i></button>
                 `;
+                if (isAuthorizedToDeleteQuotations) {
+                    actionsHtml += `<button class="btn danger" style="padding: 5px 8px;" onclick="deleteQuotation('${quoteId}')" title="Delete Quotation"><i class="fas fa-trash-alt"></i></button>`;
+                }
+                actionsCell.innerHTML = actionsHtml;
             });
         }
 
@@ -2218,14 +2893,10 @@
         async function viewQuotationPdf(quotationId) {
             try {
                 const quotations = getQuotationsSync();
-                let quotation = quotations.find(q => q.quotationId === quotationId);
-                
+                let quotation = Array.isArray(quotations) ? quotations.find(q => (q.quotationId || q.id) === quotationId) : null;
                 if (!quotation) {
-                    // Try to fetch from API
                     const response = await apiFetch(`/quotations/${quotationId}`);
-                    if (response) {
-                        quotation = Array.isArray(response) ? response[0] : (response.data || response);
-                    }
+                    if (response) quotation = Array.isArray(response) ? response[0] : (response.data || response);
                 }
                 
                 if (!quotation) {
@@ -2242,65 +2913,80 @@
         }
         
         async function downloadQuotationAsPdfDirect(quotation) {
+            let tempContainer;
+            showPdfLoadingOverlay();
             try {
+                const settings = await getSettings();
+                let logoDataUrl = settings.logo || null;
+                if (!logoDataUrl && typeof window !== 'undefined' && window.location) {
+                    const basePath = (window.location.pathname || '').replace(/\/[^/]*$/, '') || '';
+                    const base = window.location.origin + (basePath ? basePath + '/' : '/') + 'images/Logo.';
+                    try {
+                        const r = await fetch(base + 'svg');
+                        if (r.ok) { logoDataUrl = await r.text(); logoDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(logoDataUrl))); }
+                    } catch (_) {}
+                    if (!logoDataUrl) {
+                        try {
+                            const r = await fetch(base + 'png');
+                            if (r.ok) { const blob = await r.blob(); logoDataUrl = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); }); }
+                        } catch (_) {}
+                    }
+                }
+                const logoPng = logoDataUrl ? await imageDataUrlToPng(logoDataUrl) : null;
+
                 const quotationHtml = await generateQuotationHtml(quotation);
-                const tempContainer = document.createElement('div');
-                tempContainer.style.position = 'absolute';
-                tempContainer.style.left = '-9999px';
-                tempContainer.style.top = '0';
-                tempContainer.style.width = '800px';
+                tempContainer = document.createElement('div');
+                tempContainer.style.cssText = 'position:fixed;left:0;top:0;width:800px;z-index:-1;opacity:0.01;pointer-events:none;overflow:visible;';
                 tempContainer.innerHTML = quotationHtml;
                 document.body.appendChild(tempContainer);
-                
+
                 const quotationDiv = tempContainer.querySelector('div[style*="width: 800px"]');
                 if (!quotationDiv) {
-                    alert('Failed to generate quotation template');
                     document.body.removeChild(tempContainer);
+                    alert('Failed to generate quotation template');
                     return;
                 }
-                
+
                 const images = quotationDiv.querySelectorAll('img');
-                const imagePromises = Array.from(images).map(img => {
-                    if (img.complete) return Promise.resolve();
+                await Promise.all(Array.from(images).map((img) => {
+                    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
                     return new Promise((resolve) => {
-                        img.onload = resolve;
-                        img.onerror = resolve;
-                        setTimeout(resolve, 2000);
+                        img.onload = () => resolve();
+                        img.onerror = () => resolve();
+                        setTimeout(resolve, 3000);
                     });
-                });
-                await Promise.all(imagePromises);
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                const canvas = await html2canvas(quotationDiv, { 
-                    scale: 2, 
-                    logging: false, 
-                    useCORS: true,
+                }));
+                await new Promise(r => setTimeout(r, 400));
+
+                const contentHeight = quotationDiv.scrollHeight || quotationDiv.offsetHeight;
+                const canvas = await html2canvas(quotationDiv, {
+                    scale: 2,
+                    logging: false,
+                    useCORS: false,
                     allowTaint: true,
                     backgroundColor: '#ffffff',
                     width: 800,
-                    height: quotationDiv.scrollHeight || quotationDiv.offsetHeight,
+                    height: contentHeight,
+                    windowWidth: 800,
+                    windowHeight: contentHeight,
                     x: 0,
                     y: 0,
                     scrollX: 0,
                     scrollY: 0,
-                    onclone: (clonedDoc) => {
-                        const clonedElement = clonedDoc.querySelector('div[style*="width: 800px"]');
-                        if (clonedElement) {
-                            clonedElement.style.backgroundImage = 'none';
-                        }
-                    }
+                    imageTimeout: 0
                 });
-                
+
                 if (!canvas || canvas.width === 0 || canvas.height === 0) {
+                    document.body.removeChild(tempContainer);
                     throw new Error('Canvas is empty');
                 }
-                
+
                 const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
                 const imgWidth = 595.28;
                 const pageHeight = 841.89;
                 const imgHeight = (canvas.height * imgWidth) / canvas.width;
                 const imgData = canvas.toDataURL('image/png', 1.0);
-                const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
                 const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
                 const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
                 if (needsMultiplePages) {
@@ -2315,63 +3001,35 @@
                         heightLeft -= pageHeight;
                     }
                 } else {
-                    const contentHeight = Math.min(imgHeight, pageHeight);
-                    doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeight, undefined, 'FAST');
+                    const contentHeightPdf = Math.min(imgHeight, pageHeight);
+                    doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeightPdf, undefined, 'FAST');
                 }
-                try {
-                    let page2Images = [];
-                    const quotationImages = quotation.images;
-                    if (Array.isArray(quotationImages) && quotationImages.length > 0) {
-                        page2Images = quotationImages.map((img, i) => ({ image: img, productName: `Image ${i + 1}` }));
-                    }
-                    if (page2Images.length > 0) {
-                            const page2Html = await generateQuotationHtml(quotation, { page2Images: page2Images });
-                            const page2Container = document.createElement('div');
-                            page2Container.style.cssText = 'position:absolute;left:-9999px;top:0;width:800px;';
-                            page2Container.innerHTML = page2Html;
-                            document.body.appendChild(page2Container);
-                            const page2Div = page2Container.querySelector('div[style*="width: 800px"]');
-                            if (page2Div) {
-                                await Promise.all(Array.from(page2Div.querySelectorAll('img')).map((img) => {
-                                    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-                                    return new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; setTimeout(resolve, 3000); });
-                                }));
-                                await new Promise(r => setTimeout(r, 400));
-                                const page2Canvas = await html2canvas(page2Div, { scale: 2, logging: false, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', width: 800, height: page2Div.scrollHeight || page2Div.offsetHeight, x: 0, y: 0, scrollX: 0, scrollY: 0 });
-                                if (page2Canvas && page2Canvas.width > 0 && page2Canvas.height > 0) {
-                                    doc.addPage();
-                                    const page2ImgData = page2Canvas.toDataURL('image/png', 1.0);
-                                    const page2ImgHeight = (page2Canvas.height * imgWidth) / page2Canvas.width;
-                                    const page2ContentHeight = Math.min(page2ImgHeight, pageHeight);
-                                    doc.addImage(page2ImgData, 'PNG', 0, 0, imgWidth, page2ContentHeight, undefined, 'FAST');
-                                }
-                            }
-                            if (page2Container.parentNode) page2Container.parentNode.removeChild(page2Container);
-                        }
-                } catch (e) { console.warn('Page 2 (images) generation failed:', e); }
+
+                doc.setPage(1);
+                if (logoPng) {
+                    try { doc.addImage(logoPng, 'PNG', 42, 12, 100, 68); } catch (e) { try { doc.addImage(logoPng, 'JPEG', 42, 12, 100, 68); } catch (_) {} }
+                }
 
                 const customerName = quotation.customer?.name || quotation.customerName || 'Quotation';
                 const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').trim();
                 const quotationIdVal = quotation.quotationId || quotation.id || 'N/A';
                 doc.save(`Quotation_${sanitizedName}_${quotationIdVal}.pdf`);
-                document.body.removeChild(tempContainer);
             } catch (error) {
                 console.error('PDF generation error:', error);
                 alert('Failed to generate PDF. Please try again.');
+            } finally {
+                hidePdfLoadingOverlay();
+                if (tempContainer && tempContainer.parentNode) tempContainer.parentNode.removeChild(tempContainer);
             }
         }
 
         async function viewQuotationDetails(quotationId) {
             try {
                 const quotations = getQuotationsSync();
-                let quote = quotations.find(q => q.quotationId === quotationId);
-                
+                let quote = Array.isArray(quotations) ? quotations.find(q => (q.quotationId || q.id) === quotationId) : null;
                 if (!quote) {
-                    // Try to fetch from API
                     const response = await apiFetch(`/quotations/${quotationId}`);
-                    if (response) {
-                        quote = Array.isArray(response) ? response[0] : (response.data || response);
-                    }
+                    if (response) quote = Array.isArray(response) ? response[0] : (response.data || response);
                 }
 
                 if (!quote) {
@@ -2379,8 +3037,8 @@
                     return;
                 }
 
-                // Generate quotation HTML using the same template as PDF
-                const quotationHtml = await generateQuotationHtml(quote);
+                // Generate quotation HTML with logo for modal view (same as owner.js)
+                const quotationHtml = await generateQuotationHtml(quote, { includeLogo: true });
                 
                 // Get modal elements
                 const modal = document.getElementById('quotationViewModal');
@@ -2544,11 +3202,10 @@
                     doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeight, undefined, 'FAST');
                 }
 
-                // Get customer name for filename
-                const customer = quotation.customer || {};
-                const customerName = customer?.name || customer?.phone || quotation?.quotationId || 'Unknown';
-                // Sanitize filename: remove special characters, replace spaces with underscores
-                const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').trim();
+                // Get customer name for filename (same as owner.js)
+                const customer = quotation?.customer || {};
+                const customerName = customer?.name || customer?.phone || quotation?.quotationId || quotation?.id || 'Unknown';
+                const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9_ ]/g, '').replace(/\s+/g, '_').replace(/__+/g, '_').trim() || 'Quotation';
                 const filename = `Quotation_${sanitizedName}.pdf`;
                 
                 doc.save(filename);
@@ -2607,12 +3264,16 @@
             const companyGstId = settings.companyGstId || 'N/A';
             const validityDays = quotation.validityDays || settings.validityDays || 3;
 
-            // Get PDF theme colors
-            const pdfThemeName = readLS(LS_KEYS.pdfTheme) || 'default';
-            const theme = PDF_THEMES[pdfThemeName] || PDF_THEMES.default;
+            // Get PDF theme colors and fonts (same as owner.js)
+            const pdfThemeName = getEffectivePdfThemeKey(settings);
+            const themeMap = getEffectivePdfThemes();
+            const theme = themeMap[pdfThemeName] || themeMap.default;
+            const pdfFontPrimary = getPdfFontFamilyCss(getEffectivePdfFontPrimary());
+            const pdfFontSecondary = getPdfFontFamilyCss(getEffectivePdfFontSecondary());
+            const pdfFontTertiary = getPdfFontFamilyCss(getEffectivePdfFontTertiary());
             
             // Company details - using defaults if not in settings
-            const companyAddress = settings.companyAddress || '1102, second Floor, Before Atithi Satkar Hotel OTC Road, Bangalore 560002';
+            const companyAddress = settings.companyAddress || '1102, second Floor, Before Atithi Satkar<br>Hotel OTC Road, Bangalore 560002';
             const companyEmail = settings.companyEmail || 'advanceinfotech21@gmail.com';
             const companyPhone = settings.companyPhone || '+91 63626 18184';
 
@@ -2656,133 +3317,70 @@
                             }
                         }
                         
-                        return {
-                            ...item,
-                            productId: tempItem.productId,
-                            productName: tempItem.productName || item.productName,
-                            price: tempPrice || tempTotalPrice || item.price,
-                            gstRate: gstRate,
-                            quantity: item.quantity || 1
-                        };
-                    }
-                    return item;
-                });
-            } catch (error) {
-                console.warn('Failed to fetch temp items, using original items:', error);
+                return {
+                    ...item,
+                    productId: tempItem.productId,
+                    productName: tempItem.productName || item.productName,
+                    type: tempItem.type || item.type,
+                    price: tempPrice || tempTotalPrice || item.price,
+                    gstRate: gstRate,
+                    quantity: item.quantity || 1
+                };
             }
-            
-            // Recalculate totals if prices were updated
-            if (priceUpdated) {
-                const newSubTotal = items.reduce((sum, item) => {
-                    const itemPrice = parseFloat(item.price || 0);
-                    const itemQuantity = parseInt(item.quantity || 1);
-                    return sum + (itemPrice * itemQuantity);
-                }, 0);
-                const newDiscountAmount = (newSubTotal * discountPercent) / 100;
-                const newTotalAfterDiscount = newSubTotal - newDiscountAmount;
-                const newTotalGstAmount = items.reduce((sum, item) => {
-                    const itemPrice = parseFloat(item.price || 0);
-                    const itemQuantity = parseInt(item.quantity || 1);
-                    const itemGstRate = parseFloat(item.gstRate || 0) / 100;
-                    return sum + (itemPrice * itemQuantity * itemGstRate);
-                }, 0);
-                const newGrandTotal = newTotalAfterDiscount + newTotalGstAmount;
-                
-                // Update totals
-                subTotal = newSubTotal;
-                discountAmount = newDiscountAmount;
-                totalAfterDiscount = newTotalAfterDiscount;
-                totalGstAmount = newTotalGstAmount;
-                grandTotal = newGrandTotal;
-            }
-            
+            return item;
+        });
+    } catch (error) {
+        console.warn('Failed to fetch temp items, using original items:', error);
+    }
+    
+    // ALWAYS recalculate totals from items (same as owner.js)
+    const newSubTotal = items.reduce((sum, item) => {
+        const itemPrice = parseFloat(item.price || 0);
+        const itemQuantity = parseInt(item.quantity || 1);
+        return sum + (itemPrice * itemQuantity);
+    }, 0);
+    const newDiscountAmount = (newSubTotal * discountPercent) / 100;
+    const newTotalAfterDiscount = newSubTotal - newDiscountAmount;
+    const newTotalGstAmount = items.reduce((sum, item) => {
+        const itemPrice = parseFloat(item.price || 0);
+        const itemQuantity = parseInt(item.quantity || 1);
+        const itemGstRate = parseFloat(item.gstRate || 0) / 100;
+        return sum + (itemPrice * itemQuantity * itemGstRate);
+    }, 0);
+    const newGrandTotal = newTotalAfterDiscount + newTotalGstAmount;
+    subTotal = newSubTotal;
+    discountAmount = newDiscountAmount;
+    totalAfterDiscount = newTotalAfterDiscount;
+    totalGstAmount = newTotalGstAmount;
+    grandTotal = newGrandTotal;
+    
             // Ensure quotation ID and date are available
             const quotationId = quotation.quotationId || quotation.id || 'N/A';
             const dateCreated = quotation.dateCreated || new Date().toLocaleDateString('en-IN');
+
+            const fallbackLogoUrl = (typeof window !== 'undefined' && window.location && window.location.pathname) ? (window.location.pathname.replace(/\/[^/]*$/, '') || '') + '/images/Logo.png' : 'images/Logo.png';
+            const logoImgHtml = options.includeLogo ? `<div style="position: absolute; top: 20px; left: 56px; z-index: 10;"><img src="${logoBase64 || fallbackLogoUrl}" alt="Logo" style="width: 200px; height: auto; object-fit: contain;"></div>` : '';
+            const customerImageSrc = (Array.isArray(quotation.images) && quotation.images[0]) ? (quotation.images[0].startsWith('data:') || quotation.images[0].startsWith('http') ? quotation.images[0] : (typeof window !== 'undefined' && window.location ? window.location.origin + (quotation.images[0].startsWith('/') ? '' : '/') + quotation.images[0] : quotation.images[0])) : null;
+            const customerImageHtml = customerImageSrc ? `<div style="position: absolute; top: 20px; right: 56px; z-index: 10;"><img src="${customerImageSrc}" alt="Customer Image" style="width: 200px; height: auto; max-height: 200px; object-fit: contain; border-radius: 8px; border: 1px solid ${theme.border}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>` : '';
 
             if (options.page2Images && options.page2Images.length > 0) {
                 const imagesGridHtml = options.page2Images.map(item => {
                     const imgSrc = item.image || '';
                     if (!imgSrc) return '';
-                    return `<div style="margin-bottom: 24px; text-align: center;"><img src="${imgSrc}" alt="Preview" style="max-width: 100%; max-height: 400px; object-fit: contain; border: 1px solid ${theme.border}; border-radius: 8px;"></div>`;
+                    return `<div style="margin-bottom: 24px; width: 100%; position: relative;"><img src="${imgSrc}" alt="Preview" style="width: 90%; max-height: 650px; margin: 0 auto; object-fit: contain; border: 1px solid ${theme.border}; border-radius: 8px; display: block;"><div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;"><span style="font-size: 48px; font-weight: 700; color: rgba(255,255,255,0.45); letter-spacing: 0.15em; transform: rotate(-35deg); white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">TECHTITANS</span></div></div>`;
                 }).join('');
-                return `<div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;"><style>.theme-border { border-color: ${theme.border} !important; }</style><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;"><div>${logoBase64 ? `<img src="${logoBase64}" alt="Logo" style="max-width: 160px; max-height: 48px; object-fit: contain; margin-left: 12px;">` : `<div style="font-size: 24px; font-weight: 700; color: ${theme.primary}; letter-spacing: -0.02em; margin-left: 12px;">${brandName}</div>`}<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: 12px; color: #6b7280;">${companyAddress}</div><div style="font-size: 12px; color: #6b7280;">${companyEmail}</div><div style="font-size: 12px; color: #6b7280;">${companyPhone}</div></div><div style="text-align: right;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em;">Quotation</h1></div></div><div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}</div><div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div></div><div style="margin-top: 24px; margin-bottom: 24px;">${imagesGridHtml}</div><div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;"><div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div></div>`;
+                return `<div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;"><style>.theme-border { border-color: ${theme.border} !important; }</style>${logoImgHtml}${customerImageHtml}<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;"><div><div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: 12px; color: #6b7280;">${companyAddress}</div><div style="font-size: 12px; color: #6b7280;">${companyEmail}</div><div style="font-size: 12px; color: #6b7280;">${companyPhone}</div></div><div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Project Preview</h1></div><div style="width: 200px;"></div></div><div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}</div><div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div></div><div style="margin-top: 24px; margin-bottom: 24px;">${imagesGridHtml}</div><div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;"><div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div></div>`;
             }
 
             return `
-                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
-                    <style>
-                        .q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 14px; }
-                        .q-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid ${theme.primary}; color: ${theme.secondary}; font-weight: 600; }
-                        .q-table td { padding: 14px 12px; border-bottom: 1px solid ${theme.border}; }
-                        .q-table .text-right { text-align: right; }
-                        .theme-header { color: ${theme.primary}; }
-                        .theme-accent { color: ${theme.accent}; }
-                        .theme-border { border-color: ${theme.border} !important; }
-                    </style>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
-                        <div>
-                            ${logoBase64 ? `<img src="${logoBase64}" alt="Logo" style="max-width: 160px; max-height: 48px; object-fit: contain; margin-left: 12px;">` : `<div style="font-size: 24px; font-weight: 700; color: ${theme.primary}; letter-spacing: -0.02em; margin-left: 12px;">${brandName}</div>`}
-                            <div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div>
-                            <div style="font-size: 12px; color: #6b7280;">${companyAddress}</div>
-                            <div style="font-size: 12px; color: #6b7280;">${companyEmail}</div>
-                            <div style="font-size: 12px; color: #6b7280;">${companyPhone}</div>
-                        </div>
-                        <div style="text-align: right;">
-                            <h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em;">Quotation</h1>
-                        </div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
-                        <div>
-                            ${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div>
-                            <div style="font-size: 14px;">${dateCreated}</div>
-                        </div>
-                    </div>
-                    <table class="q-table">
-                        <thead>
-                            <tr>
-                                <th>Description</th>
-                                <th class="text-right">Qty</th>
-                                <th class="text-right">Unit price</th>
-                                <th class="text-right">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${items.length > 0 ? items.map(item => {
-                                const itemPrice = parseFloat(item.price || 0);
-                                const itemQuantity = parseInt(item.quantity || 1);
-                                const itemTotal = itemPrice * itemQuantity;
-                                return `
-                                    <tr>
-                                        <td>${item.productName || 'N/A'}</td>
-                                        <td class="text-right">${itemQuantity}</td>
-                                        <td class="text-right">${formatRupee(itemPrice)}</td>
-                                        <td class="text-right">${formatRupee(itemTotal)}</td>
-                                    </tr>
-                                `;
-                            }).join('') : '<tr><td colspan="4" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}
-                        </tbody>
-                    </table>
-                    <div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
-                        <div style="display: inline-block; width: 260px; text-align: right;">
-                            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px;">
-                                <span style="color: #6b7280;">Subtotal (incl. GST)</span>
-                                <span>${formatRupee(totalAfterDiscount)}</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; padding: 12px 0; margin-top: 8px; border-top: 2px solid ${theme.primary}; font-size: 16px; font-weight: 600;">
-                                <span>Total</span>
-                                <span>${formatRupee(grandTotal)}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;">
-                        <div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div>
-                        <div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div>
-                        <div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div>
-                    </div>
+                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
+                    <style>.q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 14px; font-family: ${pdfFontSecondary}; }.q-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid ${theme.primary}; color: ${theme.secondary}; font-weight: 600; }.q-table td { padding: 14px 12px; border-bottom: 1px solid ${theme.border}; }.q-table .text-right { text-align: right; }.theme-header { color: ${theme.primary}; }.theme-accent { color: ${theme.accent}; }.theme-border { border-color: ${theme.border} !important; }</style>
+                    ${logoImgHtml}${customerImageHtml}
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;"><div><div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: 12px; color: #6b7280;">${companyAddress}</div><div style="font-size: 12px; color: #6b7280;">${companyEmail}</div><div style="font-size: 12px; color: #6b7280;">${companyPhone}</div></div><div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Quotation</h1></div><div style="width: 200px;"></div></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}</div><div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div></div>
+                    <table class="q-table"><thead><tr><th>S.No</th><th>Type</th><th>Description</th><th class="text-right">Qty</th><th class="text-right">Amount</th></tr></thead><tbody>${items.length > 0 ? items.map((item, idx) => { const itemPrice = parseFloat(item.price || 0); const itemQuantity = parseInt(item.quantity || 1); const itemTotal = itemPrice * itemQuantity; return `<tr><td>${idx + 1}</td><td>${item.type || 'N/A'}</td><td>${item.productName || 'N/A'}</td><td class="text-right">${itemQuantity}</td><td class="text-right">${formatRupee(itemTotal)}</td></tr>`; }).join('') : '<tr><td colspan="5" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}</tbody></table>
+                    <div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div style="display: inline-block; width: 260px; text-align: right;"><div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px;"><span style="color: #6b7280;">Subtotal (excl). GST)</span><span>${formatRupee(totalAfterDiscount)}</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; margin-top: 8px; border-top: 2px solid ${theme.primary}; font-size: 16px; font-weight: 600;"><span>Total</span><span>${formatRupee(grandTotal)}</span></div></div></div>
+                    <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;"><div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div>
                 </div>
             `;
         }
@@ -2894,6 +3492,8 @@
                 // Store as Base64 string
                 writeLS(LS_KEYS.logo, e.target.result);
                 renderSettings();
+                const logoEl = document.querySelector('.sidebar .brand img');
+                if (logoEl) logoEl.src = e.target.result;
                 addLog('Setting Changed', CURRENT_USER_ROLE, 'Uploaded company logo');
                 alert('Company logo uploaded successfully!');
             };
@@ -2947,9 +3547,11 @@
         // --- Settings Management ---
 
         function renderSettings() {
+            const settingsEl = document.getElementById('settings');
+            if (!settingsEl) return; // Settings section not on this page (e.g. accountant)
             if (!AUTHORIZED_TO_VIEW_SETTINGS.includes(CURRENT_USER_ROLE)) {
                 // If not authorized, ensure the settings section remains hidden
-                document.getElementById('settings').style.display = 'none';
+                settingsEl.style.display = 'none';
                 return;
             }
             
@@ -3068,6 +3670,8 @@
             if (confirm('Are you sure you want to remove the company logo?')) {
                 localStorage.removeItem(LS_KEYS.logo);
                 renderSettings();
+                const logoEl = document.querySelector('.sidebar .brand img');
+                if (logoEl) logoEl.src = 'images/Logo.svg';
                 addLog('Setting Changed', CURRENT_USER_ROLE, 'Removed company logo');
                 alert('Company logo removed.');
             }
@@ -3133,6 +3737,58 @@
             }
         };
 
+        const PDF_CUSTOM_THEMES_KEY = 'owner_pdf_custom_themes';
+        const PDF_THEME_OVERRIDE_KEY = 'owner_pdf_theme_override';
+        const PDF_FONT_PRIMARY_KEY = 'owner_pdf_font_primary';
+        const PDF_FONT_SECONDARY_KEY = 'owner_pdf_font_secondary';
+        const PDF_FONT_TERTIARY_KEY = 'owner_pdf_font_tertiary';
+        function getEffectivePdfFontPrimary() { try { return localStorage.getItem(PDF_FONT_PRIMARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; } }
+        function getEffectivePdfFontSecondary() { try { return localStorage.getItem(PDF_FONT_SECONDARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; } }
+        function getEffectivePdfFontTertiary() { try { return localStorage.getItem(PDF_FONT_TERTIARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; } }
+        function getPdfFontFamilyCss(fontKey) {
+            const key = fontKey || 'segoe';
+            const map = { segoe: "'Segoe UI', system-ui, -apple-system, sans-serif", arial: "Arial, Helvetica, sans-serif", helvetica: "Helvetica, Arial, sans-serif", verdana: "Verdana, Geneva, sans-serif", georgia: "Georgia, serif", times: "'Times New Roman', Times, serif", system: "system-ui, -apple-system, sans-serif" };
+            return map[key] || map.segoe;
+        }
+        function getCustomPdfThemes() { try { const raw = localStorage.getItem(PDF_CUSTOM_THEMES_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
+        function getPdfThemeOverride() { try { return localStorage.getItem(PDF_THEME_OVERRIDE_KEY) || null; } catch (e) { return null; } }
+        function getEffectivePdfThemes() {
+            const custom = getCustomPdfThemes();
+            const map = { ...PDF_THEMES };
+            custom.forEach(function (t) { map[t.id] = { name: t.name, primary: t.primary, secondary: t.secondary, border: t.border, accent: t.accent || t.primary, pastelBg: t.pastelBg || '#f9fafb' }; });
+            return map;
+        }
+        function getEffectivePdfThemeKey(settings) {
+            const override = getPdfThemeOverride();
+            if (override) return override;
+            return (settings && settings.pdfTheme) ? settings.pdfTheme : (readLS(LS_KEYS.pdfTheme) || 'default');
+        }
+        function showPdfLoadingOverlay() {
+            if (document.getElementById('pdfLoadingOverlay')) return;
+            const el = document.createElement('div');
+            el.id = 'pdfLoadingOverlay';
+            el.setAttribute('aria-live', 'polite');
+            el.setAttribute('aria-busy', 'true');
+            el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;';
+            el.innerHTML = '<i class="fas fa-file-pdf" style="font-size:48px;color:#fff;opacity:0.9;"></i><i class="fas fa-spinner fa-spin" style="font-size:32px;color:#fff;"></i><span style="color:#fff;font-size:16px;font-weight:500;">Generating PDF...</span>';
+            document.body.appendChild(el);
+        }
+        function hidePdfLoadingOverlay() {
+            const el = document.getElementById('pdfLoadingOverlay');
+            if (el && el.parentNode) el.parentNode.removeChild(el);
+        }
+        function imageDataUrlToPng(dataUrl) {
+            return new Promise((resolve) => {
+                if (!dataUrl || typeof dataUrl !== 'string') { resolve(null); return; }
+                const isSvg = dataUrl.indexOf('image/svg+xml') !== -1 || dataUrl.indexOf('data:image/svg') !== -1;
+                if (!isSvg) { resolve(dataUrl); return; }
+                const img = new Image();
+                img.onload = function () { try { const c = document.createElement('canvas'); c.width = img.naturalWidth || 200; c.height = img.naturalHeight || 60; const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0); resolve(c.toDataURL('image/png')); } catch (_) { resolve(dataUrl); } };
+                img.onerror = () => resolve(dataUrl);
+                img.src = dataUrl;
+            });
+        }
+
         // Update theme preview when selection changes
         document.getElementById('settings-pdf-theme')?.addEventListener('change', function() {
             updateThemePreview(this.value);
@@ -3169,6 +3825,12 @@
 
         function deleteQuotation(quotationId) {
             if (!confirm(`Are you sure you want to delete quotation ID ${quotationId}?`)) return;
+
+            if (!AUTHORIZED_TO_DELETE_QUOTATIONS.includes(CURRENT_USER_ROLE)) {
+                alert('You are not authorized to delete quotations.');
+                addLog('Unauthorized Attempt', CURRENT_USER_ROLE, `Tried to delete quotation: ${quotationId}`);
+                return;
+            }
 
             let quotations = getQuotationsSync();
             const index = quotations.findIndex(q => q.quotationId === quotationId);
@@ -3473,6 +4135,7 @@
         initEditProductModal();
         document.getElementById('addItemForm')?.addEventListener('reset', handleItemEditReset);
         document.getElementById('createQuotationBtn')?.addEventListener('click', createQuotation);
+        document.getElementById('cancelEditInCreateSectionBtn')?.addEventListener('click', cancelEditInCreateSection);
 
         // --- Accountant Image Upload ---
         const ACC_MAX_IMAGE_MB = 10;
@@ -3494,6 +4157,7 @@
             c.querySelectorAll('.acc-rm').forEach(b => { b.onclick = () => { accountantUploadedImages.splice(parseInt(b.dataset.i), 1); renderAccountantImagePreviews(); }; });
         }
         function getAccountantUploadedImages() { return [...(accountantUploadedImages || [])]; }
+        function setAccountantUploadedImages(arr) { accountantUploadedImages = Array.isArray(arr) ? arr : []; if (typeof renderAccountantImagePreviews === 'function') renderAccountantImagePreviews(); }
         function clearAccountantImageUpload() { accountantUploadedImages = []; const el = document.getElementById('quotation-image'); if (el) el.value = ''; renderAccountantImagePreviews(); }
         document.getElementById('quotation-image')?.addEventListener('change', function(e) {
             const file = e.target.files?.[0];
@@ -3509,6 +4173,19 @@
         document.getElementById('itemSearchInput')?.addEventListener('input', (e) => {
             const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
             renderAvailableItemsForQuotation(e.target.value, activeTypeFilter);
+        });
+
+        document.getElementById('quotationPriceSortBtn')?.addEventListener('click', function() {
+            const next = { none: 'lowToHigh', lowToHigh: 'highToLow', highToLow: 'none' };
+            const labels = { none: 'Sort by price', lowToHigh: 'Price: Low to High', highToLow: 'Price: High to Low' };
+            const current = this.getAttribute('data-price-sort') || 'none';
+            const state = next[current];
+            this.setAttribute('data-price-sort', state);
+            this.textContent = labels[state];
+            this.classList.toggle('active', state !== 'none');
+            const searchValue = document.getElementById('itemSearchInput')?.value || '';
+            const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+            renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
         });
 
         document.getElementById('compatibleFilterToggle')?.addEventListener('change', function() {
@@ -3656,15 +4333,26 @@
             if (userAvatar) userAvatar.textContent = CURRENT_USER_ROLE.charAt(0).toUpperCase();
 
             applyRoleRestrictions();
-            
+
+            // Apply company logo in sidebar (from settings)
+            getSettings().then(s => {
+                const logoEl = document.querySelector('.sidebar .brand img');
+                if (logoEl && s && s.logo) logoEl.src = s.logo;
+            }).catch(() => {});
+
             try {
+                // Sync all quotations from API so Customer Details and History show every quotation (not just accountant-added)
+                const qList = await getQuotations();
+                if (Array.isArray(qList)) writeQuotations(qList);
+
                 await Promise.all([
                     Promise.resolve(renderItemsList()).catch(err => console.error('Error rendering items list:', err)),
                     Promise.resolve(renderHistoryList()).catch(err => console.error('Error rendering history:', err)),
                     Promise.resolve(renderLogsList()).catch(err => console.error('Error rendering logs:', err)),
                     Promise.resolve(renderSettings()).catch(err => console.error('Error rendering settings:', err)),
                     Promise.resolve(updateSummary()).catch(err => console.error('Error updating summary:', err)),
-                    Promise.resolve(renderCustomersList()).catch(err => console.error('Error rendering customers:', err))
+                    Promise.resolve(renderCustomersList()).catch(err => console.error('Error rendering customers:', err)),
+                    Promise.resolve(renderCustomerDetailsList()).catch(err => console.error('Error rendering customer details:', err))
                 ]);
             } catch (error) {
                 console.error('Error initializing dashboard:', error);
@@ -3770,6 +4458,8 @@
             window.addItemToQuotation = addItemToQuotation;
             window.removeItemFromQuotation = removeItemFromQuotation;
             window.viewQuotationDetails = viewQuotationDetails;
+            window.togglePriceSort = togglePriceSort;
+            window.toggleNameSort = toggleNameSort;
             
             initializeDashboard();
         };

@@ -34,6 +34,58 @@ const PDF_THEMES = {
     gray: { name: 'Gray', primary: '#374151', secondary: '#111827', border: '#f3f4f6', accent: '#6b7280', pastelBg: '#f8fafc' }
 };
 
+const PDF_CUSTOM_THEMES_KEY = 'owner_pdf_custom_themes';
+const PDF_THEME_OVERRIDE_KEY = 'owner_pdf_theme_override';
+const PDF_FONT_PRIMARY_KEY = 'owner_pdf_font_primary';
+const PDF_FONT_SECONDARY_KEY = 'owner_pdf_font_secondary';
+const PDF_FONT_TERTIARY_KEY = 'owner_pdf_font_tertiary';
+function getEffectivePdfFontPrimary() { try { return localStorage.getItem(PDF_FONT_PRIMARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; } }
+function getEffectivePdfFontSecondary() { try { return localStorage.getItem(PDF_FONT_SECONDARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; } }
+function getEffectivePdfFontTertiary() { try { return localStorage.getItem(PDF_FONT_TERTIARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; } }
+function getPdfFontFamilyCss(fontKey) {
+    const key = fontKey || 'segoe';
+    const map = { segoe: "'Segoe UI', system-ui, -apple-system, sans-serif", arial: "Arial, Helvetica, sans-serif", helvetica: "Helvetica, Arial, sans-serif", verdana: "Verdana, Geneva, sans-serif", georgia: "Georgia, serif", times: "'Times New Roman', Times, serif", system: "system-ui, -apple-system, sans-serif" };
+    return map[key] || map.segoe;
+}
+function getCustomPdfThemes() { try { const raw = localStorage.getItem(PDF_CUSTOM_THEMES_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
+function getPdfThemeOverride() { try { return localStorage.getItem(PDF_THEME_OVERRIDE_KEY) || null; } catch (e) { return null; } }
+function getEffectivePdfThemes() {
+    const custom = getCustomPdfThemes();
+    const map = { ...PDF_THEMES };
+    custom.forEach(function (t) { map[t.id] = { name: t.name, primary: t.primary, secondary: t.secondary, border: t.border, accent: t.accent || t.primary, pastelBg: t.pastelBg || '#f9fafb' }; });
+    return map;
+}
+function getEffectivePdfThemeKey(settings) {
+    const override = getPdfThemeOverride();
+    if (override) return override;
+    return (settings && settings.pdfTheme) ? settings.pdfTheme : 'default';
+}
+function showPdfLoadingOverlay() {
+    if (document.getElementById('pdfLoadingOverlay')) return;
+    const el = document.createElement('div');
+    el.id = 'pdfLoadingOverlay';
+    el.setAttribute('aria-live', 'polite');
+    el.setAttribute('aria-busy', 'true');
+    el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;';
+    el.innerHTML = '<i class="fas fa-file-pdf" style="font-size:48px;color:#fff;opacity:0.9;"></i><i class="fas fa-spinner fa-spin" style="font-size:32px;color:#fff;"></i><span style="color:#fff;font-size:16px;font-weight:500;">Generating PDF...</span>';
+    document.body.appendChild(el);
+}
+function hidePdfLoadingOverlay() {
+    const el = document.getElementById('pdfLoadingOverlay');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+function imageDataUrlToPng(dataUrl) {
+    return new Promise((resolve) => {
+        if (!dataUrl || typeof dataUrl !== 'string') { resolve(null); return; }
+        const isSvg = dataUrl.indexOf('image/svg+xml') !== -1 || dataUrl.indexOf('data:image/svg') !== -1;
+        if (!isSvg) { resolve(dataUrl); return; }
+        const img = new Image();
+        img.onload = function () { try { const c = document.createElement('canvas'); c.width = img.naturalWidth || 200; c.height = img.naturalHeight || 60; const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0); resolve(c.toDataURL('image/png')); } catch (_) { resolve(dataUrl); } };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+    });
+}
+
 // --- Session Validation Functions ---
 function isSessionExpired() {
     try {
@@ -123,8 +175,11 @@ let CURRENT_USER_EMAIL = userEmailFromStorage || (userObjFromStorage ? (() => {
 
 let quotationItems = [];
 let isCreatingNewQuotation = true; // Track if we're creating a new quotation (true) or editing existing (false)
+let isSubmittingCreateQuotation = false; // Prevent double submission when creating quotation
 let itemsCurrentPage = 1;
 const itemsPerPage = 5;
+let itemsCurrentPriceSort = 'none';
+let itemsCurrentNameSort = 'none';
 let historyCurrentPage = 1;
 const historyPerPage = 10;
 let customersCurrentPage = 1;
@@ -135,6 +190,64 @@ const customerDetailsPerPage = 10;
 // --- Utility Functions ---
 function formatRupee(amount) {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+}
+
+function updatePriceSortHeader() {
+    const arrowsEl = document.getElementById('priceSortArrows');
+    if (!arrowsEl) return;
+    if (itemsCurrentPriceSort === 'asc') {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort-up" aria-hidden="true"></i>';
+    } else if (itemsCurrentPriceSort === 'desc') {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort-down" aria-hidden="true"></i>';
+    } else {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort" aria-hidden="true"></i>';
+    }
+}
+
+function updateNameSortHeader() {
+    const arrowsEl = document.getElementById('nameSortArrows');
+    if (!arrowsEl) return;
+    if (itemsCurrentNameSort === 'asc') {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort-up" aria-hidden="true"></i>';
+    } else if (itemsCurrentNameSort === 'desc') {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort-down" aria-hidden="true"></i>';
+    } else {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort" aria-hidden="true"></i>';
+    }
+}
+
+function togglePriceSort() {
+    itemsCurrentNameSort = 'none';
+    updateNameSortHeader();
+    if (itemsCurrentPriceSort === 'none') {
+        itemsCurrentPriceSort = 'asc';
+    } else if (itemsCurrentPriceSort === 'asc') {
+        itemsCurrentPriceSort = 'desc';
+    } else {
+        itemsCurrentPriceSort = 'none';
+    }
+    updatePriceSortHeader();
+    itemsCurrentPage = 1;
+    const searchInput = document.getElementById('productListSearchInput');
+    const filter = searchInput ? searchInput.value.trim() : '';
+    renderItemsList(filter);
+}
+
+function toggleNameSort() {
+    itemsCurrentPriceSort = 'none';
+    updatePriceSortHeader();
+    if (itemsCurrentNameSort === 'none') {
+        itemsCurrentNameSort = 'asc';
+    } else if (itemsCurrentNameSort === 'asc') {
+        itemsCurrentNameSort = 'desc';
+    } else {
+        itemsCurrentNameSort = 'none';
+    }
+    updateNameSortHeader();
+    itemsCurrentPage = 1;
+    const searchInput = document.getElementById('productListSearchInput');
+    const filter = searchInput ? searchInput.value.trim() : '';
+    renderItemsList(filter);
 }
 
 function toTitleCase(str) {
@@ -925,9 +1038,21 @@ async function handleCsvImport(event) {
 }
 
 // --- Customer Management ---
-async function renderCustomersList() {
+async function renderCustomersList(searchFilter = '') {
     const customersResponse = await getCustomers();
-    const customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
+    let customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
+    
+    // Apply search filter
+    if (searchFilter.trim()) {
+        const filter = searchFilter.toLowerCase().trim();
+        customers = customers.filter(customer => {
+            return (customer.name && customer.name.toLowerCase().includes(filter)) ||
+                   (customer.email && customer.email.toLowerCase().includes(filter)) ||
+                   (customer.phone && customer.phone.toLowerCase().includes(filter)) ||
+                   (customer.address && customer.address.toLowerCase().includes(filter));
+        });
+    }
+    
     const body = document.getElementById('customersListBody');
     const customersTable = document.getElementById('customersTable');
     const paginationDiv = document.getElementById('customersPagination');
@@ -1110,7 +1235,9 @@ function updateCustomersPaginationControls(totalPages, totalItems) {
             firstBtn.textContent = '1';
             firstBtn.onclick = () => {
                 customersCurrentPage = 1;
-                renderCustomersList();
+                const searchInput = document.getElementById('customerListSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomersList(filter);
             };
             pageNumbersDiv.appendChild(firstBtn);
 
@@ -1130,7 +1257,9 @@ function updateCustomersPaginationControls(totalPages, totalItems) {
             
             pageBtn.onclick = () => {
                 customersCurrentPage = i;
-                renderCustomersList();
+                const searchInput = document.getElementById('customerListSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomersList(filter);
             };
             
             pageNumbersDiv.appendChild(pageBtn);
@@ -1147,7 +1276,9 @@ function updateCustomersPaginationControls(totalPages, totalItems) {
             lastBtn.textContent = totalPages;
             lastBtn.onclick = () => {
                 customersCurrentPage = totalPages;
-                renderCustomersList();
+                const searchInput = document.getElementById('customerListSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomersList(filter);
             };
             pageNumbersDiv.appendChild(lastBtn);
         }
@@ -1168,18 +1299,31 @@ function goToCustomersPage(direction) {
     customersCurrentPage += direction;
     if (customersCurrentPage < 1) customersCurrentPage = 1;
     
-    getCustomers().then(customers => {
-        const arr = Array.isArray(customers) ? customers : (customers?.data || []);
-        const totalPages = Math.ceil(arr.length / customersPerPage);
-        if (customersCurrentPage > totalPages) customersCurrentPage = totalPages;
-        renderCustomersList();
-    });
+    // Get current search filter
+    const searchInput = document.getElementById('customerListSearchInput');
+    const filter = searchInput ? searchInput.value.trim() : '';
+    
+    renderCustomersList(filter);
 }
 
 // --- Customer Details (Details tab) ---
-async function renderCustomerDetailsList() {
+async function renderCustomerDetailsList(searchFilter = '') {
     const customersResponse = await getCustomers();
-    const customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
+    let customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
+    const quotationsResponse = await getQuotations();
+    const quotations = Array.isArray(quotationsResponse) ? quotationsResponse : (quotationsResponse?.data || []);
+    
+    // Apply search filter
+    if (searchFilter.trim()) {
+        const filter = searchFilter.toLowerCase().trim();
+        customers = customers.filter(customer => {
+            return (customer.name && customer.name.toLowerCase().includes(filter)) ||
+                   (customer.email && customer.email.toLowerCase().includes(filter)) ||
+                   (customer.phone && customer.phone.toLowerCase().includes(filter)) ||
+                   (customer.address && customer.address.toLowerCase().includes(filter));
+        });
+    }
+    
     const body = document.getElementById('customerDetailsListBody');
     const customersTable = document.getElementById('customerDetailsTable');
     const paginationDiv = document.getElementById('customerDetailsPagination');
@@ -1188,7 +1332,7 @@ async function renderCustomerDetailsList() {
     body.innerHTML = '';
 
     if (customers.length === 0) {
-        body.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center">No customer data available.</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center">No customer data available.</td></tr>';
         if (customersTable) customersTable.style.display = 'none';
         if (paginationDiv) paginationDiv.style.display = 'none';
         return;
@@ -1215,6 +1359,12 @@ async function renderCustomerDetailsList() {
     updateCustomerDetailsPaginationControls(totalPages, customers.length);
 
     paginatedCustomers.forEach((customer, index) => {
+        // Count quotations for this customer
+        const customerQuotationCount = quotations.filter(q => {
+            const phone = q.customer?.phone || q.customerPhone;
+            return phone === customer.phone;
+        }).length;
+
         const row = body.insertRow();
         row.className = 'customer-row';
         const phoneEscaped = (customer.phone || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -1225,6 +1375,7 @@ async function renderCustomerDetailsList() {
             <td>${(customer.phone || 'N/A').replace(/</g, '&lt;')}</td>
             <td>${(customer.address || 'N/A').replace(/</g, '&lt;')}</td>
             <td>${(customer.lastQuotationDate || '').replace(/</g, '&lt;')}</td>
+            <td>${customerQuotationCount}</td>
             <td><button class="btn" style="padding: 5px 8px;" onclick="event.stopPropagation(); openEditCustomerModal('${phoneEscaped}')" title="Edit customer"><i class="fas fa-edit"></i></button></td>
         `;
         row.addEventListener('click', () => toggleCustomerQuotations(customer.phone, row));
@@ -1275,7 +1426,12 @@ function updateCustomerDetailsPaginationControls(totalPages, totalItems) {
             const firstBtn = document.createElement('button');
             firstBtn.className = 'pagination-page-btn';
             firstBtn.textContent = '1';
-            firstBtn.onclick = () => { customerDetailsCurrentPage = 1; renderCustomerDetailsList(); };
+            firstBtn.onclick = () => { 
+                customerDetailsCurrentPage = 1; 
+                const searchInput = document.getElementById('customerDetailsSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomerDetailsList(filter); 
+            };
             pageNumbersDiv.appendChild(firstBtn);
             const ellipsis = document.createElement('div');
             ellipsis.className = 'pagination-ellipsis';
@@ -1287,7 +1443,12 @@ function updateCustomerDetailsPaginationControls(totalPages, totalItems) {
             pageBtn.className = 'pagination-page-btn';
             if (i === customerDetailsCurrentPage) pageBtn.classList.add('active');
             pageBtn.textContent = i;
-            pageBtn.onclick = () => { customerDetailsCurrentPage = i; renderCustomerDetailsList(); };
+            pageBtn.onclick = () => { 
+                customerDetailsCurrentPage = i; 
+                const searchInput = document.getElementById('customerDetailsSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomerDetailsList(filter); 
+            };
             pageNumbersDiv.appendChild(pageBtn);
         }
         if (showEndEllipsis) {
@@ -1298,7 +1459,12 @@ function updateCustomerDetailsPaginationControls(totalPages, totalItems) {
             const lastBtn = document.createElement('button');
             lastBtn.className = 'pagination-page-btn';
             lastBtn.textContent = totalPages;
-            lastBtn.onclick = () => { customerDetailsCurrentPage = totalPages; renderCustomerDetailsList(); };
+            lastBtn.onclick = () => { 
+                customerDetailsCurrentPage = totalPages; 
+                const searchInput = document.getElementById('customerDetailsSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomerDetailsList(filter); 
+            };
             pageNumbersDiv.appendChild(lastBtn);
         }
     }
@@ -1311,12 +1477,12 @@ function goToCustomerDetailsPage(direction) {
     if (!body) return;
     customerDetailsCurrentPage += direction;
     if (customerDetailsCurrentPage < 1) customerDetailsCurrentPage = 1;
-    getCustomers().then(customers => {
-        const arr = Array.isArray(customers) ? customers : (customers?.data || []);
-        const totalPages = Math.ceil(arr.length / customerDetailsPerPage);
-        if (customerDetailsCurrentPage > totalPages) customerDetailsCurrentPage = totalPages;
-        renderCustomerDetailsList();
-    });
+    
+    // Get current search filter
+    const searchInput = document.getElementById('customerDetailsSearchInput');
+    const filter = searchInput ? searchInput.value.trim() : '';
+    
+    renderCustomerDetailsList(filter);
 }
 
 async function toggleCustomerQuotations(customerPhone, customerRow) {
@@ -1347,7 +1513,7 @@ async function toggleCustomerQuotations(customerPhone, customerRow) {
         const quotationsRow = document.createElement('tr');
         quotationsRow.className = 'customer-quotation-row';
         quotationsRow.innerHTML = `
-            <td colspan="7">
+            <td colspan="8">
                 <div class="quotation-details">
                     <table class="data-table" style="margin: 0; background: white;">
                         <thead>
@@ -1358,31 +1524,35 @@ async function toggleCustomerQuotations(customerPhone, customerRow) {
                                 <th>Total Amount</th>
                                 <th>Items Count</th>
                                 <th>Created By</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${customerQuotations.map((quotation, qIndex) => `
-                                <tr>
-                                    <td>${customerSerialNumber}.${qIndex + 1}</td>
+                                <tr style="border-bottom: 2px solid #e0e0e0; background-color: #f8f9fa;">
+                                    <td style="font-weight: bold; color: #2196f3;">${customerSerialNumber}.${qIndex + 1}</td>
                                     <td>${new Date(quotation.dateCreated || quotation.created_at).toLocaleDateString()}</td>
                                     <td>${quotation.created_at ? new Date(quotation.created_at).toLocaleString() : new Date(quotation.dateCreated).toLocaleString()}</td>
-                                    <td>${formatRupee(quotation.totalAmount || quotation.total)}</td>
+                                    <td style="font-weight: bold; color: #27ae60;">${formatRupee(quotation.totalAmount || quotation.total)}</td>
                                     <td>${quotation.items ? quotation.items.length : 0}</td>
                                     <td>${(quotation.createdBy || quotation.user || 'N/A').replace(/</g, '&lt;')}</td>
+                                    <td><button class="btn" style="padding: 4px 8px; font-size: 12px;" onclick="event.stopPropagation(); editQuotationInCreateSection('${quotation.quotationId || quotation.id}')" title="Edit quotation"><i class="fas fa-edit"></i></button></td>
                                 </tr>
                                 ${quotation.items && quotation.items.length > 0 ? `
                                     <tr>
-                                        <td colspan="6" style="padding: 0;">
-                                            <table class="data-table" style="margin: 10px 0 0 20px; width: calc(100% - 20px); background: #fafafa;">
-                                                <thead>
-                                                    <tr>
-                                                        <th style="text-align: left; padding-left: 20px;">Item Details</th>
-                                                        <th>Quantity</th>
-                                                        <th>Unit Price</th>
-                                                        <th>Total</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
+                                        <td colspan="7" style="padding: 0; border-bottom: 1px solid #e0e0e0;">
+                                            <div style="background: #ffffff; margin: 8px; padding: 12px; border-radius: 8px; border-left: 4px solid #2196f3; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                                <h4 style="margin: 0 0 10px 0; color: #34495e; font-size: 14px;">Items Details</h4>
+                                                <table class="data-table" style="margin: 0; width: 100%; background: transparent;">
+                                                    <thead>
+                                                        <tr>
+                                                            <th style="text-align: left; padding-left: 8px; font-size: 12px;">Item Details</th>
+                                                            <th style="font-size: 12px;">Quantity</th>
+                                                            <th style="font-size: 12px;">Unit Price</th>
+                                                            <th style="font-size: 12px;">Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
                                                     ${quotation.items.map((item, itemIndex) => `
                                                         <tr>
                                                             <td style="text-align: left; padding-left: 20px;">${customerSerialNumber}.${qIndex + 1}.${itemIndex + 1}. ${(item.productName || item.name || '').replace(/</g, '&lt;')}</td>
@@ -1393,6 +1563,7 @@ async function toggleCustomerQuotations(customerPhone, customerRow) {
                                                     `).join('')}
                                                 </tbody>
                                             </table>
+                                            </div>
                                         </td>
                                     </tr>
                                 ` : ''}
@@ -1555,6 +1726,14 @@ async function renderAvailableItemsForQuotation(filter = '', typeFilter = '', it
             return matchesSearch && matchesType;
         });
 
+        const priceSortBtn = document.getElementById('quotationPriceSortBtn');
+        const priceSort = priceSortBtn?.getAttribute('data-price-sort') || 'none';
+        if (priceSort === 'lowToHigh') {
+            filteredItems.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+        } else if (priceSort === 'highToLow') {
+            filteredItems.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+        }
+
         if (filteredItems.length === 0) {
             listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products found matching your search.</p>';
             return;
@@ -1573,7 +1752,7 @@ async function renderAvailableItemsForQuotation(filter = '', typeFilter = '', it
                     <strong>${productName}</strong> <span class="muted" style="font-size:12px">(${productId})</span>
                     <br><span class="muted" style="font-size:12px">${item.type || 'N/A'} | ${formatRupee(price)}</span>
                 </div>
-                <button class="btn primary" onclick="addItemToQuotation('${productId}')"><i class="fas fa-plus"></i> Add</button>
+                <button type="button" class="btn primary" onclick="addItemToQuotation('${productId}')"><i class="fas fa-plus"></i> Add</button>
             `;
 
             listDiv.appendChild(itemDiv);
@@ -1781,11 +1960,13 @@ function renderQuotationItems() {
         const gstCell = row.insertCell();
         gstCell.innerHTML = `<input type="number" value="${item.gstRate}" min="0" max="50" style="width:50px; padding:5px; border-radius:4px; border:1px solid var(--border);" onchange="updateItemGstRate('${item.productId}', this.value)">`;
 
+        // Actions column – delete item
         const actionsCell = row.insertCell();
         const removeBtn = document.createElement('button');
         removeBtn.className = 'btn danger';
         removeBtn.style.padding = '5px 8px';
-        removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+        removeBtn.title = 'Remove item from quotation';
+        removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
         removeBtn.onclick = () => removeItemFromQuotation(item.productId);
         actionsCell.appendChild(removeBtn);
     });
@@ -1819,11 +2000,83 @@ function updateGrandTotal() {
 }
 
 async function createQuotation() {
-    // Prevent double submission
-    let isSubmitting = false;
-    if (isSubmitting) return;
+    if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE)) {
+        alert('You are not authorized to create quotations.');
+        return;
+    }
 
-    isSubmitting = true;
+    // Edit mode: update existing quotation via create section (same flow as resume drafts)
+    if (currentEditQuotationId) {
+        const qid = currentEditQuotationId;
+        const customerName = document.getElementById('cust-name')?.value.trim() || null;
+        const phoneNumber = document.getElementById('phone-number')?.value.trim();
+        const customerEmail = document.getElementById('cust-email')?.value.trim() || null;
+        const customerAddress = document.getElementById('cust-address')?.value.trim() || null;
+        const items = getQuotationItems();
+        if (!phoneNumber || phoneNumber.length !== 10) {
+            alert('Please enter a valid 10-digit phone number for the customer.');
+            return;
+        }
+        if (items.length === 0) {
+            alert('Please add at least one item to the quotation.');
+            return;
+        }
+        const discountPercent = parseFloat(document.getElementById('discount-percent')?.value || 0);
+        const cust = { name: customerName || '', phone: phoneNumber, email: customerEmail || null, address: customerAddress || null };
+        const itemsForUpdate = items.filter(it => it.productName && (parseFloat(it.price) || 0) > 0).map((it, idx) => ({
+            productId: it.productId || `custom-${Date.now()}-${idx}`,
+            productName: it.productName,
+            price: parseFloat(it.price) || 0,
+            quantity: parseInt(it.quantity, 10) || 1,
+            gstRate: parseFloat(it.gstRate) || 0
+        }));
+        if (itemsForUpdate.length === 0) {
+            alert('Add at least one item with a valid price.');
+            return;
+        }
+        try {
+            const imagesForSave = await mgrEnsureImagesAreUrls(getManagerUploadedImages() || []);
+            const res = await apiFetch(`/quotations/${qid}/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customer: cust, items: itemsForUpdate, discountPercent, images: imagesForSave })
+            });
+            if (res && (res.success !== false)) {
+                currentEditQuotationId = null;
+                const createBtn = document.getElementById('createQuotationBtn');
+                if (createBtn) createBtn.textContent = 'Create Quotation';
+                document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create quotation'; else el.textContent = 'Create quotation'; });
+                const sectionTitle = document.getElementById('createQuotationSectionTitle');
+                if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
+                const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+                if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+                quotationItems = [];
+                document.getElementById('cust-name').value = '';
+                document.getElementById('phone-number').value = '';
+                document.getElementById('cust-email').value = '';
+                document.getElementById('cust-address').value = '';
+                const discountPercentInput = document.getElementById('discount-percent');
+                if (discountPercentInput) discountPercentInput.value = '0';
+                if (typeof clearManagerImageUpload === 'function') clearManagerImageUpload();
+                renderQuotationItems();
+                updateGrandTotal();
+                renderHistoryList();
+                renderCustomersList();
+                renderCustomerDetailsList();
+                alert('Quotation updated successfully.');
+            } else {
+                alert(res?.message || 'Failed to update quotation.');
+            }
+        } catch (e) {
+            console.error('Update quotation error:', e);
+            alert('Failed to update quotation.');
+        }
+        return;
+    }
+
+    // Prevent double submission
+    if (isSubmittingCreateQuotation) return;
+    isSubmittingCreateQuotation = true;
 
     const btn = document.getElementById('createQuotationBtn');
     if (btn) {
@@ -1832,11 +2085,6 @@ async function createQuotation() {
     }
 
     try {
-        if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE)) {
-            alert('You are not authorized to create quotations.');
-            return;
-        }
-
         const customerName = document.getElementById('cust-name')?.value.trim() || null;
         const phoneNumber = document.getElementById('phone-number')?.value.trim();
         const customerEmail = document.getElementById('cust-email')?.value.trim() || null;
@@ -1845,12 +2093,16 @@ async function createQuotation() {
 
         // Validate customer name length if provided
         if (customerName && customerName.length > 255) {
+            isSubmittingCreateQuotation = false;
+            if (btn) { btn.disabled = false; btn.textContent = 'Create Quotation'; }
             alert('Customer name must be 255 characters or less.');
             return;
         }
 
         // Validate phone number (mandatory)
         if (!phoneNumber || phoneNumber.length !== 10) {
+            isSubmittingCreateQuotation = false;
+            if (btn) { btn.disabled = false; btn.textContent = 'Create Quotation'; }
             alert('Please enter a valid 10-digit phone number for the customer.');
             return;
         }
@@ -1859,12 +2111,16 @@ async function createQuotation() {
         if (customerEmail && customerEmail.length > 0) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(customerEmail)) {
+                isSubmittingCreateQuotation = false;
+                if (btn) { btn.disabled = false; btn.textContent = 'Create Quotation'; }
                 alert('Please enter a valid email address or leave it empty.');
                 return;
             }
         }
 
         if (items.length === 0) {
+            isSubmittingCreateQuotation = false;
+            if (btn) { btn.disabled = false; btn.textContent = 'Create Quotation'; }
             alert('Please add at least one item to the quotation.');
             return;
         }
@@ -1949,7 +2205,7 @@ async function createQuotation() {
         // Error handled by apiFetch
         console.error('Quotation creation failed:', e);
     } finally {
-        isSubmitting = false;
+        isSubmittingCreateQuotation = false;
         if (btn) {
             btn.disabled = false;
             btn.textContent = 'Create Quotation';
@@ -2078,10 +2334,9 @@ async function generateQuotationPdf(quotation) {
         }
 
         // Get customer name for filename
-        const customer = quotation.customer || {};
-        const customerName = customer?.name || customer?.phone || quotation?.quotationId || 'Unknown';
-        // Sanitize filename: remove special characters, replace spaces with underscores
-        const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').trim();
+        const customer = quotation?.customer || {};
+        const customerName = customer?.name || customer?.phone || quotation?.quotationId || quotation?.id || 'Unknown';
+        const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9_ ]/g, '').replace(/\s+/g, '_').replace(/__+/g, '_').trim() || 'Quotation';
         const filename = `Quotation_${sanitizedName}.pdf`;
         
         doc.save(filename);
@@ -2114,65 +2369,54 @@ async function generateQuotationPdf(quotation) {
 }
 
 async function generateQuotationHtml(quotation, options = {}) {
+    if (!quotation) {
+        console.error('Quotation data is missing');
+        return '<div>Error: Quotation data not available</div>';
+    }
     const settings = await getSettings();
     const logoBase64 = settings.logo || '';
     const brandName = settings.brand || 'TECHTITANS';
     const companyGstId = settings.companyGstId || 'N/A';
     const validityDays = quotation.validityDays || settings.validityDays || settings.defaultValidityDays || 3;
-    
-    // PDF theme colors from settings
-    const pdfThemeName = settings.pdfTheme || 'default';
-    const theme = PDF_THEMES[pdfThemeName] || PDF_THEMES.default;
-    
-    // Company details - using defaults if not in settings
-    const companyAddress = settings.companyAddress || '1102, second Floor, Before Atithi Satkar Hotel OTC Road, Bangalore 560002';
+    const pdfThemeName = getEffectivePdfThemeKey(settings);
+    const themeMap = getEffectivePdfThemes();
+    const theme = themeMap[pdfThemeName] || themeMap.default;
+    const pdfFontPrimary = getPdfFontFamilyCss(getEffectivePdfFontPrimary());
+    const pdfFontSecondary = getPdfFontFamilyCss(getEffectivePdfFontSecondary());
+    const pdfFontTertiary = getPdfFontFamilyCss(getEffectivePdfFontTertiary());
+    const companyAddress = settings.companyAddress || '1102, second Floor, Before Atithi Satkar<br>Hotel OTC Road, Bangalore 560002';
     const companyEmail = settings.companyEmail || 'advanceinfotech21@gmail.com';
     const companyPhone = settings.companyPhone || '+91 63626 18184';
-
-    // Ensure numeric values are parsed
     let subTotal = parseFloat(quotation.subTotal || 0);
     let discountAmount = parseFloat(quotation.discountAmount || 0);
     const discountPercent = parseFloat(quotation.discountPercent || 0);
     let totalGstAmount = parseFloat(quotation.totalGstAmount || 0);
     let grandTotal = parseFloat(quotation.grandTotal || 0);
     let totalAfterDiscount = subTotal - discountAmount;
-
     const customer = quotation.customer || {};
-    let items = Array.isArray(quotation.items) ? quotation.items : [];
-    
-    // Fetch temp items and replace quotation items with temp table data
+    let items = Array.isArray(quotation.items) ? [...quotation.items] : [];
     let priceUpdated = false;
     try {
         const tempItemsResponse = await apiFetch('/temp');
         const tempItems = Array.isArray(tempItemsResponse) ? tempItemsResponse : (tempItemsResponse?.data || []);
         const tempItemsMap = new Map(tempItems.map(item => [item.productId, item]));
-        
-        // Replace items with temp table data if available, otherwise keep original
         items = items.map(item => {
             const tempItem = tempItemsMap.get(item.productId);
             if (tempItem) {
-                // Use temp table data completely
                 priceUpdated = true;
                 const tempPrice = parseFloat(tempItem.price || 0);
                 const tempGst = parseFloat(tempItem.gst || 0);
                 const tempTotalPrice = parseFloat(tempItem.totalPrice || 0);
-                
-                // Calculate GST rate: if gst is amount, convert to percentage; if already percentage, use as is
                 let gstRate = item.gstRate || 0;
                 if (tempGst > 0 && tempPrice > 0) {
-                    // If gst is less than price, it's likely a percentage amount, convert to percentage
-                    if (tempGst < tempPrice) {
-                        gstRate = (tempGst / tempPrice) * 100;
-                    } else {
-                        // If gst is larger, it might already be a percentage value
-                        gstRate = tempGst;
-                    }
+                    if (tempGst < tempPrice) gstRate = (tempGst / tempPrice) * 100;
+                    else gstRate = tempGst;
                 }
-                
                 return {
                     ...item,
                     productId: tempItem.productId,
                     productName: tempItem.productName || item.productName,
+                    type: tempItem.type || item.type,
                     price: tempPrice || tempTotalPrice || item.price,
                     gstRate: gstRate,
                     quantity: item.quantity || 1
@@ -2183,119 +2427,39 @@ async function generateQuotationHtml(quotation, options = {}) {
     } catch (error) {
         console.warn('Failed to fetch temp items, using original items:', error);
     }
-    
-    // Recalculate totals if prices were updated
-    if (priceUpdated) {
-        const newSubTotal = items.reduce((sum, item) => {
-            const itemPrice = parseFloat(item.price || 0);
-            const itemQuantity = parseInt(item.quantity || 1);
-            return sum + (itemPrice * itemQuantity);
-        }, 0);
-        const newDiscountAmount = (newSubTotal * discountPercent) / 100;
-        const newTotalAfterDiscount = newSubTotal - newDiscountAmount;
-        const newTotalGstAmount = items.reduce((sum, item) => {
-            const itemPrice = parseFloat(item.price || 0);
-            const itemQuantity = parseInt(item.quantity || 1);
-            const itemGstRate = parseFloat(item.gstRate || 0) / 100;
-            return sum + (itemPrice * itemQuantity * itemGstRate);
-        }, 0);
-        const newGrandTotal = newTotalAfterDiscount + newTotalGstAmount;
-        
-        // Update totals
-        subTotal = newSubTotal;
-        discountAmount = newDiscountAmount;
-        totalAfterDiscount = newTotalAfterDiscount;
-        totalGstAmount = newTotalGstAmount;
-        grandTotal = newGrandTotal;
-    }
-    
-    // Ensure quotation ID and date are available
+    const newSubTotal = items.reduce((sum, item) => { const itemPrice = parseFloat(item.price || 0); const itemQuantity = parseInt(item.quantity || 1); return sum + (itemPrice * itemQuantity); }, 0);
+    const newDiscountAmount = (newSubTotal * discountPercent) / 100;
+    const newTotalAfterDiscount = newSubTotal - newDiscountAmount;
+    const newTotalGstAmount = items.reduce((sum, item) => { const itemPrice = parseFloat(item.price || 0); const itemQuantity = parseInt(item.quantity || 1); const itemGstRate = parseFloat(item.gstRate || 0) / 100; return sum + (itemPrice * itemQuantity * itemGstRate); }, 0);
+    const newGrandTotal = newTotalAfterDiscount + newTotalGstAmount;
+    subTotal = newSubTotal;
+    discountAmount = newDiscountAmount;
+    totalAfterDiscount = newTotalAfterDiscount;
+    totalGstAmount = newTotalGstAmount;
+    grandTotal = newGrandTotal;
     const quotationId = quotation.quotationId || quotation.id || 'N/A';
     const dateCreated = quotation.dateCreated || new Date().toLocaleDateString('en-IN');
-
+    const fallbackLogoUrl = (typeof window !== 'undefined' && window.location && window.location.pathname) ? (window.location.pathname.replace(/\/[^/]*$/, '') || '') + '/images/Logo.png' : 'images/Logo.png';
+    const logoImgHtml = options.includeLogo ? `<div style="position: absolute; top: 20px; left: 56px; z-index: 10;"><img src="${logoBase64 || fallbackLogoUrl}" alt="Logo" style="width: 200px; height: auto; object-fit: contain;"></div>` : '';
+    const customerImageSrc = (Array.isArray(quotation.images) && quotation.images[0]) ? (quotation.images[0].startsWith('data:') || quotation.images[0].startsWith('http') ? quotation.images[0] : (typeof window !== 'undefined' && window.location ? window.location.origin + (quotation.images[0].startsWith('/') ? '' : '/') + quotation.images[0] : quotation.images[0])) : null;
+    const customerImageHtml = customerImageSrc ? `<div style="position: absolute; top: 20px; right: 56px; z-index: 10;"><img src="${customerImageSrc}" alt="Customer Image" style="width: 200px; height: auto; max-height: 200px; object-fit: contain; border-radius: 8px; border: 1px solid ${theme.border}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>` : '';
     if (options.page2Images && options.page2Images.length > 0) {
         const imagesGridHtml = options.page2Images.map(item => {
             const imgSrc = item.image || '';
             if (!imgSrc) return '';
-            return `<div style="margin-bottom: 24px; text-align: center;"><img src="${imgSrc}" alt="Preview" style="max-width: 100%; max-height: 400px; object-fit: contain; border: 1px solid ${theme.border}; border-radius: 8px;"></div>`;
+            return `<div style="margin-bottom: 24px; width: 100%; position: relative;"><img src="${imgSrc}" alt="Preview" style="width: 90%; max-height: 650px; margin: 0 auto; object-fit: contain; border: 1px solid ${theme.border}; border-radius: 8px; display: block;"><div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;"><span style="font-size: 48px; font-weight: 700; color: rgba(255,255,255,0.45); letter-spacing: 0.15em; transform: rotate(-35deg); white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">TECHTITANS</span></div></div>`;
         }).join('');
-        return `<div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;"><style>.theme-border { border-color: ${theme.border} !important; }</style><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;"><div>${logoBase64 ? `<img src="${logoBase64}" alt="Logo" style="max-width: 160px; max-height: 48px; object-fit: contain; margin-left: 12px;">` : `<div style="font-size: 24px; font-weight: 700; color: ${theme.primary}; letter-spacing: -0.02em; margin-left: 12px;">${brandName}</div>`}<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: 12px; color: #6b7280;">${companyAddress}</div><div style="font-size: 12px; color: #6b7280;">${companyEmail}</div><div style="font-size: 12px; color: #6b7280;">${companyPhone}</div></div><div style="text-align: right;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em;">Preview</h1></div></div><div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}</div><div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div></div><div style="margin-top: 24px; margin-bottom: 24px;">${imagesGridHtml}</div><div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;"><div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div></div>`;
+        return `<div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;"><style>.theme-border { border-color: ${theme.border} !important; }</style>${logoImgHtml}${customerImageHtml}<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;"><div><div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: 12px; color: #6b7280;">${companyAddress}</div><div style="font-size: 12px; color: #6b7280;">${companyEmail}</div><div style="font-size: 12px; color: #6b7280;">${companyPhone}</div></div><div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Project Preview</h1></div><div style="width: 200px;"></div></div><div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}</div><div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div></div><div style="margin-top: 24px; margin-bottom: 24px;">${imagesGridHtml}</div><div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;"><div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div></div>`;
     }
-
     return `
-                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
-                    <style>
-                        .q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 14px; }
-                        .q-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid ${theme.primary}; color: ${theme.secondary}; font-weight: 600; }
-                        .q-table td { padding: 14px 12px; border-bottom: 1px solid ${theme.border}; }
-                        .q-table .text-right { text-align: right; }
-                        .theme-header { color: ${theme.primary}; }
-                        .theme-accent { color: ${theme.accent}; }
-                        .theme-border { border-color: ${theme.border} !important; }
-                    </style>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
-                        <div>
-                            ${logoBase64 ? `<img src="${logoBase64}" alt="Logo" style="max-width: 160px; max-height: 48px; object-fit: contain; margin-left: 12px;">` : `<div style="font-size: 24px; font-weight: 700; color: ${theme.primary}; letter-spacing: -0.02em; margin-left: 12px;">${brandName}</div>`}
-                            <div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div>
-                            <div style="font-size: 12px; color: #6b7280;">${companyAddress}</div>
-                            <div style="font-size: 12px; color: #6b7280;">${companyEmail}</div>
-                            <div style="font-size: 12px; color: #6b7280;">${companyPhone}</div>
-                        </div>
-                        <div style="text-align: right;">
-                            <h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em;">Quotation</h1>
-                        </div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
-                        <div>
-                            ${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div>
-                            <div style="font-size: 14px;">${dateCreated}</div>
-                        </div>
-                    </div>
-                    <table class="q-table">
-                        <thead>
-                            <tr>
-                                <th>Description</th>
-                                <th class="text-right">Qty</th>
-                                <th class="text-right">Unit price</th>
-                                <th class="text-right">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${items.length > 0 ? items.map(item => {
-                                const itemPrice = parseFloat(item.price || 0);
-                                const itemQuantity = parseInt(item.quantity || 1);
-                                const itemTotal = itemPrice * itemQuantity;
-                                return `
-                                    <tr>
-                                        <td>${item.productName || 'N/A'}</td>
-                                        <td class="text-right">${itemQuantity}</td>
-                                        <td class="text-right">${formatRupee(itemPrice)}</td>
-                                        <td class="text-right">${formatRupee(itemTotal)}</td>
-                                    </tr>
-                                `;
-                            }).join('') : '<tr><td colspan="4" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}
-                        </tbody>
-                    </table>
-                    <div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
-                        <div style="display: inline-block; width: 260px; text-align: right;">
-                            <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px;">
-                                <span style="color: #6b7280;">Subtotal (incl. GST)</span>
-                                <span>${formatRupee(totalAfterDiscount)}</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; padding: 12px 0; margin-top: 8px; border-top: 2px solid ${theme.primary}; font-size: 16px; font-weight: 600;">
-                                <span>Total</span>
-                                <span>${formatRupee(grandTotal)}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;">
-                        <div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div>
-                        <div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div>
-                        <div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div>
-                    </div>
+                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
+                    <style>.q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 14px; font-family: ${pdfFontSecondary}; }.q-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid ${theme.primary}; color: ${theme.secondary}; font-weight: 600; }.q-table td { padding: 14px 12px; border-bottom: 1px solid ${theme.border}; }.q-table .text-right { text-align: right; }.theme-header { color: ${theme.primary}; }.theme-accent { color: ${theme.accent}; }.theme-border { border-color: ${theme.border} !important; }</style>
+                    ${logoImgHtml}${customerImageHtml}
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;"><div><div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: 12px; color: #6b7280;">${companyAddress}</div><div style="font-size: 12px; color: #6b7280;">${companyEmail}</div><div style="font-size: 12px; color: #6b7280;">${companyPhone}</div></div><div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Quotation</h1></div><div style="width: 200px;"></div></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}</div><div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div></div>
+                    <table class="q-table"><thead><tr><th>S.No</th><th>Type</th><th>Description</th><th class="text-right">Qty</th><th class="text-right">Amount</th></tr></thead><tbody>${items.length > 0 ? items.map((item, idx) => { const itemPrice = parseFloat(item.price || 0); const itemQuantity = parseInt(item.quantity || 1); const itemTotal = itemPrice * itemQuantity; return `<tr><td>${idx + 1}</td><td>${item.type || 'N/A'}</td><td>${item.productName || 'N/A'}</td><td class="text-right">${itemQuantity}</td><td class="text-right">${formatRupee(itemTotal)}</td></tr>`; }).join('') : '<tr><td colspan="5" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}</tbody></table>
+                    <div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div style="display: inline-block; width: 260px; text-align: right;"><div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px;"><span style="color: #6b7280;">Subtotal (excl). GST)</span><span>${formatRupee(totalAfterDiscount)}</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; margin-top: 8px; border-top: 2px solid ${theme.primary}; font-size: 16px; font-weight: 600;"><span>Total</span><span>${formatRupee(grandTotal)}</span></div></div></div>
+                    <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;"><div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div>
                 </div>
     `;
 }
@@ -2308,10 +2472,21 @@ async function renderItemsList(filter = '') {
     body.innerHTML = '';
 
     const normalizedFilter = filter.toLowerCase();
-    const filteredItems = items.filter(item =>
+    let filteredItems = items.filter(item =>
         item.productName.toLowerCase().includes(normalizedFilter) ||
         item.productId.toLowerCase().includes(normalizedFilter)
     );
+
+    if (itemsCurrentNameSort === 'asc') {
+        filteredItems.sort((a, b) => (String(a.productName || '').localeCompare(String(b.productName || ''), 'en-IN', { sensitivity: 'base' })));
+    } else if (itemsCurrentNameSort === 'desc') {
+        filteredItems.sort((a, b) => (String(b.productName || '').localeCompare(String(a.productName || ''), 'en-IN', { sensitivity: 'base' })));
+    }
+    if (itemsCurrentPriceSort === 'asc') {
+        filteredItems.sort((a, b) => parseFloat(a.price || 0) - parseFloat(b.price || 0));
+    } else if (itemsCurrentPriceSort === 'desc') {
+        filteredItems.sort((a, b) => parseFloat(b.price || 0) - parseFloat(a.price || 0));
+    }
 
     if (filteredItems.length === 0) {
         noItemsMessage.style.display = 'block';
@@ -2339,6 +2514,8 @@ async function renderItemsList(filter = '') {
 
     // Update pagination controls
     updateItemsPaginationControls(totalPages, filteredItems.length);
+    updatePriceSortHeader();
+    updateNameSortHeader();
 
     const isAuthorizedToEdit = AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE);
 
@@ -2378,8 +2555,7 @@ async function renderItemsList(filter = '') {
         const actionsCell = row.insertCell();
         if (isAuthorizedToEdit) {
             actionsCell.innerHTML += `
-                        <button class="btn" style="padding: 5px 8px; margin-right: 5px;" onclick="editItem('${item.productId}')"><i class="fas fa-edit"></i></button>
-                        <button class="btn danger" style="padding: 5px 8px;" onclick="deleteItem('${item.productId}')"><i class="fas fa-trash-alt"></i></button>
+                        <button class="btn" style="padding: 5px 8px;" onclick="editItem('${item.productId}')"><i class="fas fa-edit"></i></button>
                     `;
         } else {
             actionsCell.textContent = 'No Actions';
@@ -2561,9 +2737,9 @@ async function renderHistoryList() {
 
     quotations.sort((a, b) => {
         try {
-            const dateA = new Date(a.dateCreated || a.created_at || 0);
-            const dateB = new Date(b.dateCreated || b.created_at || 0);
-            return dateB - dateA; // Most recent first
+            const dateA = new Date(a.updated_at || a.dateCreated || a.created_at || 0);
+            const dateB = new Date(b.updated_at || b.dateCreated || b.created_at || 0);
+            return dateB - dateA; // Most recent activity first (includes updates)
         } catch (e) {
             return 0;
         }
@@ -2585,6 +2761,9 @@ async function renderHistoryList() {
         const customerPhone = quote.customer?.phone || quote.customerPhone || '';
         row.insertCell().textContent = customerName !== 'N/A' ? customerName : (customerPhone || 'N/A');
         row.insertCell().textContent = quote.dateCreated || quote.created_at || 'N/A';
+        const updatedAt = quote.updated_at;
+        const lastUpdatedStr = updatedAt ? new Date(updatedAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+        row.insertCell().textContent = lastUpdatedStr;
         row.insertCell().textContent = formatRupee(parseFloat(quote.grandTotal) || 0);
         row.insertCell().textContent = (quote.items?.length || 0);
         row.insertCell().textContent = quote.createdBy || quote.created_by || 'N/A';
@@ -2594,8 +2773,7 @@ async function renderHistoryList() {
         actionsCell.innerHTML = `
                     <button class="btn primary" style="padding: 5px 8px; margin-right: 5px;" onclick="fetchQuotationAndGeneratePdf('${quoteId}')" title="Download PDF"><i class="fas fa-download"></i></button>
                     <button class="btn secondary" style="padding: 5px 8px; margin-right: 5px;" onclick="viewQuotationDetails('${quoteId}')" title="View"><i class="fas fa-eye"></i></button>
-                    <button class="btn" style="padding: 5px 8px; margin-right: 5px;" onclick="cloneQuotation('${quoteId}')" title="Edit"><i class="fas fa-edit"></i></button>
-                    <button class="btn danger" style="padding: 5px 8px;" onclick="deleteQuotation('${quoteId}')" title="Delete"><i class="fas fa-trash-alt"></i></button>
+                    <button class="btn" style="padding: 5px 8px;" onclick="cloneQuotation('${quoteId}')" title="Edit"><i class="fas fa-edit"></i></button>
                 `;
     });
 }
@@ -2756,59 +2934,74 @@ async function fetchQuotationAndGeneratePdf(quotationId) {
 }
 
 async function downloadQuotationAsPdfDirect(quotation) {
+    let tempContainer;
+    showPdfLoadingOverlay();
     try {
+        const settings = await getSettings();
+        let logoDataUrl = settings.logo || null;
+        if (!logoDataUrl && typeof window !== 'undefined' && window.location) {
+            const basePath = (window.location.pathname || '').replace(/\/[^/]*$/, '') || '';
+            const base = window.location.origin + (basePath ? basePath + '/' : '/') + 'images/Logo.';
+            try {
+                const r = await fetch(base + 'svg');
+                if (r.ok) { logoDataUrl = await r.text(); logoDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(logoDataUrl))); }
+            } catch (_) {}
+            if (!logoDataUrl) {
+                try {
+                    const r = await fetch(base + 'png');
+                    if (r.ok) { const blob = await r.blob(); logoDataUrl = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); }); }
+                } catch (_) {}
+            }
+        }
+        const logoPng = logoDataUrl ? await imageDataUrlToPng(logoDataUrl) : null;
+
         const quotationHtml = await generateQuotationHtml(quotation);
-        const tempContainer = document.createElement('div');
-        tempContainer.style.position = 'absolute';
-        tempContainer.style.left = '-9999px';
-        tempContainer.style.top = '0';
-        tempContainer.style.width = '800px';
+        tempContainer = document.createElement('div');
+        tempContainer.style.cssText = 'position:fixed;left:0;top:0;width:800px;z-index:-1;opacity:0.01;pointer-events:none;overflow:visible;';
         tempContainer.innerHTML = quotationHtml;
         document.body.appendChild(tempContainer);
-        
+
         const quotationDiv = tempContainer.querySelector('div[style*="width: 800px"]');
         if (!quotationDiv) {
-            alert('Failed to generate quotation template');
             document.body.removeChild(tempContainer);
+            alert('Failed to generate quotation template');
             return;
         }
-        
+
         const images = quotationDiv.querySelectorAll('img');
-        const imagePromises = Array.from(images).map(img => {
-            if (img.complete) return Promise.resolve();
+        await Promise.all(Array.from(images).map((img) => {
+            if (img.complete && img.naturalWidth > 0) return Promise.resolve();
             return new Promise((resolve) => {
-                img.onload = resolve;
-                img.onerror = resolve;
-                setTimeout(resolve, 2000);
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+                setTimeout(resolve, 3000);
             });
-        });
-        await Promise.all(imagePromises);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const canvas = await html2canvas(quotationDiv, { 
-            scale: 2, 
-            logging: false, 
-            useCORS: true,
+        }));
+        await new Promise(r => setTimeout(r, 400));
+
+        const contentHeight = quotationDiv.scrollHeight || quotationDiv.offsetHeight;
+        const canvas = await html2canvas(quotationDiv, {
+            scale: 2,
+            logging: false,
+            useCORS: false,
             allowTaint: true,
             backgroundColor: '#ffffff',
             width: 800,
-            height: quotationDiv.scrollHeight || quotationDiv.offsetHeight,
+            height: contentHeight,
+            windowWidth: 800,
+            windowHeight: contentHeight,
             x: 0,
             y: 0,
             scrollX: 0,
             scrollY: 0,
-            onclone: (clonedDoc) => {
-                const clonedElement = clonedDoc.querySelector('div[style*="width: 800px"]');
-                if (clonedElement) {
-                    clonedElement.style.backgroundImage = 'none';
-                }
-            }
+            imageTimeout: 0
         });
-        
+
         if (!canvas || canvas.width === 0 || canvas.height === 0) {
+            document.body.removeChild(tempContainer);
             throw new Error('Canvas is empty');
         }
-        
+
         const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true });
         const imgWidth = 595.28;
         const pageHeight = 841.89;
@@ -2828,49 +3021,25 @@ async function downloadQuotationAsPdfDirect(quotation) {
                 heightLeft -= pageHeight;
             }
         } else {
-            const contentHeight = Math.min(imgHeight, pageHeight);
-            doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeight, undefined, 'FAST');
+            const contentHeightPdf = Math.min(imgHeight, pageHeight);
+            doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeightPdf, undefined, 'FAST');
         }
-        try {
-            let page2Images = [];
-            const quotationImages = quotation.images;
-            if (Array.isArray(quotationImages) && quotationImages.length > 0) {
-                page2Images = quotationImages.slice(0, 1).map(img => ({ image: img }));
-            }
-            if (page2Images.length > 0) {
-                    const page2Html = await generateQuotationHtml(quotation, { page2Images: page2Images });
-                    const page2Container = document.createElement('div');
-                    page2Container.style.cssText = 'position:absolute;left:-9999px;top:0;width:800px;';
-                    page2Container.innerHTML = page2Html;
-                    document.body.appendChild(page2Container);
-                    const page2Div = page2Container.querySelector('div[style*="width: 800px"]');
-                    if (page2Div) {
-                        await Promise.all(Array.from(page2Div.querySelectorAll('img')).map((img) => {
-                            if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-                            return new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; setTimeout(resolve, 3000); });
-                        }));
-                        await new Promise(r => setTimeout(r, 400));
-                        const page2Canvas = await html2canvas(page2Div, { scale: 2, logging: false, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', width: 800, height: page2Div.scrollHeight || page2Div.offsetHeight, x: 0, y: 0, scrollX: 0, scrollY: 0 });
-                        if (page2Canvas && page2Canvas.width > 0 && page2Canvas.height > 0) {
-                            doc.addPage();
-                            const page2ImgData = page2Canvas.toDataURL('image/png', 1.0);
-                            const page2ImgHeight = (page2Canvas.height * imgWidth) / page2Canvas.width;
-                            const page2ContentHeight = Math.min(page2ImgHeight, pageHeight);
-                            doc.addImage(page2ImgData, 'PNG', 0, 0, imgWidth, page2ContentHeight, undefined, 'FAST');
-                        }
-                    }
-                    if (page2Container.parentNode) page2Container.parentNode.removeChild(page2Container);
-            }
-        } catch (e) { console.warn('Page 2 (images) generation failed:', e); }
+
+        doc.setPage(1);
+        if (logoPng) {
+            try { doc.addImage(logoPng, 'PNG', 42, 12, 100, 68); } catch (e) { try { doc.addImage(logoPng, 'JPEG', 42, 12, 100, 68); } catch (_) {} }
+        }
 
         const customerName = quotation.customer?.name || quotation.customerName || 'Quotation';
         const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').trim();
         const quotationIdVal = quotation.quotationId || quotation.id || 'N/A';
         doc.save(`Quotation_${sanitizedName}_${quotationIdVal}.pdf`);
-        document.body.removeChild(tempContainer);
     } catch (error) {
         console.error('PDF generation error:', error);
         alert('Failed to generate PDF. Please try again.');
+    } finally {
+        hidePdfLoadingOverlay();
+        if (tempContainer && tempContainer.parentNode) tempContainer.parentNode.removeChild(tempContainer);
     }
 }
 
@@ -2901,8 +3070,8 @@ async function viewQuotationDetails(quotationId) {
             return;
         }
 
-        // Generate quotation HTML using the same template as PDF
-        const quotationHtml = await generateQuotationHtml(quote);
+        // Generate quotation HTML with logo for modal view
+        const quotationHtml = await generateQuotationHtml(quote, { includeLogo: true });
         
         // Get modal elements
         const modal = document.getElementById('quotationViewModal');
@@ -3000,6 +3169,53 @@ function renderEditQuotationItems() {
         });
     });
     recalcEditQuotationTotal();
+}
+
+/** Redirect to create quotation section with quotation data loaded (like resume drafts). */
+async function editQuotationInCreateSection(quotationId) {
+    if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE) && !AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE)) {
+        alert('You are not authorized to edit quotations.');
+        return;
+    }
+    try {
+        const data = await apiFetch(`/quotations/${quotationId}`);
+        const quote = data?.data || data;
+        if (!quote || (!quote.quotationId && !quote.id)) {
+            alert('Quotation not found.');
+            return;
+        }
+        const qid = quote.quotationId || quote.id;
+        currentEditQuotationId = qid;
+        const cust = quote.customer || {};
+        document.getElementById('cust-name').value = cust.name || quote.customerName || '';
+        document.getElementById('phone-number').value = cust.phone || quote.customerPhone || '';
+        document.getElementById('cust-email').value = cust.email || quote.customerEmail || '';
+        document.getElementById('cust-address').value = cust.address || quote.customerAddress || '';
+        const discountPercentInput = document.getElementById('discount-percent');
+        if (discountPercentInput) discountPercentInput.value = quote.discountPercent != null ? quote.discountPercent : 0;
+        quotationItems = (quote.items || []).map(it => ({
+            productId: it.productId,
+            productName: it.productName,
+            price: it.price,
+            quantity: it.quantity || 1,
+            gstRate: it.gstRate != null ? it.gstRate : 0
+        }));
+        managerUploadedImagesArray = Array.isArray(quote.images) && quote.images.length > 0 ? [quote.images[0]] : [];
+        if (typeof renderManagerImagePreviews === 'function') renderManagerImagePreviews();
+        renderQuotationItems();
+        updateGrandTotal();
+        const createBtn = document.getElementById('createQuotationBtn');
+        if (createBtn) createBtn.textContent = 'Edit Quotation';
+        document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Edit Quotation'; else el.textContent = 'Edit Quotation'; });
+        const sectionTitle = document.getElementById('createQuotationSectionTitle');
+        if (sectionTitle) sectionTitle.textContent = 'Edit Quotation';
+        const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+        if (cancelEditBtn) cancelEditBtn.style.display = '';
+        showSection('createQuotation');
+    } catch (e) {
+        console.error('Error loading quotation for edit:', e);
+        alert('Failed to load quotation.');
+    }
 }
 
 async function openEditQuotationModal(quotationId) {
@@ -3214,6 +3430,28 @@ function closeEditQuotationModal() {
     currentEditQuotationId = null;
     editQuotationItems = [];
     managerEditImagesArray = [];
+}
+
+function cancelEditInCreateSection() {
+    if (!currentEditQuotationId) return;
+    currentEditQuotationId = null;
+    const createBtn = document.getElementById('createQuotationBtn');
+    if (createBtn) createBtn.textContent = 'Create Quotation';
+    document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create quotation'; else el.textContent = 'Create quotation'; });
+    const sectionTitle = document.getElementById('createQuotationSectionTitle');
+    if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
+    const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+    if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+    quotationItems = [];
+    document.getElementById('cust-name').value = '';
+    document.getElementById('phone-number').value = '';
+    document.getElementById('cust-email').value = '';
+    document.getElementById('cust-address').value = '';
+    const discountPercentInput = document.getElementById('discount-percent');
+    if (discountPercentInput) discountPercentInput.value = '0';
+    if (typeof clearManagerImageUpload === 'function') clearManagerImageUpload();
+    renderQuotationItems();
+    updateGrandTotal();
 }
 
 function initEditQuotationModal() {
@@ -3639,9 +3877,23 @@ initEditProductModal();
 initEditCustomerModal();
 initEditQuotationModal();
 document.getElementById('createQuotationBtn')?.addEventListener('click', createQuotation);
+document.getElementById('cancelEditInCreateSectionBtn')?.addEventListener('click', cancelEditInCreateSection);
 document.getElementById('itemSearchInput')?.addEventListener('input', (e) => {
     const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
     renderAvailableItemsForQuotation(e.target.value, activeTypeFilter, window.cachedItems);
+});
+
+document.getElementById('quotationPriceSortBtn')?.addEventListener('click', function() {
+    const next = { none: 'lowToHigh', lowToHigh: 'highToLow', highToLow: 'none' };
+    const labels = { none: 'Sort by price', lowToHigh: 'Price: Low to High', highToLow: 'Price: High to Low' };
+    const current = this.getAttribute('data-price-sort') || 'none';
+    const state = next[current];
+    this.setAttribute('data-price-sort', state);
+    this.textContent = labels[state];
+    this.classList.toggle('active', state !== 'none');
+    const searchValue = document.getElementById('itemSearchInput')?.value || '';
+    const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+    renderAvailableItemsForQuotation(searchValue, activeTypeFilter, window.cachedItems);
 });
 
 document.getElementById('compatibleFilterToggle')?.addEventListener('change', function() {
@@ -3732,6 +3984,22 @@ function showSection(sectionId) {
         renderAvailableItemsForQuotation('', '', window.cachedItems);
         renderQuotationItems();
         updateGrandTotal();
+        const createBtn = document.getElementById('createQuotationBtn');
+        if (currentEditQuotationId) {
+            if (createBtn) createBtn.textContent = 'Edit Quotation';
+            document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Edit Quotation'; else el.textContent = 'Edit Quotation'; });
+            const sectionTitle = document.getElementById('createQuotationSectionTitle');
+            if (sectionTitle) sectionTitle.textContent = 'Edit Quotation';
+            const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+            if (cancelEditBtn) cancelEditBtn.style.display = '';
+        } else {
+            if (createBtn) createBtn.textContent = 'Create Quotation';
+            document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create quotation'; else el.textContent = 'Create quotation'; });
+            const sectionTitle = document.getElementById('createQuotationSectionTitle');
+            if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
+            const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+            if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+        }
     }
     if (sectionId === 'viewHistory') renderHistoryList();
     if (sectionId === 'viewLogs') renderLogsList();
@@ -3846,14 +4114,25 @@ async function handleLogoUpload(event) {
             method: 'POST',
             body: formData
         });
-        renderSettings();
+        await renderSettings();
+        getSettings().then(s => {
+            const logoEl = document.querySelector('.sidebar .brand img');
+            if (logoEl) logoEl.src = (s && s.logo) || 'images/Logo.svg';
+        }).catch(() => {});
         alert('Company logo uploaded successfully!');
     } catch (e) { }
 }
 
 document.getElementById('removeLogoBtn')?.addEventListener('click', async function () {
-    if (confirm('Are you sure you want to remove the company logo?')) {
-        alert('Feature not implemented in API yet.');
+    if (!confirm('Are you sure you want to remove the company logo?')) return;
+    try {
+        await apiFetch('/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logo: null }) });
+        await renderSettings();
+        const logoEl = document.querySelector('.sidebar .brand img');
+        if (logoEl) logoEl.src = 'images/Logo.svg';
+        alert('Company logo removed.');
+    } catch (e) {
+        alert('Failed to remove logo.');
     }
 });
 
@@ -3940,6 +4219,12 @@ async function initializeDashboard() {
     if (userAvatar) userAvatar.textContent = CURRENT_USER_ROLE.charAt(0).toUpperCase();
 
     applyRoleRestrictions();
+
+    // Apply company logo in sidebar (from settings)
+    getSettings().then(s => {
+        const logoEl = document.querySelector('.sidebar .brand img');
+        if (logoEl && s && s.logo) logoEl.src = s.logo;
+    }).catch(() => {});
 
     // Load initial data
     try {
@@ -4054,6 +4339,26 @@ window.onload = function() {
         searchInput.addEventListener('input', function(e) {
             const filter = e.target.value.trim();
             renderItemsList(filter);
+        });
+    }
+
+    // Connect customer list search input
+    const customerListSearchInput = document.getElementById('customerListSearchInput');
+    if (customerListSearchInput) {
+        customerListSearchInput.addEventListener('input', function(e) {
+            const filter = e.target.value.trim();
+            customersCurrentPage = 1; // Reset to first page when searching
+            renderCustomersList(filter);
+        });
+    }
+
+    // Connect customer details search input
+    const customerDetailsSearchInput = document.getElementById('customerDetailsSearchInput');
+    if (customerDetailsSearchInput) {
+        customerDetailsSearchInput.addEventListener('input', function(e) {
+            const filter = e.target.value.trim();
+            customerDetailsCurrentPage = 1; // Reset to first page when searching
+            renderCustomerDetailsList(filter);
         });
     }
     

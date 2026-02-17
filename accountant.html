@@ -28,8 +28,6 @@
             <a href="#" data-tab="itemsList"><i class="fas fa-list"></i> Products</a>
             <a href="#" data-tab="createQuotation"><i class="fas fa-file-invoice-dollar"></i> Quotations</a>
             <a href="#" data-tab="viewCustomers" id="navViewCustomers"><i class="fas fa-users"></i> Customers</a>
-            <a href="#" data-tab="viewLogs" id="navViewLogs"><i class="fas fa-clipboard-list"></i> Logs</a>
-            <a href="#" data-tab="settings" id="navSettings"><i class="fas fa-cog"></i> Settings</a>
         </nav>
 
         <a href="#" id="getDemoBtn" class="btn primary sidebar-cta"><i class="fas fa-play-circle"></i> Get Demo</a>
@@ -64,14 +62,6 @@
                         <div class="muted" style="font-size:12px; margin-top:4px;">Total quotations created</div>
                     </div>
 
-                    <div class="card" style="padding:16px; border-left: 4px solid #E74C3C;" id="summaryLogsCard">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                            <h3 style="margin:0; font-size:16px; color:#34495E;">Activity Logs</h3>
-                            <i class="fas fa-clipboard-list" style="color:#90A4AE; font-size:20px;"></i>
-                        </div>
-                        <div id="summaryLogsCount" style="font-size:32px; font-weight:bold; color:#34495E;">—</div>
-                        <div class="muted" style="font-size:12px; margin-top:4px;">Total activity records</div>
-                    </div>
 
                     <div class="card" style="padding:16px; border-left: 4px solid #F39C12;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -369,7 +359,6 @@
             <div class="card" style="flex-grow: 1;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <h2>Products</h2>
-                    <button class="btn" onclick="exportItemsToCsv()"><i class="fas fa-file-export"></i> Export CSV</button>
                 </div>
                 <p class="muted">List of products currently available in the system. **(Search by Name or ID below)**</p>
                 
@@ -377,26 +366,19 @@
                     <input type="text" id="productListSearchInput" placeholder="Search products by Name or ID..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">
                 </div>
                 
-                <!-- Price Sort Button -->
-                <div style="margin-bottom: 12px;">
-                    <button id="priceSortBtn" class="btn secondary" style="margin-right: 8px;" onclick="togglePriceSort()">
-                        <i class="fas fa-sort"></i> Price: <span id="priceSortText">Low to High</span>
-                    </button>
-                </div>
-                
                 <!-- Product Type Navigation Buttons (Filters) -->
                 <div id="itemsTypeFilters" style="margin-bottom: 12px; display:flex; flex-wrap:wrap; gap:6px;"></div>
 
-                <div style="margin-top:12px; overflow:auto; flex-grow: 1;">
+                <div class="table-container" style="margin-top:12px; overflow:auto; flex-grow: 1;">
                     <table class="data-table" id="itemsTable">
                         <thead>
                             <tr>
                                 <th>Product ID</th>
-                                <th>Product Name</th>
+                                <th id="nameColHeader" class="price-sort-header" onclick="toggleNameSort()" title="Sort by name (A–Z / Z–A)">Product Name <span id="nameSortArrows" class="price-sort-arrows"></span></th>
                                 <th>Type</th>
                                 <th>Description</th>
                                 <th>Website Link</th>
-                                <th>Price (₹)</th>
+                                <th id="priceColHeader" class="price-sort-header" onclick="togglePriceSort()" title="Sort by price">Price (₹) <span id="priceSortArrows" class="price-sort-arrows"></span></th>
                                 <th>GST (%)</th>
                                 <th>Total Value (₹)</th>
                                 <th>Added By</th>
@@ -443,6 +425,9 @@
                         border-color: #35b3e7;
                         font-weight: 600;
                     }
+                    .price-sort-header { cursor: pointer; user-select: none; white-space: nowrap; }
+                    .price-sort-header:hover { color: #35b3e7; }
+                    .price-sort-arrows { margin-left: 4px; font-size: 0.85em; opacity: 0.9; }
                     .pagination-btn {
                         padding: 10px 16px;
                         border: 1px solid #d0d7de;
@@ -539,7 +524,7 @@
             </div>
 
             <div class="card" style="flex-grow: 1;">
-                <h2>Create Quotation</h2>
+                <h2 id="createQuotationSectionTitle">Create Quotation</h2>
                 <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-top:12px">
                     <div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -549,7 +534,7 @@
                             </div>
                             <div>
                                 <label class="muted">Phone *</label>
-                                <input id="phone-number" type="tel" maxlength="10" pattern="\d{10}" inputmode="numeric" style="padding:10px;border-radius:8px;border:1px solid var(--border)" placeholder="10-digit phone number" required>
+                                <input id="phone-number" type="tel" maxlength="14" pattern="\d{10,14}" inputmode="numeric" style="padding:10px;border-radius:8px;border:1px solid var(--border)" placeholder="10-14 digit phone number" required>
                             </div>
                         </div>
 
@@ -601,6 +586,9 @@
                                 <input id="itemSearchInput" placeholder="Search products by Name or ID..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">
                                 <!-- Dynamic type filters for quotation items -->
                                 <div id="quotationTypeFilters" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:6px;"></div>
+                                <div style="margin-top:10px;">
+                                    <button type="button" id="quotationPriceSortBtn" class="btn price-sort-btn" data-price-sort="none" title="Cycle: Low to High → High to Low → Off">Sort by price</button>
+                                </div>
                                 <label style="margin-top:10px; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
                                     <input type="checkbox" id="compatibleFilterToggle" style="cursor:pointer;">
                                     <span>Show compatible products only</span>
@@ -617,6 +605,22 @@
                                         background: #f0f7ff !important;
                                         border-color: #35b3e7 !important;
                                     }
+                                    .price-sort-btn {
+                                        background: #fff !important;
+                                        border-color: #0d9488 !important;
+                                        color: #0d9488 !important;
+                                    }
+                                    .price-sort-btn.active {
+                                        background: linear-gradient(135deg, #0d9488 0%, #059669 100%) !important;
+                                        color: white !important;
+                                        border-color: #0d9488 !important;
+                                        font-weight: 600;
+                                    }
+                                    .price-sort-btn:hover {
+                                        background: #ccfbf1 !important;
+                                        border-color: #0d9488 !important;
+                                        color: #0d9488 !important;
+                                    }
                                 </style>
                                 <div id="availableItemsList" style="margin-top:10px;max-height:340px;overflow:auto"></div>
                             </div>
@@ -631,7 +635,10 @@
                                 <strong>Grand Total:</strong> <span class="right" id="grandTotalDisplay">₹0.00</span>
                                 <p style="margin:8px 0; font-size:13px; color:#7f8c8d; font-style:italic;">Inclusive of GST</p>
                             </div>
-                            <button id="createQuotationBtn" class="btn primary" style="width:100%"><i class="fas fa-file-invoice-dollar"></i> Create Quotation</button>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                            <button id="cancelEditInCreateSectionBtn" type="button" class="btn" style="display:none;"><i class="fas fa-times"></i> Cancel edit</button>
+                            <button id="createQuotationBtn" class="btn primary" style="flex:1;min-width:0;"><i class="fas fa-file-invoice-dollar"></i> Create Quotation</button>
+                        </div>
                         </div>
                         <div class="card" style="margin-top:12px" id="quotationDraftsCard">
                             <h3 style="margin:0 0 10px 0; font-size:16px; color:#34495E;"><i class="fas fa-save"></i> Saved drafts</h3>
@@ -655,11 +662,10 @@
             <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                     <h2 style="margin: 0;">Quotation History</h2>
-                    <button type="button" class="btn primary" onclick="exportQuotationHistoryToCsv()" title="Export to CSV"><i class="fas fa-file-export"></i> Export</button>
                 </div>
                 <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 250px);">
                     <table class="data-table" id="historyTable">
-                        <thead><tr><th>Quotation ID</th><th>Customer Name</th><th>Date Created</th><th>Total Amount (₹)</th><th>Items Count</th><th>Created By</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Quotation ID</th><th>Customer Name</th><th>Date Created</th><th>Last Updated</th><th>Total Amount (₹)</th><th>Items Count</th><th>Created By</th><th>Actions</th></tr></thead>
                         <tbody id="historyListBody"></tbody>
                     </table>
                     <p id="noHistoryMessage" class="muted" style="text-align:center;padding:18px;display:none">No quotations have been created yet.</p>
@@ -687,9 +693,11 @@
                 <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                         <h2 style="margin: 0;">Customer List</h2>
-                        <button type="button" class="btn primary" onclick="exportCustomerHistoryToCsv()" title="Export to CSV"><i class="fas fa-file-export"></i> Export</button>
                     </div>
                     <p class="muted">List of all customers who have received a quotation.</p>
+                    <div style="margin-top: 12px; margin-bottom: 18px;">
+                        <input type="text" id="customerListSearchInput" placeholder="Search customers by Name, Email, Phone, or Address..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">
+                    </div>
                     <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 250px);">
                         <table class="data-table" id="customersTable">
                             <thead>
@@ -723,6 +731,9 @@
                 <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
                     <h2>Customer Details</h2>
                     <p class="muted">List of all customers with their detailed information.</p>
+                    <div style="margin-top: 12px; margin-bottom: 18px;">
+                        <input type="text" id="customerDetailsSearchInput" placeholder="Search customers by Name, Email, Phone, or Address..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">
+                    </div>
                     <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 250px);">
                         <table class="data-table" id="customerDetailsTable">
                             <thead>
@@ -733,11 +744,12 @@
                                     <th>Phone</th>
                                     <th>Address</th>
                                     <th>Last Quotation Date</th>
+                                    <th>Total Quotations</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="customerDetailsListBody">
-                                <tr><td colspan="7" class="muted" style="text-align:center">Customer data will be loaded here.</td></tr>
+                                <tr><td colspan="8" class="muted" style="text-align:center">Customer data will be loaded here.</td></tr>
                             </tbody>
                         </table>
                         <style>
@@ -767,117 +779,6 @@
                     </div>
                 </div>
             </div>
-        </section>
-        <section id="viewLogs" class="content-section" style="display:none">
-            <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
-                <h2>User Activity Logs</h2>
-                <p class="muted">A chronological record of actions taken by users across roles. Owner/Admin/Manager can delete logs.</p>
-                <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 250px);">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>User</th>
-                                <th>Role</th>
-                                <th>Action</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody id="logsListBody"></tbody>
-                    </table>
-                    <p id="noLogsMessage" class="muted" style="text-align:center;padding:18px;display:none;">No user activity logs recorded yet.</p>
-                </div>
-            </div>
-        </section>
-
-        <section id="settings" class="content-section" style="display:none">
-            <div class="card">
-                <h2>Company Logo</h2>
-                <p class="muted">Upload your company logo for use on generated quotations.</p>
-                <div style="margin-top:18px">
-                    <div style="display:flex; align-items:center; gap:15px">
-                        <img id="logoPreview" src="" alt="Company Logo" style="height: 60px; max-width: 150px; object-fit: contain; border-radius: 4px; border: 1px solid var(--border); padding: 5px; display: none;">
-                        <span id="noLogoText" class="muted" style="font-style: italic;">No logo uploaded.</span>
-                    </div>
-                    
-                    <div style="display:flex; align-items:center; gap:15px; margin-top: 15px;">
-                        <input type="file" id="logoUploadInput" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
-                        <button class="btn" onclick="document.getElementById('logoUploadInput').click()"><i class="fas fa-upload"></i> Upload Logo</button>
-                        <button class="btn danger" id="removeLogoBtn" style="display:none;"><i class="fas fa-trash-alt"></i> Remove Logo</button>
-                    </div>
-                    <small class="muted" style="display:block;margin-top:8px">Recommended size: Square aspect ratio, under 200KB.</small>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>Company/Brand Settings</h2>
-                <p class="muted">Configuration of brand name for quotations.</p>
-                
-                <div style="margin-top:18px">
-                    <div class="form-field" style="display:flex; align-items:center; gap:15px">
-                        <label for="settings-brand-name" style="margin:0; width:150px">Brand Name</label>
-                        <input type="text" id="settings-brand-name" placeholder="RoleWise Tech" style="width:250px; padding:8px" required>
-                        <button class="btn primary" id="saveBrandNameBtn"><i class="fas fa-save"></i> Save Brand</button>
-                    </div>
-                    <small class="muted" style="display:block;margin-top:8px">This name will appear on all generated quotation PDFs.</small>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>Quotation Validity</h2>
-                <p class="muted">Set the number of days a generated quotation is considered valid.</p>
-                <div style="margin-top:18px">
-                    <div class="form-field" style="display:flex; align-items:center; gap:15px">
-                        <label for="settings-validity-days" style="margin:0; width:150px">Validity Days</label>
-                        <input type="number" id="settings-validity-days" min="1" max="365" placeholder="30" style="width:100px; padding:8px" required>
-                        <button class="btn primary" id="saveValidityBtn"><i class="fas fa-save"></i> Save Validity</button>
-                    </div>
-                    <small class="muted" style="display:block;margin-top:8px">The number of days a quotation will be valid from the date of creation. Currently: <strong id="validityDaysDisplay">30</strong> days.</small>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>Company GST ID</h2>
-                <p class="muted">Your company's official GST Identification Number (GSTIN).</p>
-                <div style="margin-top:18px">
-                    <div class="form-field" style="display:flex; align-items:center; gap:15px">
-                        <label for="settings-company-gst-id" style="margin:0; width:150px">Company GST ID</label>
-                        <input type="text" id="settings-company-gst-id" maxlength="15" pattern="[A-Za-z0-9]{15}" placeholder="Unique Alphanumeric GSTIN" style="width:250px; padding:8px" required>
-                        <button class="btn primary" id="saveCompanyGstIdBtn"><i class="fas fa-save"></i> Save GSTIN</button>
-                    </div>
-                    <small class="muted" style="display:block;margin-top:8px">This GSTIN will appear on all generated quotation PDFs as the seller's GST ID.</small>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>PDF Theme Settings</h2>
-                <p class="muted">Choose the color theme for your generated quotation PDFs.</p>
-                <div style="margin-top:18px">
-                    <div class="form-field" style="display:flex; align-items:center; gap:15px">
-                        <label for="settings-pdf-theme" style="margin:0; width:150px">PDF Theme</label>
-                        <select id="settings-pdf-theme" style="width:200px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
-                            <option value="default">Default (Blue)</option>
-                            <option value="green">Green</option>
-                            <option value="red">Red</option>
-                            <option value="purple">Purple</option>
-                            <option value="orange">Orange</option>
-                            <option value="teal">Teal</option>
-                            <option value="gray">Gray</option>
-                        </select>
-                        <button class="btn primary" id="savePdfThemeBtn"><i class="fas fa-save"></i> Save Theme</button>
-                    </div>
-                    <div id="themePreview" style="margin-top:15px; padding:12px; border:1px solid #e5e7eb; border-radius:6px; background:#f9fafb;">
-                        <div style="font-size:12px; font-weight:600; margin-bottom:8px; color:#374151;">Theme Preview:</div>
-                        <div id="themePreviewContent" style="display:flex; align-items:center; gap:10px;">
-                            <div id="previewHeader" style="width:60px; height:20px; background:#3A648C; border-radius:3px;"></div>
-                            <div id="previewAccent" style="width:40px; height:20px; background:#111827; border-radius:3px;"></div>
-                            <div id="previewBorder" style="width:40px; height:20px; background:#e5e7eb; border-radius:3px;"></div>
-                        </div>
-                    </div>
-                    <small class="muted" style="display:block;margin-top:8px">The selected theme will be applied to headers, borders, and accent colors in your PDF quotations.</small>
-                </div>
-            </div>
-
         </section>
 
     </main>

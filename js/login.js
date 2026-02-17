@@ -413,11 +413,37 @@ async function handleLogin(event) {
 }
 
 /**
+ * Apply company logo from settings (used on login page).
+ * Only runs over http(s). Uses API_BASE; set window.API_BASE if your API is on a different path/origin.
+ */
+function applyCompanyLogo() {
+    if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') return;
+    var base = (typeof window !== 'undefined' && window.API_BASE) ? window.API_BASE : API_BASE;
+    var url = (base.replace(/\/$/, '')) + '/settings/logo';
+    fetch(url, { method: 'GET' })
+        .then(function(r) {
+            if (!r.ok) return null;
+            return r.json();
+        })
+        .then(function(res) {
+            if (!res) return;
+            var logo = (res.data && res.data.logo) ? res.data.logo : res.logo;
+            if (!logo || typeof logo !== 'string') return;
+            var el = document.getElementById('companyLogoImg');
+            if (el) el.src = logo;
+        })
+        .catch(function() {});
+}
+
+/**
  * Initialize login page functionality
  */
 function initializeLogin() {
     // Check for existing session (optional - uncomment if you want auto-redirect)
     // checkExistingSession();
+    
+    // Apply company logo from settings
+    applyCompanyLogo();
     
     // Get login form
     const loginForm = document.getElementById('loginForm');

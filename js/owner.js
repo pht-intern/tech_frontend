@@ -116,6 +116,8 @@ const itemsPerPage = 5;
 let itemsCurrentTypeFilter = '';
 // Current price sort state: 'none', 'asc', 'desc'
 let itemsCurrentPriceSort = 'none';
+// Current name sort state: 'none', 'asc', 'desc' (A–Z / Z–A)
+let itemsCurrentNameSort = 'none';
 // Track previous search filter to detect changes
 let itemsPreviousSearchFilter = '';
 let historyCurrentPage = 1;
@@ -130,30 +132,62 @@ function formatRupee(amount) {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(numAmount);
 }
 
-// Toggle price sorting for products
+// Update price column header arrows (none / asc / desc)
+function updatePriceSortHeader() {
+    const arrowsEl = document.getElementById('priceSortArrows');
+    if (!arrowsEl) return;
+    if (itemsCurrentPriceSort === 'asc') {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort-up" aria-hidden="true"></i>';
+    } else if (itemsCurrentPriceSort === 'desc') {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort-down" aria-hidden="true"></i>';
+    } else {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort" aria-hidden="true"></i>';
+    }
+}
+
+// Update name column header arrows (none / asc = A–Z / desc = Z–A)
+function updateNameSortHeader() {
+    const arrowsEl = document.getElementById('nameSortArrows');
+    if (!arrowsEl) return;
+    if (itemsCurrentNameSort === 'asc') {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort-up" aria-hidden="true"></i>';
+    } else if (itemsCurrentNameSort === 'desc') {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort-down" aria-hidden="true"></i>';
+    } else {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort" aria-hidden="true"></i>';
+    }
+}
+
+// Toggle price sorting for products (triggered from Price column header)
 function togglePriceSort() {
-    const sortBtn = document.getElementById('priceSortBtn');
-    const sortText = document.getElementById('priceSortText');
-    
-    // Cycle through: none -> asc -> desc -> none
+    itemsCurrentNameSort = 'none';
+    updateNameSortHeader();
     if (itemsCurrentPriceSort === 'none') {
         itemsCurrentPriceSort = 'asc';
-        sortText.textContent = 'Low to High';
-        sortBtn.classList.remove('secondary');
-        sortBtn.classList.add('primary');
     } else if (itemsCurrentPriceSort === 'asc') {
         itemsCurrentPriceSort = 'desc';
-        sortText.textContent = 'High to Low';
-        sortBtn.classList.remove('primary');
-        sortBtn.classList.add('primary');
     } else {
         itemsCurrentPriceSort = 'none';
-        sortText.textContent = 'Low to High';
-        sortBtn.classList.remove('primary');
-        sortBtn.classList.add('secondary');
     }
-    
-    // Reset to first page and re-render
+    updatePriceSortHeader();
+    itemsCurrentPage = 1;
+    const searchInput = document.getElementById('productListSearchInput');
+    const filter = searchInput ? searchInput.value.trim() : '';
+    renderItemsList(filter);
+}
+
+// Toggle name sorting for products (triggered from Product Name column header) — A–Z / Z–A
+function toggleNameSort() {
+    itemsCurrentPriceSort = 'none';
+    updatePriceSortHeader();
+    if (itemsCurrentNameSort === 'none') {
+        itemsCurrentNameSort = 'asc';
+    } else if (itemsCurrentNameSort === 'asc') {
+        itemsCurrentNameSort = 'desc';
+    } else {
+        itemsCurrentNameSort = 'none';
+    }
+    updateNameSortHeader();
     itemsCurrentPage = 1;
     const searchInput = document.getElementById('productListSearchInput');
     const filter = searchInput ? searchInput.value.trim() : '';
@@ -638,6 +672,7 @@ async function deleteItem(productId) {
 
     try {
         await apiFetch(`/items/${productId}`, { method: 'DELETE' });
+        addLog('Product Deleted', CURRENT_USER_ROLE, `Deleted product: ${productId}`);
         renderItemsList();
         updateSummary();
     } catch (error) {
@@ -1015,9 +1050,21 @@ async function exportCustomerHistoryToCsv() {
     }
 }
 
-async function renderCustomersList() {
+async function renderCustomersList(searchFilter = '') {
     const customersResponse = await getCustomers();
-    const customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
+    let customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
+    
+    // Apply search filter
+    if (searchFilter.trim()) {
+        const filter = searchFilter.toLowerCase().trim();
+        customers = customers.filter(customer => {
+            return (customer.name && customer.name.toLowerCase().includes(filter)) ||
+                   (customer.email && customer.email.toLowerCase().includes(filter)) ||
+                   (customer.phone && customer.phone.toLowerCase().includes(filter)) ||
+                   (customer.address && customer.address.toLowerCase().includes(filter));
+        });
+    }
+    
     const body = document.getElementById('customersListBody');
     const customersTable = document.getElementById('customersTable');
     const paginationDiv = document.getElementById('customersPagination');
@@ -1208,7 +1255,9 @@ function updateCustomersPaginationControls(totalPages, totalItems) {
             firstBtn.textContent = '1';
             firstBtn.onclick = () => {
                 customersCurrentPage = 1;
-                renderCustomersList();
+                const searchInput = document.getElementById('customerListSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomersList(filter);
             };
             pageNumbersDiv.appendChild(firstBtn);
 
@@ -1229,7 +1278,9 @@ function updateCustomersPaginationControls(totalPages, totalItems) {
             
             pageBtn.onclick = () => {
                 customersCurrentPage = i;
-                renderCustomersList();
+                const searchInput = document.getElementById('customerListSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomersList(filter);
             };
             
             pageNumbersDiv.appendChild(pageBtn);
@@ -1247,7 +1298,9 @@ function updateCustomersPaginationControls(totalPages, totalItems) {
             lastBtn.textContent = totalPages;
             lastBtn.onclick = () => {
                 customersCurrentPage = totalPages;
-                renderCustomersList();
+                const searchInput = document.getElementById('customerListSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomersList(filter);
             };
             pageNumbersDiv.appendChild(lastBtn);
         }
@@ -1269,12 +1322,11 @@ function goToCustomersPage(direction) {
     customersCurrentPage += direction;
     if (customersCurrentPage < 1) customersCurrentPage = 1;
     
-    getCustomers().then(customers => {
-        const arr = Array.isArray(customers) ? customers : (customers?.data || []);
-        const totalPages = Math.ceil(arr.length / customersPerPage);
-        if (customersCurrentPage > totalPages) customersCurrentPage = totalPages;
-        renderCustomersList();
-    });
+    // Get current search filter
+    const searchInput = document.getElementById('customerListSearchInput');
+    const filter = searchInput ? searchInput.value.trim() : '';
+    
+    renderCustomersList(filter);
 }
 
 async function getCustomerByPhone(phoneNumber) {
@@ -1284,9 +1336,23 @@ async function getCustomerByPhone(phoneNumber) {
 }
 
 // --- Customer Details Management ---
-async function renderCustomerDetailsList() {
+async function renderCustomerDetailsList(searchFilter = '') {
     const customersResponse = await getCustomers();
-    const customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
+    let customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
+    const quotationsResponse = await getQuotations();
+    const quotations = Array.isArray(quotationsResponse) ? quotationsResponse : (quotationsResponse?.data || []);
+    
+    // Apply search filter
+    if (searchFilter.trim()) {
+        const filter = searchFilter.toLowerCase().trim();
+        customers = customers.filter(customer => {
+            return (customer.name && customer.name.toLowerCase().includes(filter)) ||
+                   (customer.email && customer.email.toLowerCase().includes(filter)) ||
+                   (customer.phone && customer.phone.toLowerCase().includes(filter)) ||
+                   (customer.address && customer.address.toLowerCase().includes(filter));
+        });
+    }
+    
     const body = document.getElementById('customerDetailsListBody');
     const customersTable = document.getElementById('customerDetailsTable');
     const paginationDiv = document.getElementById('customerDetailsPagination');
@@ -1295,7 +1361,7 @@ async function renderCustomerDetailsList() {
     body.innerHTML = '';
 
     if (customers.length === 0) {
-        body.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center">No customer data available.</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center">No customer data available.</td></tr>';
         if (customersTable) customersTable.style.display = 'none';
         if (paginationDiv) paginationDiv.style.display = 'none';
         return;
@@ -1324,18 +1390,25 @@ async function renderCustomerDetailsList() {
     updateCustomerDetailsPaginationControls(totalPages, customers.length);
 
         paginatedCustomers.forEach((customer, index) => {
-        const row = body.insertRow();
-        row.className = 'customer-row';
-        const phoneEscaped = (customer.phone || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        row.innerHTML = `
-            <td>${startIndex + index + 1}</td>
-            <td>${(customer.name || 'N/A').replace(/</g, '&lt;')}</td>
-            <td>${(customer.email || 'N/A').replace(/</g, '&lt;')}</td>
-            <td>${(customer.phone || 'N/A').replace(/</g, '&lt;')}</td>
-            <td>${(customer.address || 'N/A').replace(/</g, '&lt;')}</td>
-            <td>${(customer.lastQuotationDate || '').replace(/</g, '&lt;')}</td>
-            <td><button class="btn" style="padding: 5px 8px;" onclick="event.stopPropagation(); editCustomer('${phoneEscaped}')" title="Create quotation for this customer"><i class="fas fa-edit"></i></button></td>
-        `;
+            // Count quotations for this customer
+            const customerQuotationCount = quotations.filter(q => {
+                const phone = q.customer?.phone || q.customerPhone;
+                return phone === customer.phone;
+            }).length;
+
+            const row = body.insertRow();
+            row.className = 'customer-row';
+            const phoneEscaped = (customer.phone || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            row.innerHTML = `
+                <td>${startIndex + index + 1}</td>
+                <td>${(customer.name || 'N/A').replace(/</g, '&lt;')}</td>
+                <td>${(customer.email || 'N/A').replace(/</g, '&lt;')}</td>
+                <td>${(customer.phone || 'N/A').replace(/</g, '&lt;')}</td>
+                <td>${(customer.address || 'N/A').replace(/</g, '&lt;')}</td>
+                <td>${(customer.lastQuotationDate || '').replace(/</g, '&lt;')}</td>
+                <td>${customerQuotationCount}</td>
+                <td><button class="btn" style="padding: 5px 8px;" onclick="event.stopPropagation(); editCustomer('${phoneEscaped}')" title="Create quotation for this customer"><i class="fas fa-edit"></i></button></td>
+            `;
         
         // Add click event to toggle quotations
         row.addEventListener('click', () => toggleCustomerQuotations(customer.phone, row));
@@ -1401,7 +1474,9 @@ function updateCustomerDetailsPaginationControls(totalPages, totalItems) {
             firstBtn.textContent = '1';
             firstBtn.onclick = () => {
                 customerDetailsCurrentPage = 1;
-                renderCustomerDetailsList();
+                const searchInput = document.getElementById('customerDetailsSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomerDetailsList(filter);
             };
             pageNumbersDiv.appendChild(firstBtn);
 
@@ -1422,7 +1497,9 @@ function updateCustomerDetailsPaginationControls(totalPages, totalItems) {
             
             pageBtn.onclick = () => {
                 customerDetailsCurrentPage = i;
-                renderCustomerDetailsList();
+                const searchInput = document.getElementById('customerDetailsSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomerDetailsList(filter);
             };
             
             pageNumbersDiv.appendChild(pageBtn);
@@ -1440,7 +1517,9 @@ function updateCustomerDetailsPaginationControls(totalPages, totalItems) {
             lastBtn.textContent = totalPages;
             lastBtn.onclick = () => {
                 customerDetailsCurrentPage = totalPages;
-                renderCustomerDetailsList();
+                const searchInput = document.getElementById('customerDetailsSearchInput');
+                const filter = searchInput ? searchInput.value.trim() : '';
+                renderCustomerDetailsList(filter);
             };
             pageNumbersDiv.appendChild(lastBtn);
         }
@@ -1462,12 +1541,11 @@ function goToCustomerDetailsPage(direction) {
     customerDetailsCurrentPage += direction;
     if (customerDetailsCurrentPage < 1) customerDetailsCurrentPage = 1;
     
-    getCustomers().then(customers => {
-        const arr = Array.isArray(customers) ? customers : (customers?.data || []);
-        const totalPages = Math.ceil(arr.length / customerDetailsPerPage);
-        if (customerDetailsCurrentPage > totalPages) customerDetailsCurrentPage = totalPages;
-        renderCustomerDetailsList();
-    });
+    // Get current search filter
+    const searchInput = document.getElementById('customerDetailsSearchInput');
+    const filter = searchInput ? searchInput.value.trim() : '';
+    
+    renderCustomerDetailsList(filter);
 }
 
 // Toggle customer quotations dropdown
@@ -1522,7 +1600,7 @@ async function toggleCustomerQuotations(customerPhone, customerRow) {
         const quotationsRow = document.createElement('tr');
         quotationsRow.className = 'customer-quotation-row';
         quotationsRow.innerHTML = `
-            <td colspan="6">
+            <td colspan="7">
                 <div class="quotation-details">
                     <table class="data-table" style="margin: 0; background: white;">
                         <thead>
@@ -1533,31 +1611,35 @@ async function toggleCustomerQuotations(customerPhone, customerRow) {
                                 <th>Total Amount</th>
                                 <th>Items Count</th>
                                 <th>Created By</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${customerQuotations.map((quotation, qIndex) => `
-                                <tr>
-                                    <td>${customerSerialNumber}.${qIndex + 1}</td>
+                                <tr style="border-bottom: 2px solid #e0e0e0; background-color: #f8f9fa;">
+                                    <td style="font-weight: bold; color: #2196f3;">${customerSerialNumber}.${qIndex + 1}</td>
                                     <td>${new Date(quotation.dateCreated || quotation.created_at).toLocaleDateString()}</td>
                                     <td>${quotation.created_at ? new Date(quotation.created_at).toLocaleString() : new Date(quotation.dateCreated).toLocaleString()}</td>
-                                    <td>${formatRupee(quotation.totalAmount || quotation.total)}</td>
+                                    <td style="font-weight: bold; color: #27ae60;">${formatRupee(quotation.totalAmount || quotation.total)}</td>
                                     <td>${quotation.items ? quotation.items.length : 0}</td>
                                     <td>${quotation.createdBy || quotation.user || 'N/A'}</td>
+                                    <td><button class="btn" style="padding: 4px 8px; font-size: 12px;" onclick="event.stopPropagation(); editQuotationInCreateSection('${quotation.quotationId || quotation.id}')" title="Edit quotation"><i class="fas fa-edit"></i></button></td>
                                 </tr>
                                 ${quotation.items && quotation.items.length > 0 ? `
                                     <tr>
-                                        <td colspan="6" style="padding: 0;">
-                                            <table class="data-table" style="margin: 10px 0 0 20px; width: calc(100% - 20px); background: #fafafa;">
-                                                <thead>
-                                                    <tr>
-                                                        <th style="text-align: left; padding-left: 20px;">Item Details</th>
-                                                        <th>Quantity</th>
-                                                        <th>Unit Price</th>
-                                                        <th>Total</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
+                                        <td colspan="7" style="padding: 0; border-bottom: 1px solid #e0e0e0;">
+                                            <div style="background: #ffffff; margin: 8px; padding: 12px; border-radius: 8px; border-left: 4px solid #2196f3; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                                <h4 style="margin: 0 0 10px 0; color: #34495e; font-size: 14px;">Items Details</h4>
+                                                <table class="data-table" style="margin: 0; width: 100%; background: transparent;">
+                                                    <thead>
+                                                        <tr>
+                                                            <th style="text-align: left; padding-left: 8px; font-size: 12px;">Item Details</th>
+                                                            <th style="font-size: 12px;">Quantity</th>
+                                                            <th style="font-size: 12px;">Unit Price</th>
+                                                            <th style="font-size: 12px;">Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
                                                     ${quotation.items.map((item, itemIndex) => `
                                                         <tr>
                                                             <td style="text-align: left; padding-left: 20px;">
@@ -1570,6 +1652,7 @@ async function toggleCustomerQuotations(customerPhone, customerRow) {
                                                     `).join('')}
                                                 </tbody>
                                             </table>
+                                            </div>
                                         </td>
                                     </tr>
                                 ` : ''}
@@ -1726,6 +1809,14 @@ async function renderAvailableItemsForQuotation(filter = '', typeFilter = '') {
         }
         return matchesSearch && matchesType;
     });
+
+    const priceSortBtn = document.getElementById('quotationPriceSortBtn');
+    const priceSort = priceSortBtn?.getAttribute('data-price-sort') || 'none';
+    if (priceSort === 'lowToHigh') {
+        filteredItems.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+    } else if (priceSort === 'highToLow') {
+        filteredItems.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+    }
 
     if (filteredItems.length === 0) {
         listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products found matching your search.</p>';
@@ -1959,7 +2050,8 @@ function renderQuotationItems() {
         const removeBtn = document.createElement('button');
         removeBtn.className = 'btn danger';
         removeBtn.style.padding = '5px 8px';
-        removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+        removeBtn.title = 'Remove item from quotation';
+        removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
         removeBtn.onclick = () => removeItemFromQuotation(item.productId);
         actionsCell.appendChild(removeBtn);
     });
@@ -1996,6 +2088,75 @@ function updateGrandTotal() {
 async function createQuotation() {
     if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE)) {
         alert('You are not authorized to create quotations.');
+        return;
+    }
+
+    // Edit mode: update existing quotation via create section (same flow as resume drafts)
+    if (currentEditQuotationId) {
+        const qid = currentEditQuotationId;
+        const customerName = document.getElementById('cust-name')?.value.trim() || null;
+        const phoneNumber = document.getElementById('phone-number')?.value.trim();
+        const customerEmail = document.getElementById('cust-email')?.value.trim() || null;
+        const customerAddress = document.getElementById('cust-address')?.value.trim() || null;
+        const items = getQuotationItems();
+        if (!phoneNumber || phoneNumber.length !== 10) {
+            alert('Please enter a valid 10-digit phone number for the customer.');
+            return;
+        }
+        if (items.length === 0) {
+            alert('Please add at least one item to the quotation.');
+            return;
+        }
+        const discountPercent = parseFloat(document.getElementById('discount-percent')?.value || 0);
+        const cust = { name: customerName || '', phone: phoneNumber, email: customerEmail || null, address: customerAddress || null };
+        const itemsForUpdate = items.filter(it => it.productName && (parseFloat(it.price) || 0) > 0).map((it, idx) => ({
+            productId: it.productId || `custom-${Date.now()}-${idx}`,
+            productName: it.productName,
+            price: parseFloat(it.price) || 0,
+            quantity: parseInt(it.quantity, 10) || 1,
+            gstRate: parseFloat(it.gstRate) || 0
+        }));
+        if (itemsForUpdate.length === 0) {
+            alert('Add at least one item with a valid price.');
+            return;
+        }
+        try {
+            const imagesForSave = await ensureImagesAreUrls(getUploadedImages() || []);
+            const res = await apiFetch(`/quotations/${qid}/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customer: cust, items: itemsForUpdate, discountPercent, images: imagesForSave })
+            });
+            if (res && (res.success !== false)) {
+                currentEditQuotationId = null;
+                const createBtn = document.getElementById('createQuotationBtn');
+                if (createBtn) createBtn.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create Quotation';
+                document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> Create quotation' : 'Create quotation'; });
+                const sectionTitle = document.getElementById('createQuotationSectionTitle');
+                if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
+                const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+                if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+                quotationItems = [];
+                document.getElementById('cust-name').value = '';
+                document.getElementById('phone-number').value = '';
+                document.getElementById('cust-email').value = '';
+                document.getElementById('cust-address').value = '';
+                const discountPercentInput = document.getElementById('discount-percent');
+                if (discountPercentInput) discountPercentInput.value = '0';
+                clearImageUpload();
+                renderQuotationItems();
+                updateGrandTotal();
+                renderHistoryList();
+                renderCustomersList();
+                renderCustomerDetailsList();
+                alert('Quotation updated successfully.');
+            } else {
+                alert(res?.message || 'Failed to update quotation.');
+            }
+        } catch (e) {
+            console.error('Update quotation error:', e);
+            alert('Failed to update quotation.');
+        }
         return;
     }
 
@@ -2397,9 +2558,13 @@ async function generateQuotationHtml(quotation, options = {}) {
     const companyGstId = settings.companyGstId || 'N/A';
     const validityDays = quotation.validityDays || settings.validityDays || settings.defaultValidityDays || 3;
     
-    // Get PDF theme colors
-    const pdfThemeName = settings.pdfTheme || 'default';
-    const theme = PDF_THEMES[pdfThemeName] || PDF_THEMES.default;
+    // Get PDF theme colors and fonts (includes custom themes from localStorage)
+    const pdfThemeName = getEffectivePdfThemeKey(settings);
+    const themeMap = getEffectivePdfThemes();
+    const theme = themeMap[pdfThemeName] || themeMap.default;
+    const pdfFontPrimary = getPdfFontFamilyCss(getEffectivePdfFontPrimary());
+    const pdfFontSecondary = getPdfFontFamilyCss(getEffectivePdfFontSecondary());
+    const pdfFontTertiary = getPdfFontFamilyCss(getEffectivePdfFontTertiary());
     
     // Company details - using defaults if not in settings
     const companyAddress = settings.companyAddress || '1102, second Floor, Before Atithi Satkar<br>Hotel OTC Road, Bangalore 560002';
@@ -2520,7 +2685,7 @@ async function generateQuotationHtml(quotation, options = {}) {
             `;
         }).join('');
         return `
-                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
+                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
                     <style>.theme-border { border-color: ${theme.border} !important; }</style>
                     ${logoImgHtml}
                     ${customerImageHtml}
@@ -2531,7 +2696,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                             <div style="font-size: 12px; color: #6b7280;">${companyEmail}</div>
                             <div style="font-size: 12px; color: #6b7280;">${companyPhone}</div>
                         </div>
-                        <div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em;">Project Preview</h1></div>
+                        <div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Project Preview</h1></div>
                         <div style="width: 200px;"></div>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
@@ -2551,9 +2716,9 @@ async function generateQuotationHtml(quotation, options = {}) {
     }
 
     return `
-                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
+                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
                     <style>
-                        .q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 14px; }
+                        .q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 14px; font-family: ${pdfFontSecondary}; }
                         .q-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid ${theme.primary}; color: ${theme.secondary}; font-weight: 600; }
                         .q-table td { padding: 14px 12px; border-bottom: 1px solid ${theme.border}; }
                         .q-table .text-right { text-align: right; }
@@ -2571,7 +2736,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                             <div style="font-size: 12px; color: #6b7280;">${companyPhone}</div>
                         </div>
                         <div style="flex: 1; text-align: center;">
-                            <h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em;">Quotation</h1>
+                            <h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Quotation</h1>
                         </div>
                         <div style="width: 200px;"></div>
                     </div>
@@ -2767,6 +2932,12 @@ async function renderItemsList(filter = '') {
         return matchesSearch && matchesType;
     });
 
+    // Apply name sorting if enabled (A–Z / Z–A)
+    if (itemsCurrentNameSort === 'asc') {
+        filteredItems.sort((a, b) => (String(a.productName || '').localeCompare(String(b.productName || ''), 'en-IN', { sensitivity: 'base' })));
+    } else if (itemsCurrentNameSort === 'desc') {
+        filteredItems.sort((a, b) => (String(b.productName || '').localeCompare(String(a.productName || ''), 'en-IN', { sensitivity: 'base' })));
+    }
     // Apply price sorting if enabled
     if (itemsCurrentPriceSort === 'asc') {
         filteredItems.sort((a, b) => parseFloat(a.price || 0) - parseFloat(b.price || 0));
@@ -2801,6 +2972,8 @@ async function renderItemsList(filter = '') {
 
     // Update pagination controls
     updateItemsPaginationControls(totalPages, filteredItems.length);
+    updatePriceSortHeader();
+    updateNameSortHeader();
 
     const isAuthorizedToEdit = AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE);
 
@@ -3054,9 +3227,9 @@ async function renderHistoryList() {
 
     quotations.sort((a, b) => {
         try {
-            const dateA = new Date(a.dateCreated || a.created_at || 0);
-            const dateB = new Date(b.dateCreated || b.created_at || 0);
-            return dateB - dateA; // Most recent first
+            const dateA = new Date(a.updated_at || a.dateCreated || a.created_at || 0);
+            const dateB = new Date(b.updated_at || b.dateCreated || b.created_at || 0);
+            return dateB - dateA; // Most recent activity first (includes updates)
         } catch (e) {
             return 0;
         }
@@ -3078,6 +3251,9 @@ async function renderHistoryList() {
         const customerPhone = quote.customer?.phone || quote.customerPhone || '';
         row.insertCell().textContent = customerName !== 'N/A' ? customerName : (customerPhone || 'N/A');
         row.insertCell().textContent = quote.dateCreated || quote.created_at || 'N/A';
+        const updatedAt = quote.updated_at;
+        const lastUpdatedStr = updatedAt ? new Date(updatedAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+        row.insertCell().textContent = lastUpdatedStr;
         row.insertCell().textContent = formatRupee(parseFloat(quote.grandTotal) || 0);
         row.insertCell().textContent = (quote.items?.length || 0);
         row.insertCell().textContent = quote.createdBy || quote.created_by || 'N/A';
@@ -3087,7 +3263,7 @@ async function renderHistoryList() {
         actionsCell.innerHTML = `
                     <button class="btn primary" style="padding: 5px 8px; margin-right: 5px;" onclick="fetchQuotationAndGeneratePdf('${quoteId}')" title="Download PDF"><i class="fas fa-download"></i></button>
                     <button class="btn secondary" style="padding: 5px 8px; margin-right: 5px;" onclick="viewQuotationDetails('${quoteId}')" title="View"><i class="fas fa-eye"></i></button>
-                    <button class="btn" style="padding: 5px 8px; margin-right: 5px;" onclick="openEditQuotationModal('${quoteId}')" title="Edit"><i class="fas fa-edit"></i></button>
+                    <button class="btn" style="padding: 5px 8px; margin-right: 5px;" onclick="editQuotationInCreateSection('${quoteId}')" title="Edit"><i class="fas fa-edit"></i></button>
                     <button class="btn danger" style="padding: 5px 8px;" onclick="deleteQuotation('${quoteId}')" title="Delete"><i class="fas fa-trash-alt"></i></button>
                 `;
     });
@@ -3146,15 +3322,11 @@ async function renderItemsTypeFilters() {
         btn.addEventListener('click', () => {
             itemsCurrentTypeFilter = typeValue || '';
             
-            // Reset price sort when type filter changes
+            // Reset price and name sort when type filter changes
             itemsCurrentPriceSort = 'none';
-            const sortBtn = document.getElementById('priceSortBtn');
-            const sortText = document.getElementById('priceSortText');
-            if (sortBtn && sortText) {
-                sortText.textContent = 'Low to High';
-                sortBtn.classList.remove('primary');
-                sortBtn.classList.add('secondary');
-            }
+            itemsCurrentNameSort = 'none';
+            updatePriceSortHeader();
+            updateNameSortHeader();
 
             // Toggle active state
             container.querySelectorAll('.items-type-filter-btn').forEach(b => b.classList.remove('active'));
@@ -3663,6 +3835,55 @@ function renderEditQuotationItems() {
     recalcEditQuotationTotal();
 }
 
+/** Redirect to create quotation section with quotation data loaded (like resume drafts). */
+async function editQuotationInCreateSection(quotationId) {
+    if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE) && !AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE)) {
+        alert('You are not authorized to edit quotations.');
+        return;
+    }
+    try {
+        const data = await apiFetch(`/quotations/${quotationId}`);
+        const quote = data?.data || data;
+        if (!quote || (!quote.quotationId && !quote.id)) {
+            alert('Quotation not found.');
+            return;
+        }
+        const qid = quote.quotationId || quote.id;
+        currentEditQuotationId = qid;
+        currentQuotationDraftId = null;
+        const cust = quote.customer || {};
+        document.getElementById('cust-name').value = cust.name || quote.customerName || '';
+        document.getElementById('phone-number').value = cust.phone || quote.customerPhone || '';
+        document.getElementById('cust-email').value = cust.email || quote.customerEmail || '';
+        document.getElementById('cust-address').value = cust.address || quote.customerAddress || '';
+        const discountPercentInput = document.getElementById('discount-percent');
+        if (discountPercentInput) discountPercentInput.value = quote.discountPercent != null ? quote.discountPercent : 0;
+        quotationItems = (quote.items || []).map(it => ({
+            productId: it.productId,
+            productName: it.productName,
+            price: it.price,
+            quantity: it.quantity || 1,
+            gstRate: it.gstRate != null ? it.gstRate : 0
+        }));
+        uploadedImagesArray = Array.isArray(quote.images) && quote.images.length > 0 ? [quote.images[0]] : [];
+        renderCreateImagePreviews();
+        renderQuotationItems();
+        updateGrandTotal();
+        const createBtn = document.getElementById('createQuotationBtn');
+        if (createBtn) createBtn.innerHTML = '<i class="fas fa-edit"></i> Edit Quotation';
+        document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> Edit Quotation' : 'Edit Quotation'; });
+        const sectionTitle = document.getElementById('createQuotationSectionTitle');
+        if (sectionTitle) sectionTitle.textContent = 'Edit Quotation';
+        const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+        if (cancelEditBtn) cancelEditBtn.style.display = '';
+        showSection('createQuotation');
+        loadQuotationDrafts(true);
+    } catch (e) {
+        console.error('Error loading quotation for edit:', e);
+        alert('Failed to load quotation.');
+    }
+}
+
 async function openEditQuotationModal(quotationId) {
     if (!AUTHORIZED_TO_CREATE_QUOTATIONS.includes(CURRENT_USER_ROLE) && !AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE)) {
         alert('You are not authorized to edit quotations.');
@@ -3811,6 +4032,28 @@ function closeEditQuotationModal() {
     editQuoteImagesArray = [];
 }
 
+function cancelEditInCreateSection() {
+    if (!currentEditQuotationId) return;
+    currentEditQuotationId = null;
+    const createBtn = document.getElementById('createQuotationBtn');
+    if (createBtn) createBtn.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create Quotation';
+    document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> Create quotation' : 'Create quotation'; });
+    const sectionTitle = document.getElementById('createQuotationSectionTitle');
+    if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
+    const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+    if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+    quotationItems = [];
+    document.getElementById('cust-name').value = '';
+    document.getElementById('phone-number').value = '';
+    document.getElementById('cust-email').value = '';
+    document.getElementById('cust-address').value = '';
+    const discountPercentInput = document.getElementById('discount-percent');
+    if (discountPercentInput) discountPercentInput.value = '0';
+    clearImageUpload();
+    renderQuotationItems();
+    updateGrandTotal();
+}
+
 function initEditQuotationModal() {
     const modal = document.getElementById('editQuotationModal');
     if (!modal) return;
@@ -3957,10 +4200,15 @@ async function renderSettings() {
     document.getElementById('settings-validity-days').value = settings.validityDays ?? settings.defaultValidityDays ?? 3;
     document.getElementById('validityDaysDisplay').textContent = settings.validityDays ?? settings.defaultValidityDays ?? 3;
 
-    // PDF Theme
-    const pdfTheme = settings.pdfTheme || 'default';
-    document.getElementById('settings-pdf-theme').value = pdfTheme;
-    updateThemePreview(pdfTheme);
+    // PDF Theme and fonts (include custom themes from localStorage)
+    const effectiveKey = getEffectivePdfThemeKey(settings);
+    refreshPdfThemeSelect(effectiveKey);
+    var fontPrimaryEl = document.getElementById('settings-pdf-font-primary');
+    var fontSecondaryEl = document.getElementById('settings-pdf-font-secondary');
+    var fontTertiaryEl = document.getElementById('settings-pdf-font-tertiary');
+    if (fontPrimaryEl) fontPrimaryEl.value = getEffectivePdfFontPrimary();
+    if (fontSecondaryEl) fontSecondaryEl.value = getEffectivePdfFontSecondary();
+    if (fontTertiaryEl) fontTertiaryEl.value = getEffectivePdfFontTertiary();
 
     // Logo
     const logoBase64 = settings.logo;
@@ -4283,9 +4531,23 @@ initEditProductModal();
 initEditCustomerModal();
 initEditQuotationModal();
 document.getElementById('createQuotationBtn')?.addEventListener('click', createQuotation);
+document.getElementById('cancelEditInCreateSectionBtn')?.addEventListener('click', cancelEditInCreateSection);
 document.getElementById('itemSearchInput')?.addEventListener('input', (e) => {
     const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
     renderAvailableItemsForQuotation(e.target.value, activeTypeFilter);
+});
+
+document.getElementById('quotationPriceSortBtn')?.addEventListener('click', function() {
+    const next = { none: 'lowToHigh', lowToHigh: 'highToLow', highToLow: 'none' };
+    const labels = { none: 'Sort by price', lowToHigh: 'Price: Low to High', highToLow: 'Price: High to Low' };
+    const current = this.getAttribute('data-price-sort') || 'none';
+    const state = next[current];
+    this.setAttribute('data-price-sort', state);
+    this.textContent = labels[state];
+    this.classList.toggle('active', state !== 'none');
+    const searchValue = document.getElementById('itemSearchInput')?.value || '';
+    const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+    renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
 });
 
 document.getElementById('compatibleFilterToggle')?.addEventListener('change', function() {
@@ -4429,6 +4691,7 @@ async function deleteQuotationDraft(draftId) {
     if (!confirm('Delete this draft?')) return;
     try {
         await apiFetch(`/drafts/quotations/${draftId}`, { method: 'DELETE' });
+        addLog('Quotation Draft Deleted', CURRENT_USER_ROLE, `Deleted quotation draft: ${draftId}`);
         if (currentQuotationDraftId === draftId) currentQuotationDraftId = null;
         loadQuotationDrafts(true);
     } catch (e) {
@@ -4512,6 +4775,7 @@ async function deleteItemDraft(draftId) {
     if (!confirm('Delete this draft?')) return;
     try {
         await apiFetch(`/drafts/items/${draftId}`, { method: 'DELETE' });
+        addLog('Product Draft Deleted', CURRENT_USER_ROLE, `Deleted product draft: ${draftId}`);
         if (currentItemDraftId === draftId) currentItemDraftId = null;
         loadItemDrafts(true);
     } catch (e) {
@@ -4697,7 +4961,26 @@ async function showSection(sectionId) {
         renderQuotationItems();
         updateGrandTotal();
         loadQuotationDrafts();
-        draftQuotationIntervalId = setInterval(() => { saveQuotationDraftToServer(); loadQuotationDrafts(); }, DRAFT_AUTO_SAVE_MS);
+        const createBtn = document.getElementById('createQuotationBtn');
+        const createTabLabel = 'Create quotation';
+        const editTabLabel = 'Edit Quotation';
+        if (currentEditQuotationId) {
+            if (createBtn) createBtn.innerHTML = '<i class="fas fa-edit"></i> Edit Quotation';
+            document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> ' + editTabLabel : editTabLabel; });
+            const sectionTitle = document.getElementById('createQuotationSectionTitle');
+            if (sectionTitle) sectionTitle.textContent = 'Edit Quotation';
+            const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+            if (cancelEditBtn) cancelEditBtn.style.display = '';
+            // Do not start draft auto-save when editing existing quotation
+        } else {
+            if (createBtn) createBtn.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create Quotation';
+            document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> ' + createTabLabel : createTabLabel; });
+            const sectionTitle = document.getElementById('createQuotationSectionTitle');
+            if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
+            const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
+            if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+            draftQuotationIntervalId = setInterval(() => { saveQuotationDraftToServer(); loadQuotationDrafts(); }, DRAFT_AUTO_SAVE_MS);
+        }
     }
     if (sectionId === 'quotationDrafts') {
         loadQuotationDrafts(true);
@@ -4931,51 +5214,255 @@ const PDF_THEMES = {
     }
 };
 
+// Custom PDF themes (stored in localStorage for cPanel/production compatibility)
+const PDF_CUSTOM_THEMES_KEY = 'owner_pdf_custom_themes';
+const PDF_THEME_OVERRIDE_KEY = 'owner_pdf_theme_override';
+const PDF_FONT_PRIMARY_KEY = 'owner_pdf_font_primary';
+const PDF_FONT_SECONDARY_KEY = 'owner_pdf_font_secondary';
+const PDF_FONT_TERTIARY_KEY = 'owner_pdf_font_tertiary';
+
+function getEffectivePdfFontPrimary() {
+    try { return localStorage.getItem(PDF_FONT_PRIMARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; }
+}
+function getEffectivePdfFontSecondary() {
+    try { return localStorage.getItem(PDF_FONT_SECONDARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; }
+}
+function getEffectivePdfFontTertiary() {
+    try { return localStorage.getItem(PDF_FONT_TERTIARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; }
+}
+
+function getPdfFontFamilyCss(fontKey) {
+    const key = fontKey || 'segoe';
+    const map = {
+        segoe: "'Segoe UI', system-ui, -apple-system, sans-serif",
+        arial: "Arial, Helvetica, sans-serif",
+        helvetica: "Helvetica, Arial, sans-serif",
+        verdana: "Verdana, Geneva, sans-serif",
+        georgia: "Georgia, serif",
+        times: "'Times New Roman', Times, serif",
+        system: "system-ui, -apple-system, sans-serif"
+    };
+    return map[key] || map.segoe;
+}
+
+function getCustomPdfThemes() {
+    try {
+        const raw = localStorage.getItem(PDF_CUSTOM_THEMES_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function setCustomPdfThemes(themes) {
+    try {
+        localStorage.setItem(PDF_CUSTOM_THEMES_KEY, JSON.stringify(themes));
+    } catch (e) { }
+}
+
+function getPdfThemeOverride() {
+    try {
+        return localStorage.getItem(PDF_THEME_OVERRIDE_KEY) || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function setPdfThemeOverride(value) {
+    try {
+        if (value) localStorage.setItem(PDF_THEME_OVERRIDE_KEY, value);
+        else localStorage.removeItem(PDF_THEME_OVERRIDE_KEY);
+    } catch (e) { }
+}
+
+function getEffectivePdfThemes() {
+    const custom = getCustomPdfThemes();
+    const map = { ...PDF_THEMES };
+    custom.forEach(function (t) {
+        map[t.id] = {
+            name: t.name,
+            primary: t.primary,
+            secondary: t.secondary,
+            border: t.border,
+            accent: t.accent || t.primary,
+            pastelBg: t.pastelBg || '#f9fafb'
+        };
+    });
+    return map;
+}
+
+function getEffectivePdfThemeKey(settings) {
+    const override = getPdfThemeOverride();
+    if (override) return override;
+    return (settings && settings.pdfTheme) ? settings.pdfTheme : 'default';
+}
+
+function refreshPdfThemeSelect(selectedValue) {
+    const themeSelect = document.getElementById('settings-pdf-theme');
+    if (!themeSelect) return;
+    const custom = getCustomPdfThemes();
+    // Remove existing custom options (value starts with custom_)
+    Array.from(themeSelect.options).forEach(function (opt) {
+        if (opt.value && opt.value.indexOf('custom_') === 0) opt.remove();
+    });
+    // Find "Customize theme..." option to insert before it
+    const customizeOpt = Array.from(themeSelect.options).find(function (o) { return o.value === '__customize__'; });
+    custom.forEach(function (t) {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.name + ' (custom)';
+        themeSelect.insertBefore(opt, customizeOpt || null);
+    });
+    if (selectedValue !== undefined && selectedValue !== null) {
+        themeSelect.value = selectedValue;
+        updateThemePreview(selectedValue);
+    }
+}
+
 // Initialize PDF Theme functionality
 function initializePdfThemeSettings() {
     const themeSelect = document.getElementById('settings-pdf-theme');
     const saveBtn = document.getElementById('savePdfThemeBtn');
+    const customPanel = document.getElementById('customThemePanel');
+    const cancelCustomBtn = document.getElementById('cancelCustomThemeBtn');
+    const saveCustomBtn = document.getElementById('saveCustomThemeBtn');
+    const customName = document.getElementById('custom-theme-name');
+    const color1 = document.getElementById('custom-theme-color1');
+    const color2 = document.getElementById('custom-theme-color2');
+    const color3 = document.getElementById('custom-theme-color3');
+    const hex1 = document.getElementById('custom-theme-hex1');
+    const hex2 = document.getElementById('custom-theme-hex2');
+    const hex3 = document.getElementById('custom-theme-hex3');
     
     if (!themeSelect || !saveBtn) {
         console.warn('PDF theme elements not found');
         return;
     }
     
-    // Update theme preview when selection changes
-    themeSelect.addEventListener('change', function() {
+    refreshPdfThemeSelect();
+    
+    // Sync color wheel and hex inputs
+    function syncColorToHex(inputColor, inputHex) {
+        if (!inputColor || !inputHex) return;
+        inputColor.addEventListener('input', function () {
+            inputHex.value = inputColor.value;
+        });
+        inputColor.addEventListener('change', function () {
+            inputHex.value = inputColor.value;
+        });
+        inputHex.addEventListener('input', function () {
+            var v = inputHex.value.trim();
+            if (/^#[0-9A-Fa-f]{6}$/.test(v)) inputColor.value = v;
+        });
+        inputHex.addEventListener('change', function () {
+            var v = inputHex.value.trim();
+            if (!/^#/.test(v)) v = '#' + v;
+            if (/^#[0-9A-Fa-f]{6}$/.test(v)) {
+                inputColor.value = v;
+                inputHex.value = v;
+            }
+        });
+    }
+    syncColorToHex(color1, hex1);
+    syncColorToHex(color2, hex2);
+    syncColorToHex(color3, hex3);
+    
+    function openCustomPanel() {
+        if (customPanel) customPanel.style.display = 'block';
+        customName.value = '';
+        color1.value = '#3A648C';
+        hex1.value = '#3A648C';
+        color2.value = '#111827';
+        hex2.value = '#111827';
+        color3.value = '#e5e7eb';
+        hex3.value = '#e5e7eb';
+    }
+    
+    function closeCustomPanel() {
+        if (customPanel) customPanel.style.display = 'none';
+        if (themeSelect.value === '__customize__') {
+            themeSelect.value = getPdfThemeOverride() || 'default';
+            updateThemePreview(themeSelect.value);
+        }
+    }
+    
+    themeSelect.addEventListener('change', function () {
+        if (this.value === '__customize__') {
+            openCustomPanel();
+            return;
+        }
+        closeCustomPanel();
         updateThemePreview(this.value);
     });
     
-    // Save PDF theme
+    if (cancelCustomBtn) cancelCustomBtn.addEventListener('click', closeCustomPanel);
+    
+    if (saveCustomBtn) {
+        saveCustomBtn.addEventListener('click', function () {
+            var name = (customName && customName.value.trim()) || 'Custom';
+            var primary = (hex1 && hex1.value.trim()) || color1.value;
+            var secondary = (hex2 && hex2.value.trim()) || color2.value;
+            var border = (hex3 && hex3.value.trim()) || color3.value;
+            if (!/^#/.test(primary)) primary = '#' + primary;
+            if (!/^#/.test(secondary)) secondary = '#' + secondary;
+            if (!/^#/.test(border)) border = '#' + border;
+            if (!/^#[0-9A-Fa-f]{6}$/.test(primary)) primary = '#3A648C';
+            if (!/^#[0-9A-Fa-f]{6}$/.test(secondary)) secondary = '#111827';
+            if (!/^#[0-9A-Fa-f]{6}$/.test(border)) border = '#e5e7eb';
+            var id = 'custom_' + Date.now();
+            var themes = getCustomPdfThemes();
+            themes.push({
+                id: id,
+                name: name,
+                primary: primary,
+                secondary: secondary,
+                border: border,
+                accent: primary,
+                pastelBg: '#f9fafb'
+            });
+            setCustomPdfThemes(themes);
+            setPdfThemeOverride(id);
+            refreshPdfThemeSelect(id);
+            closeCustomPanel();
+            alert('Custom theme "' + name + '" saved. Click "Save Theme" to keep it as your current theme.');
+        });
+    }
+    
+    // Save PDF theme (built-in: save to API; custom: save override only)
     saveBtn.addEventListener('click', async function () {
         const selectedTheme = themeSelect.value;
-        const saveBtn = this;
+        const saveBtnEl = this;
         
-        // Show loading state
-        const originalText = saveBtn.innerHTML;
-        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-        saveBtn.disabled = true;
+        if (selectedTheme === '__customize__') {
+            alert('Please choose a theme from the list or create one using "Customize theme...".');
+            return;
+        }
+        
+        const isCustom = selectedTheme && selectedTheme.indexOf('custom_') === 0;
+        
+        const originalText = saveBtnEl.innerHTML;
+        saveBtnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        saveBtnEl.disabled = true;
         
         try {
-            const response = await apiFetch('/settings', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pdfTheme: selectedTheme })
-            });
-            
-            // Show success message
-            alert('PDF theme saved successfully!');
-            
-            // Update any current theme display if needed
-            console.log('PDF theme updated to:', selectedTheme);
-            
+            if (isCustom) {
+                setPdfThemeOverride(selectedTheme);
+                alert('PDF theme saved successfully!');
+            } else {
+                const response = await apiFetch('/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pdfTheme: selectedTheme })
+                });
+                setPdfThemeOverride(null);
+                alert('PDF theme saved successfully!');
+            }
         } catch (error) {
             console.error('Failed to save PDF theme:', error);
             alert('Failed to save PDF theme. Please try again.');
         } finally {
-            // Restore button state
-            saveBtn.innerHTML = originalText;
-            saveBtn.disabled = false;
+            saveBtnEl.innerHTML = originalText;
+            saveBtnEl.disabled = false;
         }
     });
 }
@@ -4987,9 +5474,27 @@ if (document.readyState === 'loading') {
     initializePdfThemeSettings();
 }
 
+// PDF Fonts save (separate section: primary, secondary, tertiary)
+document.getElementById('savePdfFontBtn')?.addEventListener('click', function () {
+    var primary = document.getElementById('settings-pdf-font-primary');
+    var secondary = document.getElementById('settings-pdf-font-secondary');
+    var tertiary = document.getElementById('settings-pdf-font-tertiary');
+    if (!primary || !secondary || !tertiary) return;
+    try {
+        localStorage.setItem(PDF_FONT_PRIMARY_KEY, primary.value || 'segoe');
+        localStorage.setItem(PDF_FONT_SECONDARY_KEY, secondary.value || 'segoe');
+        localStorage.setItem(PDF_FONT_TERTIARY_KEY, tertiary.value || 'segoe');
+        alert('PDF fonts saved successfully!');
+    } catch (e) {
+        alert('Failed to save PDF fonts.');
+    }
+});
+
 // Function to update theme preview
 function updateThemePreview(themeName) {
-    const theme = PDF_THEMES[themeName];
+    if (themeName === '__customize__') return;
+    const themes = getEffectivePdfThemes();
+    const theme = themes[themeName];
     if (!theme) return;
     
     const previewHeader = document.getElementById('previewHeader');
@@ -5022,7 +5527,11 @@ async function handleLogoUpload(event) {
             method: 'POST',
             body: formData
         });
-        renderSettings();
+        await renderSettings();
+        getSettings().then(s => {
+            const logoEl = document.querySelector('.sidebar .brand img');
+            if (logoEl) logoEl.src = (s && s.logo) || 'images/Logo.svg';
+        }).catch(() => {});
         alert('Company logo uploaded successfully!');
     } catch (e) { }
 }
@@ -5031,7 +5540,9 @@ document.getElementById('removeLogoBtn')?.addEventListener('click', async functi
     if (!confirm('Are you sure you want to remove the company logo?')) return;
     try {
         await apiFetch('/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logo: null }) });
-        renderSettings();
+        await renderSettings();
+        const logoEl = document.querySelector('.sidebar .brand img');
+        if (logoEl) logoEl.src = 'images/Logo.svg';
         alert('Company logo removed.');
     } catch (e) {
         alert('Failed to remove logo.');
@@ -5046,6 +5557,7 @@ async function deleteQuotation(quotationId) {
     if (!confirm(`Are you sure you want to delete quotation ID ${quotationId}?`)) return;
     try {
         await apiFetch(`/quotations/${quotationId}`, { method: 'DELETE' });
+        addLog('Quotation Deleted', CURRENT_USER_ROLE, `Deleted quotation: ${quotationId}`);
         renderHistoryList();
         updateSummary();
     } catch (e) { }
@@ -5076,6 +5588,12 @@ async function initializeDashboard() {
     if (userAvatar) userAvatar.textContent = CURRENT_USER_ROLE.charAt(0).toUpperCase();
 
     applyRoleRestrictions();
+
+    // Apply company logo in sidebar (from settings)
+    getSettings().then(s => {
+        const logoEl = document.querySelector('.sidebar .brand img');
+        if (logoEl && s && s.logo) logoEl.src = s.logo;
+    }).catch(() => {});
 
     // Load initial data - prioritize critical data first, then load others
     try {
@@ -5712,6 +6230,26 @@ window.onload = function() {
         });
     }
     
+    // Connect customer list search input
+    const customerListSearchInput = document.getElementById('customerListSearchInput');
+    if (customerListSearchInput) {
+        customerListSearchInput.addEventListener('input', function(e) {
+            const filter = e.target.value.trim();
+            customersCurrentPage = 1; // Reset to first page when searching
+            renderCustomersList(filter);
+        });
+    }
+
+    // Connect customer details search input
+    const customerDetailsSearchInput = document.getElementById('customerDetailsSearchInput');
+    if (customerDetailsSearchInput) {
+        customerDetailsSearchInput.addEventListener('input', function(e) {
+            const filter = e.target.value.trim();
+            customerDetailsCurrentPage = 1; // Reset to first page when searching
+            renderCustomerDetailsList(filter);
+        });
+    }
+
     // Initial load: render type filters and dashboard (prioritize critical rendering)
     // Load dashboard first, then type filters (non-critical)
     initializeDashboard().then(() => {
