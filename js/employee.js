@@ -2283,7 +2283,8 @@
                 const logoPng = logoDataUrl ? await imageDataUrlToPng(logoDataUrl) : null;
 
                 const PRODUCTS_PER_PAGE = 6;
-                const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
+                const rawItems = quotation.items || quotation.products || quotation.lineItems || [];
+                const itemsCount = Array.isArray(rawItems) ? rawItems.length : 0;
                 const totalPages = Math.max(1, Math.ceil(itemsCount / PRODUCTS_PER_PAGE));
 
                 const { jsPDF } = window.jspdf;
@@ -3596,7 +3597,7 @@
                 email: quotation.customerEmail || quotation.email,
                 address: quotation.customerAddress || quotation.address
             };
-            let items = quotation.items || [];
+            let items = quotation.items || quotation.products || quotation.lineItems || [];
             
             // Fetch temp items and replace quotation items with temp table data
             let priceUpdated = false;
@@ -3730,21 +3731,10 @@
 
         // --- PDF Download Logic (modal) ---
         async function downloadQuotationAsPdf(quotation) {
-            const content = document.getElementById('quotationViewContent');
-            
-            if (!content) {
-                alert('Quotation content not found.');
+            if (!quotation) {
+                alert('Quotation data not found.');
                 return;
             }
-
-            // Get the quotation div inside the content
-            const quotationDiv = content.querySelector('div[style*="width: 800px"]');
-            
-            if (!quotationDiv) {
-                alert('Quotation template not found in modal.');
-                return;
-            }
-
             try {
                 const downloadBtn = document.getElementById('downloadQuotationPng');
                 const originalBtnText = downloadBtn?.innerHTML || downloadBtn?.textContent;
@@ -3752,76 +3742,7 @@
                     downloadBtn.disabled = true;
                     downloadBtn.innerHTML = 'Generating...';
                 }
-
-                // Wait for images to load
-                const images = quotationDiv.querySelectorAll('img');
-                const imagePromises = Array.from(images).map(img => {
-                    if (img.complete) return Promise.resolve();
-                    return new Promise((resolve, reject) => {
-                        img.onload = resolve;
-                        img.onerror = resolve;
-                        setTimeout(resolve, 2000);
-                    });
-                });
-                
-                await Promise.all(imagePromises);
-                await new Promise(resolve => setTimeout(resolve, 500));
-
-                // Capture as canvas
-                const canvas = await html2canvas(quotationDiv, { 
-                    scale: 2, 
-                    logging: false, 
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: '#ffffff',
-                    width: 800,
-                    height: quotationDiv.scrollHeight || quotationDiv.offsetHeight,
-                    x: 0,
-                    y: 0,
-                    scrollX: 0,
-                    scrollY: 0,
-                    onclone: (clonedDoc) => {
-                        const clonedElement = clonedDoc.querySelector('div[style*="width: 800px"]');
-                        if (clonedElement) {
-                            clonedElement.style.backgroundImage = 'none';
-                        }
-                    }
-                });
-                
-                if (!canvas || canvas.width === 0 || canvas.height === 0) {
-                    throw new Error('Canvas is empty');
-                }
-
-                // Build PDF and download
-                const { jsPDF } = window.jspdf;
-                const imgWidth = 595.28;
-                const pageHeight = 841.89;
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                const imgData = canvas.toDataURL('image/png', 1.0);
-                const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true });
-                const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
-                const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
-                if (needsMultiplePages) {
-                    let heightLeft = imgHeight;
-                    let position = 0;
-                    doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                    heightLeft -= pageHeight;
-                    while (heightLeft >= 0) {
-                        position = heightLeft - imgHeight;
-                        doc.addPage();
-                        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                        heightLeft -= pageHeight;
-                    }
-                } else {
-                    const contentHeight = Math.min(imgHeight, pageHeight);
-                    doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeight, undefined, 'FAST');
-                }
-                const customerName = quotation.customer?.name || quotation.customerName || 'Quotation';
-                const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').trim();
-                const quotationIdVal = quotation.quotationId || quotation.id || 'N/A';
-                const filename = `Quotation_${sanitizedName}_${quotationIdVal}.pdf`;
-                doc.save(filename);
-
+                await downloadQuotationAsPdfDirect(quotation);
                 if (downloadBtn) {
                     downloadBtn.disabled = false;
                     downloadBtn.innerHTML = originalBtnText || '<i class="fas fa-file-pdf"></i> PDF';
@@ -3839,190 +3760,20 @@
 
         async function generateQuotationPDF(quotationId, quotationData = null) {
             let quotation = quotationData;
-            
-            // If quotation data not provided, try to fetch it
             if (!quotation) {
-                // Try API first
                 try {
                     const response = await apiFetch(`/quotations/${quotationId}`);
-                    if (response) {
-                        quotation = Array.isArray(response) ? response[0] : (response.data || response);
-                    }
-                } catch (error) {
-                    // Fallback to local data
-                }
-                
-                // Fallback to local history
-                if (!quotation) {
-                    quotation = quotationHistory.find(q => (q.id || q.quotationId) === quotationId);
-                }
+                    if (response) quotation = Array.isArray(response) ? response[0] : (response.data || response);
+                } catch (e) {}
+                if (!quotation) quotation = quotationHistory.find(q => (q.id || q.quotationId) === quotationId);
             }
-
             if (!quotation) {
                 alert("Quotation not found.");
                 return;
             }
-
-            const pdfTemplate = document.getElementById('quotationPdfTemplate') || document.getElementById('pdfTemplate');
-            if (!pdfTemplate) {
-                // Create template if it doesn't exist
-                const template = document.createElement('div');
-                template.id = 'quotationPdfTemplate';
-                template.style.display = 'none';
-                template.style.position = 'absolute';
-                template.style.left = '-9999px';
-                document.body.appendChild(template);
-                pdfTemplate = template;
-            }
-
-            const templateHtml = await generateQuotationHtml(quotation);
-            pdfTemplate.innerHTML = templateHtml;
-            
-            // Validate template has content
-            if (!pdfTemplate.innerHTML || pdfTemplate.innerHTML.trim() === '') {
-                alert('PDF template is empty. Cannot generate PDF.');
-                return;
-            }
-            
-            // Make template visible but off-screen for html2canvas
-            const originalDisplay = pdfTemplate.style.display;
-            const originalPosition = pdfTemplate.style.position;
-            const originalLeft = pdfTemplate.style.left;
-            const originalTop = pdfTemplate.style.top;
-            const originalWidth = pdfTemplate.style.width;
-            const originalZIndex = pdfTemplate.style.zIndex;
-            const originalOpacity = pdfTemplate.style.opacity;
-            const originalTransform = pdfTemplate.style.transform;
-            
-            // Position off-screen but visible to html2canvas
-            pdfTemplate.style.display = 'block';
-            pdfTemplate.style.position = 'fixed';
-            pdfTemplate.style.left = '-9999px';
-            pdfTemplate.style.top = '0';
-            pdfTemplate.style.width = '800px';
-            pdfTemplate.style.zIndex = '9999';
-            pdfTemplate.style.opacity = '1';
-            pdfTemplate.style.visibility = 'visible';
-            pdfTemplate.style.pointerEvents = 'none';
-
-            // Wait for content to render, especially images and fonts
-            // Wait for images to load before capturing
-            const images = pdfTemplate.querySelectorAll('img');
-            const imagePromises = Array.from(images).map(img => {
-                if (img.complete) return Promise.resolve();
-                return new Promise((resolve, reject) => {
-                    img.onload = resolve;
-                    img.onerror = resolve; // Continue even if image fails
-                    setTimeout(resolve, 2000); // Timeout after 2 seconds
-                });
-            });
-            
-            await Promise.all(imagePromises);
-            // Additional wait for background images and rendering
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            try {
-                const canvas = await html2canvas(pdfTemplate, { 
-                    scale: 2, 
-                    logging: false, 
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: '#ffffff', // Dark background to match template
-                    width: 800,
-                    height: pdfTemplate.scrollHeight || pdfTemplate.offsetHeight,
-                    x: 0,
-                    y: 0,
-                    scrollX: 0,
-                    scrollY: 0,
-                    onclone: (clonedDoc) => {
-                        const clonedElement = clonedDoc.querySelector('#quotationPdfTemplate > div');
-                        if (clonedElement) {
-                            clonedElement.style.backgroundImage = 'none';
-                        }
-                    }
-                });
-                
-                if (!canvas || canvas.width === 0 || canvas.height === 0) {
-                    throw new Error('Canvas is empty');
-                }
-                
-                const { jsPDF } = window.jspdf;
-                
-                // Always use A4 size
-                const imgWidth = 595.28; // A4 width in pt
-                const pageHeight = 841.89; // A4 height in pt (minimum)
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                
-                // Create A4 document
-                const doc = new jsPDF({
-                    unit: 'pt',
-                    format: 'a4',
-                    compress: true
-                });
-
-                const imgData = canvas.toDataURL('image/png', 1.0);
-                
-                // Check if we need multiple pages (more than 7 items or content exceeds one page)
-                const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
-                const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
-                
-                if (needsMultiplePages) {
-                    // Multi-page logic
-                    let heightLeft = imgHeight;
-                    let position = 0;
-                    
-                    doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                    heightLeft -= pageHeight;
-                    
-                    while (heightLeft >= 0) {
-                        position = heightLeft - imgHeight;
-                        doc.addPage();
-                        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                        heightLeft -= pageHeight;
-                    }
-                } else {
-                    // Single page - always use full A4 height (minimum)
-                    // If content is shorter, it will be centered or positioned at top, but page is always A4 height
-                    const contentHeight = Math.min(imgHeight, pageHeight);
-                    doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeight, undefined, 'FAST');
-                }
-
-                // Get customer name for filename (same as owner.js)
-                const customer = quotation?.customer || {};
-                const customerName = customer?.name || customer?.phone || quotation?.quotationId || quotation?.id || 'Unknown';
-                const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9_ ]/g, '').replace(/\s+/g, '_').replace(/__+/g, '_').trim() || 'Quotation';
-                const filename = `Quotation_${sanitizedName}.pdf`;
-                
-                doc.save(filename);
-                
-                // Restore original styles
-                pdfTemplate.style.display = originalDisplay || '';
-                pdfTemplate.style.position = originalPosition || '';
-                pdfTemplate.style.left = originalLeft || '';
-                pdfTemplate.style.top = originalTop || '';
-                pdfTemplate.style.width = originalWidth || '';
-                pdfTemplate.style.zIndex = originalZIndex || '';
-                pdfTemplate.style.visibility = '';
-                pdfTemplate.style.opacity = originalOpacity || '';
-                pdfTemplate.style.transform = originalTransform || '';
-                
-                const quotationIdValue = quotation.quotationId || quotation.id;
-                logAction(`Generated PDF for ${quotationIdValue}.`);
-            } catch (error) {
-                console.error('PDF generation error:', error);
-                alert("PDF generation failed. Please try again.");
-                
-                // Restore original styles
-                pdfTemplate.style.display = originalDisplay || '';
-                pdfTemplate.style.position = originalPosition || '';
-                pdfTemplate.style.left = originalLeft || '';
-                pdfTemplate.style.top = originalTop || '';
-                pdfTemplate.style.width = originalWidth || '';
-                pdfTemplate.style.zIndex = originalZIndex || '';
-                pdfTemplate.style.visibility = '';
-                pdfTemplate.style.opacity = originalOpacity || '';
-                pdfTemplate.style.transform = originalTransform || '';
-            }
+            await downloadQuotationAsPdfDirect(quotation);
+            const quotationIdValue = quotation.quotationId || quotation.id;
+            if (quotationIdValue) logAction(`Generated PDF for ${quotationIdValue}.`);
         }
 
 

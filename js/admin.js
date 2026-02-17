@@ -2389,8 +2389,8 @@ async function generateQuotationPdf(quotation) {
 
         const imgData = canvas.toDataURL('image/png', 1.0);
         
-        // Check if we need multiple pages (more than 7 items or content exceeds one page)
-        const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
+        const rawItemsForPdf = quotation.items || quotation.products || quotation.lineItems || [];
+        const itemsCount = Array.isArray(rawItemsForPdf) ? rawItemsForPdf.length : 0;
         const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
         
         if (needsMultiplePages) {
@@ -2491,7 +2491,8 @@ async function generateQuotationHtml(quotation, options = {}) {
     
     // IMPORTANT: Preserve the order of items as they appear in the quotation
     // The order should match the order in the Quotation Items section
-    let items = Array.isArray(quotation.items) ? [...quotation.items] : [];
+    let items = quotation.items || quotation.products || quotation.lineItems || [];
+    items = Array.isArray(items) ? [...items] : [];
     
     // Fetch temp items and replace quotation items with temp table data
     let priceUpdated = false;
@@ -2724,14 +2725,8 @@ async function generateQuotationHtml(quotation, options = {}) {
 
 // --- PDF Download Logic (modal; keep name for backward compatibility) ---
 async function downloadQuotationAsPng(quotation) {
-    const content = document.getElementById('quotationViewContent');
-    if (!content) {
-        alert('Quotation content not found.');
-        return;
-    }
-    const quotationDiv = content.querySelector('div[style*="width: 800px"]');
-    if (!quotationDiv) {
-        alert('Quotation template not found in modal.');
+    if (!quotation) {
+        alert('Quotation data not found.');
         return;
     }
     try {
@@ -2741,65 +2736,7 @@ async function downloadQuotationAsPng(quotation) {
             downloadBtn.disabled = true;
             downloadBtn.innerHTML = 'Generating...';
         }
-        const images = quotationDiv.querySelectorAll('img');
-        const imagePromises = Array.from(images).map(img => {
-            if (img.complete) return Promise.resolve();
-            return new Promise((resolve) => {
-                img.onload = resolve;
-                img.onerror = resolve;
-                setTimeout(resolve, 2000);
-            });
-        });
-        await Promise.all(imagePromises);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const canvas = await html2canvas(quotationDiv, { 
-            scale: 2, 
-            logging: false, 
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: '#ffffff',
-            width: 800,
-            height: quotationDiv.scrollHeight || quotationDiv.offsetHeight,
-            x: 0,
-            y: 0,
-            scrollX: 0,
-            scrollY: 0,
-            onclone: (clonedDoc) => {
-                const clonedElement = clonedDoc.querySelector('div[style*="width: 800px"]');
-                if (clonedElement) {
-                    clonedElement.style.backgroundImage = 'none';
-                }
-            }
-        });
-        if (!canvas || canvas.width === 0 || canvas.height === 0) {
-            throw new Error('Canvas is empty');
-        }
-        const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true });
-        const imgWidth = 595.28;
-        const pageHeight = 841.89;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        const imgData = canvas.toDataURL('image/png', 1.0);
-        const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
-        const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
-        if (needsMultiplePages) {
-            let heightLeft = imgHeight;
-            let position = 0;
-            doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
-            while (heightLeft >= 0) {
-                position = heightLeft - imgHeight;
-                doc.addPage();
-                doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
-            }
-        } else {
-            const contentHeight = Math.min(imgHeight, pageHeight);
-            doc.addImage(imgData, 'PNG', 0, 0, imgWidth, contentHeight, undefined, 'FAST');
-        }
-        const customerName = quotation.customer?.name || quotation.customerName || 'Quotation';
-        const sanitizedName = customerName.toString().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').trim();
-        const quotationIdVal = quotation.quotationId || quotation.id || 'N/A';
-        doc.save(`Quotation_${sanitizedName}_${quotationIdVal}.pdf`);
+        await downloadQuotationAsPdfDirect(quotation);
         if (downloadBtn) {
             downloadBtn.disabled = false;
             downloadBtn.innerHTML = originalBtnText || '<i class="fas fa-file-pdf"></i> PDF';
@@ -3455,7 +3392,8 @@ async function downloadQuotationAsPdfDirect(quotation) {
         const logoPng = logoDataUrl ? await imageDataUrlToPng(logoDataUrl) : null;
 
         const PRODUCTS_PER_PAGE = 6;
-        const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
+        const rawItems = quotation.items || quotation.products || quotation.lineItems || [];
+        const itemsCount = Array.isArray(rawItems) ? rawItems.length : 0;
         const totalPages = Math.max(1, Math.ceil(itemsCount / PRODUCTS_PER_PAGE));
 
         const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true });

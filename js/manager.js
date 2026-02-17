@@ -2310,8 +2310,8 @@ async function generateQuotationPdf(quotation) {
 
         const imgData = canvas.toDataURL('image/png', 1.0);
         
-        // Check if we need multiple pages (more than 7 items or content exceeds one page)
-        const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
+        const rawItemsForPdf = quotation.items || quotation.products || quotation.lineItems || [];
+        const itemsCount = Array.isArray(rawItemsForPdf) ? rawItemsForPdf.length : 0;
         const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
         
         if (needsMultiplePages) {
@@ -2396,7 +2396,8 @@ async function generateQuotationHtml(quotation, options = {}) {
     let grandTotal = parseFloat(quotation.grandTotal || 0);
     let totalAfterDiscount = subTotal - discountAmount;
     const customer = quotation.customer || {};
-    let items = Array.isArray(quotation.items) ? [...quotation.items] : [];
+    let items = quotation.items || quotation.products || quotation.lineItems || [];
+    items = Array.isArray(items) ? [...items] : [];
     let priceUpdated = false;
     try {
         const tempItemsResponse = await apiFetch('/temp');
@@ -2975,7 +2976,8 @@ async function downloadQuotationAsPdfDirect(quotation) {
         const logoPng = logoDataUrl ? await imageDataUrlToPng(logoDataUrl) : null;
 
         const PRODUCTS_PER_PAGE = 6;
-        const itemsCount = quotation.items ? (Array.isArray(quotation.items) ? quotation.items.length : 0) : 0;
+        const rawItems = quotation.items || quotation.products || quotation.lineItems || [];
+        const itemsCount = Array.isArray(rawItems) ? rawItems.length : 0;
         const totalPages = Math.max(1, Math.ceil(itemsCount / PRODUCTS_PER_PAGE));
 
         const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true });
