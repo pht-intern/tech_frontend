@@ -30,6 +30,10 @@
             <a href="#" data-tab="viewCustomers" id="navViewCustomers"><i class="fas fa-users"></i> Customers</a>
         </nav>
 
+        <div id="sidebarTime" class="sidebar-time" aria-live="polite">
+                    <div><i class="fas fa-clock"></i> <span id="sidebarTimeText">--:--:--</span></div>
+                    <div class="sidebar-logged-label"><i class="fas fa-user-clock"></i> <span id="sidebarLoggedTime">—</span></div>
+                </div>
         <a href="#" id="getDemoBtn" class="btn primary sidebar-cta"><i class="fas fa-play-circle"></i> Get Demo</a>
 
         <button class="btn danger" id="logoutBtn" style="margin-top: 8px; width: 100%; padding: 8px; font-size: 13px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
@@ -140,7 +144,10 @@
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h2>Add New Product</h2>
                     <input type="file" id="importCsvInput" accept=".csv" style="display:none" onchange="handleCsvImport(event)">
-                    <button class="btn" onclick="document.getElementById('importCsvInput').click()"><i class="fas fa-file-import"></i> Import CSV</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn" onclick="document.getElementById('importCsvInput').click()"><i class="fas fa-file-import"></i> Import CSV</button>
+                        <button type="button" class="btn secondary" onclick="downloadSampleProductsCsv()" title="Download CSV template matching Products table columns"><i class="fas fa-download"></i> Sample CSV</button>
+                    </div>
                 </div>
                 <p class="muted">Enter the details of the new product. Product ID will be auto-generated.</p>
 
@@ -363,7 +370,7 @@
                                 <th>Website Link</th>
                                 <th id="priceColHeader" class="price-sort-header" onclick="togglePriceSort()" title="Sort by price">Price (₹) <span id="priceSortArrows" class="price-sort-arrows"></span></th>
                                 <th>GST (%)</th>
-                                <th>Total Value (₹)</th>
+                                <th id="totalValueColHeader" class="price-sort-header" onclick="toggleTotalValueSort()" title="Sort by total value">Total Value (₹) <span id="totalValueSortArrows" class="price-sort-arrows"></span></th>
                                 <th>Added By</th>
                                 <th>Date Added</th>
                                 <th>Actions</th>
@@ -714,7 +721,7 @@
             </div>
             <div id="customerDetailsView" class="customer-sub-view" style="display:none;">
                 <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
-                    <h2>Customer Details</h2>
+                    <h2>Customer Quotation Details</h2>
                     <p class="muted">List of all customers with their detailed information.</p>
                     <div style="margin-top: 12px; margin-bottom: 18px;">
                         <input type="text" id="customerDetailsSearchInput" placeholder="Search customers by Name, Email, Phone, or Address..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">

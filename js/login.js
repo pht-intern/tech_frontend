@@ -11,7 +11,8 @@ const LS_KEYS = {
     userName: 'rolewise_user_name',
     userId: 'rolewise_user_id',
     sessionExpiry: 'rolewise_session_expiry',
-    sessionTimeout: 'rolewise_session_timeout'
+    sessionTimeout: 'rolewise_session_timeout',
+    sessionStart: 'rolewise_session_start'
 };
 
 // Role-based redirect mapping (must match backend)
@@ -74,8 +75,10 @@ function storeUserSession(userData, timeoutSeconds = 28800) {
         // Store complete user object as JSON
         localStorage.setItem(LS_KEYS.user, JSON.stringify(userData));
         
-        // Store session expiration timestamp (current time + timeout)
-        const expiryTimestamp = Date.now() + (timeoutSeconds * 1000);
+        // Store session start and expiration timestamps
+        const now = Date.now();
+        const expiryTimestamp = now + (timeoutSeconds * 1000);
+        localStorage.setItem(LS_KEYS.sessionStart, String(now));
         localStorage.setItem(LS_KEYS.sessionExpiry, String(expiryTimestamp));
         localStorage.setItem(LS_KEYS.sessionTimeout, String(timeoutSeconds));
     } catch (error) {

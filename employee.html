@@ -29,6 +29,10 @@
             <a href="#" data-tab="viewCustomers"><i class="fas fa-users"></i> Customers</a>
         </nav>
 
+        <div id="sidebarTime" class="sidebar-time" aria-live="polite">
+            <div><i class="fas fa-clock"></i> <span id="sidebarTimeText">--:--:--</span></div>
+            <div class="sidebar-logged-label"><i class="fas fa-user-clock"></i> <span id="sidebarLoggedTime">—</span></div>
+        </div>
         <a href="#" id="getDemoBtn" class="btn primary sidebar-cta"><i class="fas fa-play-circle"></i> Get Demo</a>
 
         <button class="btn danger" id="logoutBtn" style="margin-top: 8px; width: 100%; padding: 8px; font-size: 13px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
@@ -287,7 +291,7 @@
         <section id="viewCustomers" class="content-section" style="display:none">
             <div class="customer-sub-tabs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border, #e0e0e0); padding-bottom: 12px;">
                 <button type="button" class="tab-btn customer-sub-tab active" data-customer-subtab="customerList">Customer List</button>
-                <button type="button" class="tab-btn customer-sub-tab" data-customer-subtab="customerDetails">Customer Details</button>
+                <button type="button" class="tab-btn customer-sub-tab" data-customer-subtab="customerDetails">Customer Quotation Details</button>
             </div>
 
             <div id="customerListSubPanel" class="customer-sub-panel card" style="flex-grow: 1; display: flex; flex-direction: column;">
@@ -335,7 +339,7 @@
             </div>
 
             <div id="customerDetailsSubPanel" class="customer-sub-panel card" style="flex-grow: 1; display: none; flex-direction: column;">
-                <h2>Customer Details</h2>
+                <h2>Customer Quotation Details</h2>
                 <p class="muted">List of all customers with their detailed information.</p>
                 <div style="margin-top: 12px; margin-bottom: 18px;">
                     <input type="text" id="customerDetailsSearchInput" placeholder="Search customers by Name, Email, Phone, or Address..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">

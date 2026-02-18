@@ -111,6 +111,27 @@ let CURRENT_USER_EMAIL = userEmailFromStorage || (userObjFromStorage ? (() => {
 })() : `${DEFAULT_ROLE.toLowerCase()}@rolewise.app`);
 
 let quotationItems = [];
+const DEFAULT_QUOTATION_ITEM_TYPE_ORDER = ['all', 'cpu', 'cpu cooler', 'motherboard', 'memory', 'storage', 'graphic card', 'case', 'monitor', '19500', 'amd cpu', 'amd mobo', 'cabinet', 'cooler', 'fan', 'fan controller', 'gpu', 'gpu cable', 'gpu holder', 'hdd', 'intel cpu', 'intel mobo', 'keyboard&mouse', 'memory module radiator', 'mod cable', 'ram', 'smps', 'ssd', 'ups'];
+let quotationItemTypeOrder = DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+function getQuotationCategorySortIndex(type) {
+    const t = (type || '').toLowerCase().trim();
+    if (!t) return quotationItemTypeOrder.length + 1;
+    const order = quotationItemTypeOrder || DEFAULT_QUOTATION_ITEM_TYPE_ORDER;
+    for (let i = 0; i < order.length; i++) {
+        const cat = (order[i] || '').toLowerCase().trim();
+        if (!cat) continue;
+        if (t === cat || t.indexOf(cat) >= 0 || cat.indexOf(t) >= 0) return i;
+        if (cat === 'graphic card' && (t.indexOf('graphic') >= 0 || t.indexOf('gpu') >= 0)) return i;
+        if (cat === 'cpu' && t === 'cpu') return i;
+        if (cat === 'cpu cooler' && (t.indexOf('cpu cooler') >= 0 || (t.indexOf('cooler') >= 0 && t.indexOf('cpu') >= 0))) return i;
+        if (cat === 'motherboard' && (t.indexOf('motherboard') >= 0 || t === 'mb')) return i;
+        if (cat === 'memory' && (t.indexOf('memory') >= 0 || t === 'ram')) return i;
+        if (cat === 'storage' && (t.indexOf('storage') >= 0 || t.indexOf('hdd') >= 0 || t.indexOf('ssd') >= 0)) return i;
+        if (cat === 'case' && (t.indexOf('case') >= 0 || t.indexOf('cabinet') >= 0 || t.indexOf('chassis') >= 0)) return i;
+        if (cat === 'monitor' && (t.indexOf('monitor') >= 0 || t.indexOf('display') >= 0)) return i;
+    }
+    return order.length + 1;
+}
 let isCreatingNewQuotation = true; // Track if we're creating a new quotation (true) or editing existing (false)
 let itemsCurrentPage = 1;
 const itemsPerPage = 5;
@@ -118,6 +139,8 @@ const itemsPerPage = 5;
 let itemsCurrentTypeFilter = '';
 // Current price sort state: 'none', 'asc', 'desc'
 let itemsCurrentPriceSort = 'none';
+// Current total value sort state: 'none', 'asc', 'desc'
+let itemsCurrentTotalValueSort = 'none';
 // Current name sort state: 'none', 'asc', 'desc' (A–Z / Z–A)
 let itemsCurrentNameSort = 'none';
 let historyCurrentPage = 1;
@@ -144,6 +167,18 @@ function updatePriceSortHeader() {
     }
 }
 
+function updateTotalValueSortHeader() {
+    const arrowsEl = document.getElementById('totalValueSortArrows');
+    if (!arrowsEl) return;
+    if (itemsCurrentTotalValueSort === 'asc') {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort-up" aria-hidden="true"></i>';
+    } else if (itemsCurrentTotalValueSort === 'desc') {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort-down" aria-hidden="true"></i>';
+    } else {
+        arrowsEl.innerHTML = ' <i class="fas fa-sort" aria-hidden="true"></i>';
+    }
+}
+
 function updateNameSortHeader() {
     const arrowsEl = document.getElementById('nameSortArrows');
     if (!arrowsEl) return;
@@ -158,7 +193,9 @@ function updateNameSortHeader() {
 
 function togglePriceSort() {
     itemsCurrentNameSort = 'none';
+    itemsCurrentTotalValueSort = 'none';
     updateNameSortHeader();
+    updateTotalValueSortHeader();
     if (itemsCurrentPriceSort === 'none') {
         itemsCurrentPriceSort = 'asc';
     } else if (itemsCurrentPriceSort === 'asc') {
@@ -173,9 +210,30 @@ function togglePriceSort() {
     renderItemsList(filter);
 }
 
+function toggleTotalValueSort() {
+    itemsCurrentNameSort = 'none';
+    itemsCurrentPriceSort = 'none';
+    updateNameSortHeader();
+    updatePriceSortHeader();
+    if (itemsCurrentTotalValueSort === 'none') {
+        itemsCurrentTotalValueSort = 'asc';
+    } else if (itemsCurrentTotalValueSort === 'asc') {
+        itemsCurrentTotalValueSort = 'desc';
+    } else {
+        itemsCurrentTotalValueSort = 'none';
+    }
+    updateTotalValueSortHeader();
+    itemsCurrentPage = 1;
+    const searchInput = document.getElementById('productListSearchInput');
+    const filter = searchInput ? searchInput.value.trim() : '';
+    renderItemsList(filter);
+}
+
 function toggleNameSort() {
     itemsCurrentPriceSort = 'none';
+    itemsCurrentTotalValueSort = 'none';
     updatePriceSortHeader();
+    updateTotalValueSortHeader();
     if (itemsCurrentNameSort === 'none') {
         itemsCurrentNameSort = 'asc';
     } else if (itemsCurrentNameSort === 'asc') {
@@ -938,6 +996,20 @@ function initEditProductModal() {
 }
 
 // --- CSV Handling ---
+/** Download a sample CSV with column headers matching the Products table (for bulk import). */
+function downloadSampleProductsCsv() {
+    const headers = ['Product ID', 'Product Name', 'Type', 'Description', 'Website Link', 'Price', 'GST (%)', 'Total Value (₹)', 'Added By', 'Date Added'];
+    const example = ['P01012025120000', 'Sample Product', 'Laptop', 'Sample description', 'https://example.com/product', '50000', '18', '', 'user', ''];
+    const escape = (v) => (v == null || v === '' ? '' : '"' + String(v).replace(/"/g, '""') + '"');
+    const csv = '\uFEFF' + [headers.map(escape).join(','), example.map(escape).join(',')].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'products_sample.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
 async function exportItemsToCsv() {
     window.location.href = `${API_BASE}/export/items`;
     addLog('Exported Data', CURRENT_USER_ROLE, 'Exported all product data to CSV');
@@ -1018,8 +1090,10 @@ async function handleCsvImport(event) {
         const imported = result.imported || 0;
         const updated = result.updated || 0;
         const total = result.total || (imported + updated);
-
-        alert(`CSV import complete. ${imported} products imported, ${updated} products updated (${total} total).`);
+        const errDetails = result.error_details;
+        let msg = `CSV import complete. ${imported} products imported, ${updated} products updated (${total} total).`;
+        if (errDetails && errDetails.length) msg += '\n\nDetails: ' + errDetails.join('; ');
+        alert(msg);
         renderItemsList();
         updateSummary();
         
@@ -1309,7 +1383,7 @@ function goToCustomersPage(direction) {
     renderCustomersList(filter);
 }
 
-// --- Customer Details Management ---
+// --- Customer Quotation Details Management ---
 async function renderCustomerDetailsList(searchFilter = '') {
     const customersResponse = await getCustomers();
     let customers = Array.isArray(customersResponse) ? customersResponse : (customersResponse?.data || []);
@@ -1678,7 +1752,12 @@ function getQuotationItems() {
     return quotationItems;
 }
 
-// Dynamic type filters for "Add Items to Quotation"
+function invalidateQuotationTypeFiltersCache() {
+    const el = document.getElementById('quotationTypeFilters');
+    if (el) { el.removeAttribute('data-rendered'); }
+}
+
+// Dynamic type filters for "Add Items to Quotation" — synced from Settings (quotationItemTypeOrder + productTypes) + item types
 async function renderQuotationTypeFilters(items = null) {
     console.trace('🔍 renderQuotationTypeFilters called');
     const container = document.getElementById('quotationTypeFilters');
@@ -1690,27 +1769,48 @@ async function renderQuotationTypeFilters(items = null) {
         return;
     }
 
-    // Use passed items or get from cache
-    const itemsData = items || window.cachedItems || [];
-    let types = [];
-    
-    types = [...new Set(itemsData.map(item => item.type).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b, 'en-IN', { sensitivity: 'base' }));
-
-    const baseTypes = [
-        { label: 'All', value: '' },
-        { label: 'MONITOR', value: 'monitor' },
-        { label: 'KEYBOARD&MOUSE', value: 'keyboard&mouse' },
-        { label: 'ACCESSORIES', value: 'accessories' },
-        { label: 'UPS', value: 'ups' },
-        { label: 'LAPTOP', value: 'laptop' },
-        { label: 'PRINTERS', value: 'printers' },
-        { label: 'NETWORKING PRODUCTS', value: 'networking products' },
-        { label: 'OTHERS', value: 'others' }
-    ];
-
-    const baseValues = new Set(baseTypes.map(t => String(t.value).toLowerCase()));
-    const extraTypes = types.filter(t => !baseValues.has(String(t).toLowerCase()));
+    let itemsData = items || window.cachedItems || [];
+    if (!itemsData || itemsData.length === 0) {
+        try {
+            const raw = await getItems();
+            itemsData = Array.isArray(raw) ? raw : (raw?.data || []);
+        } catch (e) { itemsData = []; }
+    }
+    let settings = {};
+    try {
+        settings = await getSettings();
+    } catch (e) { /* use defaults */ }
+    // Use quotationTypeFilters from database (GET /settings); fallback to merging order + productTypes
+    let filtersFromDb = Array.isArray(settings.quotationTypeFilters) ? settings.quotationTypeFilters.slice() : [];
+    if (filtersFromDb.length === 0) {
+        const orderFromSettings = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
+            ? settings.quotationItemTypeOrder.slice()
+            : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+        const productTypesFromSettings = Array.isArray(settings.productTypes) ? settings.productTypes.slice() : [];
+        const seen = new Set();
+        orderFromSettings.forEach(function (t) {
+            const v = String(t).toLowerCase().trim();
+            if (v && !seen.has(v)) { seen.add(v); filtersFromDb.push(String(t).trim()); }
+        });
+        productTypesFromSettings.forEach(function (t) {
+            const v = String(t).toLowerCase().trim();
+            if (v && !seen.has(v)) { seen.add(v); filtersFromDb.push(String(t).trim()); }
+        });
+    }
+    const typesFromItems = [...new Set(itemsData.map(item => item.type).filter(Boolean))];
+    const seen = new Set();
+    const orderedPairs = [];
+    orderedPairs.push({ value: '', label: 'All' });
+    seen.add('');
+    filtersFromDb.forEach(function (t) {
+        const v = String(t).toLowerCase().trim();
+        if (v && !seen.has(v)) { seen.add(v); orderedPairs.push({ value: v, label: String(t).trim() }); }
+    });
+    typesFromItems.sort((a, b) => String(a).localeCompare(String(b), 'en-IN', { sensitivity: 'base' }));
+    typesFromItems.forEach(function (t) {
+        const v = String(t).toLowerCase().trim();
+        if (v && !seen.has(v)) { seen.add(v); orderedPairs.push({ value: v, label: String(t).trim() }); }
+    });
 
     container.innerHTML = '';
 
@@ -1719,8 +1819,7 @@ async function renderQuotationTypeFilters(items = null) {
         btn.className = 'type-filter-btn';
         if (isActive) btn.classList.add('active');
         btn.dataset.type = value;
-        btn.textContent = label;
-        // Match existing inline styles
+        btn.textContent = (label || '').toUpperCase();
         btn.style.padding = '6px 12px';
         btn.style.border = '1px solid var(--border)';
         btn.style.borderRadius = '6px';
@@ -1731,20 +1830,11 @@ async function renderQuotationTypeFilters(items = null) {
         return btn;
     }
 
-    // Base categories (including "All")
-    baseTypes.forEach(t => {
-        const isActive = t.value === ''; // "All" active by default
-        container.appendChild(createButton(t.label, t.value, isActive));
+    orderedPairs.forEach(function (p, idx) {
+        const isActive = idx === 0;
+        container.appendChild(createButton(p.label, p.value, isActive));
     });
 
-    // Additional categories from Type dropdown / item types
-    extraTypes.forEach(t => {
-        const label = toTitleCase(String(t));
-        const value = String(t).toLowerCase();
-        container.appendChild(createButton(label, value, false));
-    });
-    
-    // Mark as rendered
     container.setAttribute('data-rendered', 'true');
 }
 
@@ -1808,13 +1898,16 @@ async function renderAvailableItemsForQuotation(filter = '', typeFilter = '', it
             return matchesSearch && matchesType;
         });
 
-        const priceSortBtn = document.getElementById('quotationPriceSortBtn');
-        const priceSort = priceSortBtn?.getAttribute('data-price-sort') || 'none';
-        if (priceSort === 'lowToHigh') {
-            filteredItems.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
-        } else if (priceSort === 'highToLow') {
-            filteredItems.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
-        }
+        // Primary sort: category order (CPU, CPU Cooler, Motherboard, Memory, Storage, Graphic card, Case, Monitor)
+        filteredItems.sort((a, b) => {
+            const catA = getQuotationCategorySortIndex(a.type);
+            const catB = getQuotationCategorySortIndex(b.type);
+            if (catA !== catB) return catA - catB;
+            const priceSort = document.getElementById('quotationPriceSortBtn')?.getAttribute('data-price-sort') || 'none';
+            if (priceSort === 'lowToHigh') return (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0);
+            if (priceSort === 'highToLow') return (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0);
+            return 0;
+        });
 
         if (filteredItems.length === 0) {
             listDiv.innerHTML = '<p class="muted" style="padding:10px;text-align:center">No products found matching your search.</p>';
@@ -1867,6 +1960,7 @@ async function addItemToQuotation(productId) {
         quotationItems.push({
             productId: itemToAdd.productId,
             productName: itemToAdd.productName,
+            type: itemToAdd.type || '',
             price: price,
             quantity: 1,
             gstRate: gstRate,
@@ -2032,7 +2126,8 @@ function renderQuotationItems() {
         return;
     }
 
-    quotationItems.forEach(item => {
+    const sortedItems = [...quotationItems].sort((a, b) => getQuotationCategorySortIndex(a.type) - getQuotationCategorySortIndex(b.type));
+    sortedItems.forEach(item => {
         const itemTotal = item.price * item.quantity;
         const itemGstAmount = itemTotal * (item.gstRate / 100);
         const total = itemTotal + itemGstAmount; // Total including GST
@@ -2391,7 +2486,7 @@ async function generateQuotationPdf(quotation) {
         
         const rawItemsForPdf = quotation.items || quotation.products || quotation.lineItems || [];
         const itemsCount = Array.isArray(rawItemsForPdf) ? rawItemsForPdf.length : 0;
-        const needsMultiplePages = itemsCount > 7 || imgHeight > pageHeight;
+        const needsMultiplePages = itemsCount > 14 || imgHeight > pageHeight;
         
         if (needsMultiplePages) {
             // Multi-page logic
@@ -2568,7 +2663,7 @@ async function generateQuotationHtml(quotation, options = {}) {
     const quotationId = quotation.quotationId || quotation.id || 'N/A';
     const dateCreated = quotation.dateCreated || new Date().toLocaleDateString('en-IN');
 
-    // PDF pagination: 6 products per page, with header and footer on every page
+    // PDF pagination: 14 products per page, with header only on first page and footer only on last page
     const pdfPage = options.pdfPage || null;
     let itemsForTable = items;
     let showTotals = true;
@@ -2584,6 +2679,16 @@ async function generateQuotationHtml(quotation, options = {}) {
         pageNumFooter = `Page ${pageIndex + 1} of ${totalPages}`;
     }
 
+    const pageIndex = pdfPage ? (Number(pdfPage.pageIndex) || 0) : 0;
+    const totalPagesForPattern = pdfPage ? (Number(pdfPage.totalPages) || 1) : 1;
+    const isLastPageForPattern = pdfPage ? !!pdfPage.isLastPage : true;
+    const isFirstPageForPattern = !pdfPage || pageIndex === 0;
+    const isSinglePageForPattern = !pdfPage || totalPagesForPattern === 1;
+    const showHeaderSection = isSinglePageForPattern ? true : isFirstPageForPattern;
+    const showFooterSection = isSinglePageForPattern ? true : isLastPageForPattern;
+
+    if (!showFooterSection) pageNumFooter = '';
+
     const fallbackLogoUrl = (typeof window !== 'undefined' && window.location && window.location.pathname)
         ? (window.location.pathname.replace(/\/[^/]*$/, '') || '') + '/images/Logo.png'
         : 'images/Logo.png';
@@ -2595,7 +2700,10 @@ async function generateQuotationHtml(quotation, options = {}) {
         : null;
     const customerImageHtml = customerImageSrc ? `<div style="position: absolute; top: 20px; right: 56px; z-index: 10;"><img src="${customerImageSrc}" alt="Customer Image" style="width: 200px; height: auto; max-height: 200px; object-fit: contain; border-radius: 8px; border: 1px solid ${theme.border}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div>` : '';
 
-    // Page 2: Images attached to quotation (same header/footer, images instead of table)
+    const headerLogoHtml = showHeaderSection ? logoImgHtml : '';
+    const headerCustomerImageHtml = showHeaderSection ? customerImageHtml : '';
+
+    // Page 2: Images attached to quotation
     if (options.page2Images && options.page2Images.length > 0) {
         const imagesGridHtml = options.page2Images.map(item => {
             const imgSrc = item.image || '';
@@ -2612,8 +2720,9 @@ async function generateQuotationHtml(quotation, options = {}) {
         return `
                 <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
                     <style>.theme-border { border-color: ${theme.border} !important; }</style>
-                    ${logoImgHtml}
-                    ${customerImageHtml}
+                    ${headerLogoHtml}
+                    ${headerCustomerImageHtml}
+                    ${showHeaderSection ? `
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;">
                         <div>
                             <div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div>
@@ -2628,14 +2737,17 @@ async function generateQuotationHtml(quotation, options = {}) {
                         <div>${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}</div>
                         <div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div>
                     </div>
+                    ` : ''}
                     <div style="margin-top: 24px; margin-bottom: 24px;">
                         ${imagesGridHtml}
                     </div>
+                    ${showFooterSection ? `
                     <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;">
                         <div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div>
                         <div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div>
                         <div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div>
                     </div>
+                    ` : ''}
                 </div>
         `;
     }
@@ -2651,8 +2763,9 @@ async function generateQuotationHtml(quotation, options = {}) {
                         .theme-accent { color: ${theme.accent}; }
                         .theme-border { border-color: ${theme.border} !important; }
                     </style>
-                    ${logoImgHtml}
-                    ${customerImageHtml}
+                    ${headerLogoHtml}
+                    ${headerCustomerImageHtml}
+                    ${showHeaderSection ? `
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;">
                         <div>
                             <div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div>
@@ -2674,6 +2787,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                             <div style="font-size: 14px;">${dateCreated}</div>
                         </div>
                     </div>
+                    ` : ''}
                     <table class="q-table">
                         <thead>
                             <tr>
@@ -2713,12 +2827,14 @@ async function generateQuotationHtml(quotation, options = {}) {
                             </div>
                         </div>
                     </div>` : ''}
+                    ${showFooterSection ? `
                     <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;">
                         ${pageNumFooter ? `<div style="margin-bottom: 8px; font-weight: 600;">${pageNumFooter}</div>` : ''}
                         <div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div>
                         <div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div>
                         <div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div>
                     </div>
+                    ` : ''}
                 </div>
     `;
 }
@@ -2789,6 +2905,13 @@ async function renderItemsList(filter = '') {
         } else if (itemsCurrentPriceSort === 'desc') {
             filteredItems.sort((a, b) => parseFloat(b.price || 0) - parseFloat(a.price || 0));
         }
+        if (itemsCurrentTotalValueSort === 'asc') {
+            const totalVal = (item) => { const p = parseFloat(item.price) || 0; const g = parseFloat(item.gst) || 0; return p + (p * g / 100); };
+            filteredItems.sort((a, b) => totalVal(a) - totalVal(b));
+        } else if (itemsCurrentTotalValueSort === 'desc') {
+            const totalVal = (item) => { const p = parseFloat(item.price) || 0; const g = parseFloat(item.gst) || 0; return p + (p * g / 100); };
+            filteredItems.sort((a, b) => totalVal(b) - totalVal(a));
+        }
 
         if (filteredItems.length === 0) {
             noItemsMessage.style.display = 'block';
@@ -2817,6 +2940,7 @@ async function renderItemsList(filter = '') {
         // Update pagination controls
         updateItemsPaginationControls(totalPages, filteredItems.length);
         updatePriceSortHeader();
+        updateTotalValueSortHeader();
         updateNameSortHeader();
 
         const isAuthorizedToEdit = AUTHORIZED_TO_EDIT_ITEMS.includes(CURRENT_USER_ROLE);
@@ -3164,8 +3288,10 @@ async function renderItemsTypeFilters() {
         btn.addEventListener('click', () => {
             itemsCurrentTypeFilter = typeValue || '';
             itemsCurrentPriceSort = 'none';
+            itemsCurrentTotalValueSort = 'none';
             itemsCurrentNameSort = 'none';
             updatePriceSortHeader();
+            updateTotalValueSortHeader();
             updateNameSortHeader();
 
             // Toggle active state
@@ -3391,7 +3517,7 @@ async function downloadQuotationAsPdfDirect(quotation) {
         }
         const logoPng = logoDataUrl ? await imageDataUrlToPng(logoDataUrl) : null;
 
-        const PRODUCTS_PER_PAGE = 6;
+        const PRODUCTS_PER_PAGE = 14;
         const rawItems = quotation.items || quotation.products || quotation.lineItems || [];
         const itemsCount = Array.isArray(rawItems) ? rawItems.length : 0;
         const totalPages = Math.max(1, Math.ceil(itemsCount / PRODUCTS_PER_PAGE));
@@ -3631,6 +3757,7 @@ async function editQuotationInCreateSection(quotationId) {
         quotationItems = (quote.items || []).map(it => ({
             productId: it.productId,
             productName: it.productName,
+            type: it.type || '',
             price: it.price,
             quantity: it.quantity || 1,
             gstRate: it.gstRate != null ? it.gstRate : 0
@@ -3930,6 +4057,7 @@ async function cloneQuotation(quotationId) {
         quotationItems = quote.items.map(item => ({
             productId: item.productId,
             productName: item.productName,
+            type: item.type || '',
             description: item.description,
             price: item.price,
             gstRate: item.gstRate,
@@ -3998,6 +4126,77 @@ async function renderContactRequestsList() {
     }
 }
 
+async function renderUserSessions() {
+    const loggedInAtEl = document.getElementById('sessionLoggedInAt');
+    const durationEl = document.getElementById('sessionDuration');
+    const expiresAtEl = document.getElementById('sessionExpiresAt');
+    const body = document.getElementById('userSessionsListBody');
+    const noMsg = document.getElementById('noUserSessionsMessage');
+    if (!body) return;
+
+    let startMs = parseInt(localStorage.getItem('rolewise_session_start'), 10);
+    if (!startMs) {
+        const expiry = localStorage.getItem('rolewise_session_expiry');
+        const timeout = localStorage.getItem('rolewise_session_timeout');
+        if (expiry && timeout) startMs = parseInt(expiry, 10) - (parseInt(timeout, 10) * 1000);
+    }
+    if (loggedInAtEl) {
+        if (startMs) {
+            const d = new Date(startMs);
+            loggedInAtEl.textContent = 'Logged in at ' + d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+        } else {
+            loggedInAtEl.textContent = 'Session start not available';
+        }
+    }
+    if (durationEl) {
+        if (startMs) {
+            const elapsedMs = Date.now() - startMs;
+            const hours = Math.floor(elapsedMs / (1000 * 60 * 60));
+            const minutes = Math.floor((elapsedMs % (1000 * 60 * 60)) / (1000 * 60));
+            durationEl.textContent = hours + 'h ' + minutes + 'm';
+        } else {
+            durationEl.textContent = '—';
+        }
+    }
+    if (expiresAtEl) {
+        const expiry = localStorage.getItem('rolewise_session_expiry');
+        if (expiry) {
+            const expDate = new Date(parseInt(expiry, 10));
+            expiresAtEl.textContent = 'Expires ' + expDate.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+        } else {
+            expiresAtEl.textContent = '—';
+        }
+    }
+
+    body.innerHTML = '';
+    if (noMsg) noMsg.style.display = 'none';
+    try {
+        const response = await apiFetch('/admin/user-sessions');
+        const list = Array.isArray(response) ? response : (response.data || []);
+        if (list.length === 0) {
+            if (noMsg) noMsg.style.display = 'block';
+            return;
+        }
+        list.forEach(function (u) {
+            const row = body.insertRow();
+            const userLabel = (u.name && u.name.trim()) ? (u.name + ' (' + (u.email || '') + ')') : (u.email || '—');
+            row.insertCell().textContent = userLabel;
+            row.insertCell().textContent = u.role || '—';
+            row.insertCell().textContent = (u.totalActiveHours != null) ? (Number(u.totalActiveHours).toFixed(2) + ' h') : '—';
+            const lastStr = u.lastLoginAt ? (function () {
+                try { return new Date(u.lastLoginAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return u.lastLoginAt; }
+            })() : '—';
+            row.insertCell().textContent = lastStr;
+            const currStr = u.currentSessionStartedAt ? (function () {
+                try { return new Date(u.currentSessionStartedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }); } catch (e) { return u.currentSessionStartedAt; }
+            })() : '—';
+            row.insertCell().textContent = currStr;
+        });
+    } catch (e) {
+        if (noMsg) { noMsg.textContent = 'Unable to load user sessions.'; noMsg.style.display = 'block'; }
+    }
+}
+
 async function renderLogsList() {
     if (!AUTHORIZED_TO_VIEW_LOGS.includes(CURRENT_USER_ROLE)) return;
 
@@ -4034,9 +4233,11 @@ function setText(id, value) {
 }
 
 async function renderSettings() {
-    const settings = await getSettings();
+    renderQuotationItemsOrderList(quotationItemTypeOrder && quotationItemTypeOrder.length ? quotationItemTypeOrder : DEFAULT_QUOTATION_ITEM_TYPE_ORDER);
+    try {
+        const settings = await getSettings();
 
-    setValue('settings-brand-name', settings.brand || '');
+        setValue('settings-brand-name', settings.brand || '');
     setValue('settings-company-gst-id', settings.companyGstId || '');
     setValue('settings-validity-days', settings.validityDays ?? settings.defaultValidityDays ?? 3);
     setText('validityDaysDisplay', settings.validityDays ?? settings.defaultValidityDays ?? 3);
@@ -4074,6 +4275,91 @@ async function renderSettings() {
             removeLogoBtn.style.display = 'none';
         }
     }
+
+    // Quotation Items display order: saved order + all product types + any types from items
+    const savedOrder = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
+        ? settings.quotationItemTypeOrder
+        : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+    const productTypesList = Array.isArray(settings.productTypes) ? settings.productTypes.slice() : [];
+    let typesFromItems = [];
+    try {
+        const itemsData = await getItems();
+        const arr = Array.isArray(itemsData) ? itemsData : (itemsData && itemsData.data) || [];
+        typesFromItems = [...new Set(arr.map(function (item) { return item.type; }).filter(Boolean))];
+    } catch (e) { }
+    const order = mergeQuotationOrderWithAllTypes(savedOrder, productTypesList, typesFromItems);
+    quotationItemTypeOrder = order.slice();
+    renderQuotationItemsOrderList(order);
+
+    } catch (error) {
+        console.error('renderSettings() error:', error);
+        quotationItemTypeOrder = DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+        renderQuotationItemsOrderList(DEFAULT_QUOTATION_ITEM_TYPE_ORDER);
+    }
+}
+
+function mergeQuotationOrderWithAllTypes(savedOrder, productTypes, typesFromItems) {
+    const seen = new Set();
+    const out = [];
+    const add = function (v) {
+        const t = String(v).toLowerCase().trim();
+        if (!t || seen.has(t)) return;
+        seen.add(t);
+        out.push(t);
+    };
+    (savedOrder || []).forEach(add);
+    (productTypes || []).forEach(function (t) { add(t); });
+    (typesFromItems || []).forEach(function (t) { add(t); });
+    return out.length ? out : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+}
+
+function renderQuotationItemsOrderList(order) {
+    const listEl = document.getElementById('settings-quotation-items-order-list');
+    if (!listEl) return;
+    const arr = Array.isArray(order) && order.length > 0 ? order.slice() : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+    listEl.innerHTML = '';
+    arr.forEach(function (label, idx) {
+        const li = document.createElement('li');
+        li.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #eee;';
+        li.dataset.index = idx;
+        li.dataset.value = label;
+        const title = String(label).replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+        li.innerHTML = '<span style="flex:1;">' + title + '</span>' +
+            '<button type="button" class="btn" data-move="up" title="Move up" style="padding:4px 8px;"><i class="fas fa-arrow-up"></i></button>' +
+            '<button type="button" class="btn" data-move="down" title="Move down" style="padding:4px 8px;"><i class="fas fa-arrow-down"></i></button>' +
+            '<button type="button" class="btn danger" data-remove-type title="Remove" style="padding:4px 8px;"><i class="fas fa-times"></i></button>';
+        listEl.appendChild(li);
+    });
+    listEl.querySelectorAll('[data-move="up"]').forEach(function (btn) {
+        btn.onclick = function () {
+            const li = btn.closest('li');
+            const prev = li.previousElementSibling;
+            if (prev) { listEl.insertBefore(li, prev); }
+        };
+    });
+    listEl.querySelectorAll('[data-move="down"]').forEach(function (btn) {
+        btn.onclick = function () {
+            const li = btn.closest('li');
+            const next = li.nextElementSibling;
+            if (next) { listEl.insertBefore(next, li); }
+        };
+    });
+    listEl.querySelectorAll('[data-remove-type]').forEach(function (btn) {
+        btn.onclick = function () {
+            const li = btn.closest('li');
+            const val = (li.dataset.value || '').trim().toLowerCase();
+            const current = getQuotationItemsOrderFromList();
+            quotationItemTypeOrder = current.filter(function (t) { return (t || '').toLowerCase() !== val; });
+            renderQuotationItemsOrderList(quotationItemTypeOrder);
+        };
+    });
+}
+
+function getQuotationItemsOrderFromList() {
+    const listEl = document.getElementById('settings-quotation-items-order-list');
+    if (!listEl) return quotationItemTypeOrder.slice();
+    const items = listEl.querySelectorAll('li');
+    return Array.from(items).map(function (li) { return (li.dataset.value || '').trim(); }).filter(Boolean);
 }
 
 async function updateSummary() {
@@ -4370,6 +4656,16 @@ document.getElementById('phone-number')?.addEventListener('blur', async function
 });
 
 function showSection(sectionId) {
+    // When leaving Customers section, refresh search bars and reset pagination
+    const prevSection = Array.from(document.querySelectorAll('.content-section')).find(s => s.style.display !== 'none');
+    if (prevSection && prevSection.id === 'viewCustomers') {
+        const listInp = document.getElementById('customerListSearchInput');
+        const detailsInp = document.getElementById('customerDetailsSearchInput');
+        if (listInp) listInp.value = '';
+        if (detailsInp) detailsInp.value = '';
+        customersCurrentPage = 1;
+        customerDetailsCurrentPage = 1;
+    }
     document.querySelectorAll('.content-section').forEach(section => {
         section.style.display = 'none';
     });
@@ -4445,10 +4741,14 @@ function showSection(sectionId) {
     }
     if (sectionId === 'viewHistory') renderHistoryList();
     if (sectionId === 'viewLogs') renderLogsList();
+    if (sectionId === 'viewUserSessions') renderUserSessions();
     if (sectionId === 'viewContactRequests') renderContactRequestsList();
     if (sectionId === 'viewCustomers') {
         renderCustomersList();
         showCustomerSubtab('customerHistory');
+    }
+    if (sectionId === 'settings') {
+        renderSettings();
     }
 }
 
@@ -4465,6 +4765,16 @@ function showCustomerSubtab(subtabId) {
     const detailsView = document.getElementById('customerDetailsView');
     const section = document.getElementById('viewCustomers');
     if (!section || !historyView || !detailsView) return;
+    // Refresh search bar of the section we're leaving
+    if (subtabId === 'customerHistory') {
+        const detailsInp = document.getElementById('customerDetailsSearchInput');
+        if (detailsInp) detailsInp.value = '';
+        customerDetailsCurrentPage = 1;
+    } else {
+        const listInp = document.getElementById('customerListSearchInput');
+        if (listInp) listInp.value = '';
+        customersCurrentPage = 1;
+    }
     section.querySelectorAll('.section-tabs .tab-btn[data-subtab]').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-subtab') === subtabId);
     });
@@ -4517,6 +4827,53 @@ document.getElementById('saveCompanyGstIdBtn')?.addEventListener('click', async 
         });
         alert('Company GST ID saved successfully!');
     } catch (e) { }
+});
+
+document.getElementById('settingsAddProductTypeBtn')?.addEventListener('click', function () {
+    const input = document.getElementById('settings-new-product-type');
+    if (!input) return;
+    const raw = (input.value || '').trim();
+    const value = raw.toUpperCase();
+    if (!value) {
+        alert('Please enter a product type.');
+        return;
+    }
+    const orderLower = (value || '').toLowerCase().trim();
+    if (quotationItemTypeOrder.indexOf(orderLower) !== -1) {
+        alert('This type is already in the list.');
+        return;
+    }
+    quotationItemTypeOrder.push(orderLower);
+    renderQuotationItemsOrderList(quotationItemTypeOrder);
+    input.value = '';
+});
+
+document.getElementById('saveQuotationItemsOrderBtn')?.addEventListener('click', async function () {
+    const order = getQuotationItemsOrderFromList();
+    if (order.length === 0) {
+        alert('Order list is empty.');
+        return;
+    }
+    try {
+        await apiFetch('/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                quotationItemTypeOrder: order,
+                productTypes: order.map(function (x) { return String(x).toUpperCase(); })
+            })
+        });
+        quotationItemTypeOrder = order.slice();
+        invalidateQuotationTypeFiltersCache();
+        alert('Quotation Items order saved successfully!');
+    } catch (e) {
+        alert('Failed to save order.');
+    }
+});
+
+document.getElementById('resetQuotationItemsOrderBtn')?.addEventListener('click', function () {
+    quotationItemTypeOrder = DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+    renderQuotationItemsOrderList(DEFAULT_QUOTATION_ITEM_TYPE_ORDER);
 });
 
 document.getElementById('saveValidityBtn')?.addEventListener('click', async function () {
@@ -5037,7 +5394,8 @@ async function handleLogout() {
             'rolewise_user_name',
             'rolewise_user_id',
             'rolewise_session_expiry',
-            'rolewise_session_timeout'
+            'rolewise_session_timeout',
+            'rolewise_session_start'
         ];
         
         allKeys.forEach(key => {
@@ -5055,7 +5413,8 @@ async function handleLogout() {
             'rolewise_user_name',
             'rolewise_user_id',
             'rolewise_session_expiry',
-            'rolewise_session_timeout'
+            'rolewise_session_timeout',
+            'rolewise_session_start'
         ];
         
         allKeys.forEach(key => {
@@ -5127,5 +5486,40 @@ window.addEventListener('pageshow', function(event) {
             redirectToLogin();
         }
     }
+});
+
+// Sidebar time display
+function updateSidebarTime() {
+    const el = document.getElementById('sidebarTimeText');
+    if (el) {
+        const d = new Date();
+        const h = d.getHours();
+        const h12 = h % 12 || 12;
+        const ampm = h < 12 ? 'AM' : 'PM';
+        const m = String(d.getMinutes()).padStart(2, '0');
+        const s = String(d.getSeconds()).padStart(2, '0');
+        el.textContent = h12 + ':' + m + ':' + s + ' ' + ampm;
+    }
+    const loggedEl = document.getElementById('sidebarLoggedTime');
+    if (loggedEl) {
+        let startMs = parseInt(localStorage.getItem('rolewise_session_start'), 10);
+        if (!startMs) {
+            const expiry = localStorage.getItem('rolewise_session_expiry');
+            const timeout = localStorage.getItem('rolewise_session_timeout');
+            if (expiry && timeout) startMs = parseInt(expiry, 10) - (parseInt(timeout, 10) * 1000);
+        }
+        if (startMs) {
+            const elapsedMs = Date.now() - startMs;
+            const hours = Math.floor(elapsedMs / (1000 * 60 * 60));
+            const minutes = Math.floor((elapsedMs % (1000 * 60 * 60)) / (1000 * 60));
+            loggedEl.textContent = hours + 'h ' + minutes + 'm';
+        } else {
+            loggedEl.textContent = '—';
+        }
+    }
+}
+document.addEventListener('DOMContentLoaded', function() {
+    updateSidebarTime();
+    setInterval(updateSidebarTime, 1000);
 });
 

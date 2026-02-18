@@ -33,6 +33,10 @@
             <a href="#" data-tab="settings" id="navSettings"><i class="fas fa-cog"></i> Settings</a>
         </nav>
 
+        <div id="sidebarTime" class="sidebar-time" aria-live="polite">
+            <div><i class="fas fa-clock"></i> <span id="sidebarTimeText">--:--:--</span></div>
+            <div class="sidebar-logged-label"><i class="fas fa-user-clock"></i> <span id="sidebarLoggedTime">—</span></div>
+        </div>
         <a href="#" id="getDemoBtn" class="btn primary sidebar-cta"><i class="fas fa-play-circle"></i> Get Demo</a>
 
         <button class="btn danger" id="logoutBtn" style="margin-top: 8px; width: 100%; padding: 8px; font-size: 13px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
@@ -159,7 +163,10 @@
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <h2>Add New Product</h2>
                         <input type="file" id="importCsvInput" accept=".csv" style="display:none" onchange="handleCsvImport(event)">
-                        <button class="btn" onclick="document.getElementById('importCsvInput').click()"><i class="fas fa-file-import"></i> Import CSV</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn" onclick="document.getElementById('importCsvInput').click()"><i class="fas fa-file-import"></i> Import CSV</button>
+                            <button type="button" class="btn secondary" onclick="downloadSampleProductsCsv()" title="Download CSV template matching Products table columns"><i class="fas fa-download"></i> Sample CSV</button>
+                        </div>
                     </div>
                     <p class="muted">Enter the details of the new product. Product ID will be auto-generated.</p>
 
@@ -408,7 +415,7 @@
                                 <th>Website Link</th>
                                 <th id="priceColHeader" class="price-sort-header" onclick="togglePriceSort()" title="Sort by price">Price (₹) <span id="priceSortArrows" class="price-sort-arrows"></span></th>
                                 <th>GST (%)</th>
-                                <th>Total Value (₹)</th>
+                                <th id="totalValueColHeader" class="price-sort-header" onclick="toggleTotalValueSort()" title="Sort by total value">Total Value (₹) <span id="totalValueSortArrows" class="price-sort-arrows"></span></th>
                                 <th>Added By</th>
                                 <th>Date Added</th>
                                 <th>Actions</th>
@@ -761,7 +768,7 @@
             </div>
             <div id="customerDetailsView" class="customer-sub-view" style="display:none;">
                 <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
-                    <h2>Customer Details</h2>
+                    <h2>Customer Quotation Details</h2>
                     <p class="muted">List of all customers with their detailed information.</p>
                     <div style="margin-top: 12px; margin-bottom: 18px;">
                         <input type="text" id="customerDetailsSearchInput" placeholder="Search customers by Name, Email, Phone, or Address..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)">
@@ -887,6 +894,26 @@
         </section>
 
         <section id="settings" class="content-section" style="display:none">
+            <div class="card" id="settings-quotation-items-order-card">
+                <h2>Quotation Items display order</h2>
+                <p class="muted">Add product types and set the order in which they appear in the Quotation Items section when adding products. Use <strong>Up</strong> / <strong>Down</strong> to reorder and <strong>Remove</strong> to delete. Types are stored in uppercase; this order applies across all dashboards.</p>
+                <div style="margin-top:18px">
+                    <div class="form-field" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+                        <input type="text" id="settings-new-product-type" placeholder="e.g. GPU, CABINET" maxlength="100" style="width:220px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
+                        <button type="button" class="btn primary" id="settingsAddProductTypeBtn"><i class="fas fa-plus"></i> Add type</button>
+                    </div>
+                    <div style="margin-bottom:8px; font-weight:600; font-size:13px;">Order (top = first):</div>
+                    <ul id="settings-quotation-items-order-list" style="list-style:none; padding:0; margin:0 0 12px 0; max-width:500px; max-height:320px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:8px; background:#f9fafb; padding:8px;">
+                        <!-- Filled by JS -->
+                    </ul>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                        <button class="btn primary" id="saveQuotationItemsOrderBtn"><i class="fas fa-save"></i> Save order</button>
+                        <button class="btn secondary" id="resetQuotationItemsOrderBtn" type="button"><i class="fas fa-undo"></i> Reset to default</button>
+                    </div>
+                    <small class="muted" style="display:block;margin-top:8px">Saved list defines both product types and their display order in Create/Edit Quotation.</small>
+                </div>
+            </div>
+
             <div class="card">
                 <h2>Quotation Validity</h2>
                 <p class="muted">Set the number of days a generated quotation is considered valid.</p>
