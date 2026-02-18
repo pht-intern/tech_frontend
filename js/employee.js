@@ -3737,6 +3737,17 @@
             } catch (error) {
                 console.warn('Failed to fetch temp items, using original items:', error);
             }
+
+            // Apply Quotation Items display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
+            try {
+                const settingsForOrder = await getSettings();
+                const displayOrder = Array.isArray(settingsForOrder.quotationItemTypeOrder) && settingsForOrder.quotationItemTypeOrder.length > 0
+                    ? settingsForOrder.quotationItemTypeOrder
+                    : DEFAULT_QUOTATION_ITEM_TYPE_ORDER;
+                items = [...items].sort((a, b) => getQuotationCategorySortIndex(a.type, displayOrder) - getQuotationCategorySortIndex(b.type, displayOrder));
+            } catch (e) {
+                items = [...items].sort((a, b) => getQuotationCategorySortIndex(a.type, DEFAULT_QUOTATION_ITEM_TYPE_ORDER) - getQuotationCategorySortIndex(b.type, DEFAULT_QUOTATION_ITEM_TYPE_ORDER));
+            }
             
             // ALWAYS recalculate totals (same as owner.js)
             let subTotal = parseFloat(quotation.subTotal) || 0;

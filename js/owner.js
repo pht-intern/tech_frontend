@@ -2725,6 +2725,12 @@ async function generateQuotationHtml(quotation, options = {}) {
     } catch (error) {
         console.warn('Failed to fetch temp items, using original items:', error);
     }
+
+    // Apply Quotation Items display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
+    const displayOrder = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
+        ? settings.quotationItemTypeOrder
+        : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+    items = [...items].sort((a, b) => getQuotationCategorySortIndex(a.type, displayOrder) - getQuotationCategorySortIndex(b.type, displayOrder));
     
     // ALWAYS recalculate totals from items array (using temp table data if available)
     // This ensures downloaded quotation uses updated values from temp table, not items table
