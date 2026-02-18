@@ -111,7 +111,9 @@ let CURRENT_USER_EMAIL = userEmailFromStorage || (userObjFromStorage ? (() => {
 })() : `${DEFAULT_ROLE.toLowerCase()}@rolewise.app`);
 
 let quotationItems = [];
-const DEFAULT_QUOTATION_ITEM_TYPE_ORDER = ['all', 'cpu', 'cpu cooler', 'motherboard', 'memory', 'storage', 'graphic card', 'case', 'monitor', '19500', 'amd cpu', 'amd mobo', 'cabinet', 'cooler', 'fan', 'fan controller', 'gpu', 'gpu cable', 'gpu holder', 'hdd', 'intel cpu', 'intel mobo', 'keyboard&mouse', 'memory module radiator', 'mod cable', 'ram', 'smps', 'ssd', 'ups'];
+var EXCLUDED_ITEM_TYPES = ['cpu', 'motherboard', 'case', 'storage', 'others', '19500', 'graphic card', 'memory'];
+function isExcludedType(t) { var v = String(t).toLowerCase().trim(); return EXCLUDED_ITEM_TYPES.indexOf(v) !== -1; }
+const DEFAULT_QUOTATION_ITEM_TYPE_ORDER = ['all', 'cpu cooler', 'monitor', 'amd cpu', 'amd mobo', 'cabinet', 'cooler', 'fan', 'fan controller', 'gpu', 'gpu cable', 'gpu holder', 'hdd', 'intel cpu', 'intel mobo', 'keyboard&mouse', 'memory module radiator', 'mod cable', 'ram', 'smps', 'ssd', 'ups'];
 let quotationItemTypeOrder = DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
 function getQuotationCategorySortIndex(type) {
     const t = (type || '').toLowerCase().trim();
@@ -1790,18 +1792,21 @@ async function renderQuotationTypeFilters(items = null) {
         const seen = new Set();
         orderFromSettings.forEach(function (t) {
             const v = String(t).toLowerCase().trim();
-            if (v && !seen.has(v)) { seen.add(v); filtersFromDb.push(String(t).trim()); }
+            if (v && !seen.has(v) && !isExcludedType(v)) { seen.add(v); filtersFromDb.push(String(t).trim()); }
         });
         productTypesFromSettings.forEach(function (t) {
             const v = String(t).toLowerCase().trim();
-            if (v && !seen.has(v)) { seen.add(v); filtersFromDb.push(String(t).trim()); }
+            if (v && !seen.has(v) && !isExcludedType(v)) { seen.add(v); filtersFromDb.push(String(t).trim()); }
         });
+    } else {
+        filtersFromDb = filtersFromDb.filter(function (t) { return !isExcludedType(t); });
     }
-    const typesFromItems = [...new Set(itemsData.map(item => item.type).filter(Boolean))];
+    const typesFromItems = [...new Set(itemsData.map(item => item.type).filter(Boolean))].filter(function (t) { return !isExcludedType(t); });
     const seen = new Set();
     const orderedPairs = [];
     orderedPairs.push({ value: '', label: 'All' });
     seen.add('');
+    seen.add('all');
     filtersFromDb.forEach(function (t) {
         const v = String(t).toLowerCase().trim();
         if (v && !seen.has(v)) { seen.add(v); orderedPairs.push({ value: v, label: String(t).trim() }); }
@@ -1810,6 +1815,12 @@ async function renderQuotationTypeFilters(items = null) {
     typesFromItems.forEach(function (t) {
         const v = String(t).toLowerCase().trim();
         if (v && !seen.has(v)) { seen.add(v); orderedPairs.push({ value: v, label: String(t).trim() }); }
+    });
+    orderedPairs.sort(function (a, b) {
+        var ia = itemsTypeFilterSortIndex(a.value);
+        var ib = itemsTypeFilterSortIndex(b.value);
+        if (ia !== ib) return ia - ib;
+        return String(a.value || '').localeCompare(String(b.value || ''), 'en-IN', { sensitivity: 'base' });
     });
 
     container.innerHTML = '';
@@ -3258,6 +3269,14 @@ async function renderHistoryList() {
     });
 }
 
+// Order for itemsTypeFilters: All, Intel CPU, AMD CPU, Intel Mobo, AMD Mobo, then the rest
+var ITEMS_TYPE_FILTER_PRIORITY = ['', 'intel cpu', 'amd cpu', 'intel mobo', 'amd mobo'];
+function itemsTypeFilterSortIndex(value) {
+    var v = String(value || '').toLowerCase().trim();
+    var i = ITEMS_TYPE_FILTER_PRIORITY.indexOf(v);
+    return i >= 0 ? i : ITEMS_TYPE_FILTER_PRIORITY.length;
+}
+
 // Render dynamic type filter buttons for Products (items list)
 async function renderItemsTypeFilters() {
     const container = document.getElementById('itemsTypeFilters');
@@ -3267,7 +3286,7 @@ async function renderItemsTypeFilters() {
     try {
         const items = await getItems();
         types = [...new Set(items.map(item => item.type).filter(Boolean))]
-            .sort((a, b) => a.localeCompare(b, 'en-IN', { sensitivity: 'base' }));
+            .filter(function (t) { return !isExcludedType(t); });
     } catch (error) {
         // Silent fail, just show "All"
     }
@@ -3309,12 +3328,16 @@ async function renderItemsTypeFilters() {
         return btn;
     }
 
-    // "All" button
-    container.appendChild(createButton('All', ''));
-
-    // One button per unique product type
-    types.forEach(type => {
-        container.appendChild(createButton(type, type));
+    var orderedPairs = [{ label: 'All', value: '' }];
+    types.forEach(function (type) { orderedPairs.push({ label: type, value: type }); });
+    orderedPairs.sort(function (a, b) {
+        var ia = itemsTypeFilterSortIndex(a.value);
+        var ib = itemsTypeFilterSortIndex(b.value);
+        if (ia !== ib) return ia - ib;
+        return String(a.value || '').localeCompare(String(b.value || ''), 'en-IN', { sensitivity: 'base' });
+    });
+    orderedPairs.forEach(function (t) {
+        container.appendChild(createButton(t.label, t.value));
     });
 }
 
@@ -4303,7 +4326,7 @@ function mergeQuotationOrderWithAllTypes(savedOrder, productTypes, typesFromItem
     const out = [];
     const add = function (v) {
         const t = String(v).toLowerCase().trim();
-        if (!t || seen.has(t)) return;
+        if (!t || seen.has(t) || isExcludedType(t)) return;
         seen.add(t);
         out.push(t);
     };
@@ -4316,7 +4339,8 @@ function mergeQuotationOrderWithAllTypes(savedOrder, productTypes, typesFromItem
 function renderQuotationItemsOrderList(order) {
     const listEl = document.getElementById('settings-quotation-items-order-list');
     if (!listEl) return;
-    const arr = Array.isArray(order) && order.length > 0 ? order.slice() : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+    let arr = Array.isArray(order) && order.length > 0 ? order.slice() : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+    arr = arr.filter(function (t) { return !isExcludedType(t); }).filter(function (t) { return String(t).toLowerCase().trim() !== 'all'; });
     listEl.innerHTML = '';
     arr.forEach(function (label, idx) {
         const li = document.createElement('li');

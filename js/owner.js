@@ -106,7 +106,9 @@ let CURRENT_USER_EMAIL = userEmailFromStorage || (userObjFromStorage ? (() => {
     }
 })() : `${DEFAULT_ROLE.toLowerCase()}@rolewise.app`);
 let quotationItems = [];
-const DEFAULT_QUOTATION_ITEM_TYPE_ORDER = ['all', 'cpu', 'cpu cooler', 'motherboard', 'memory', 'storage', 'graphic card', 'case', 'monitor', '19500', 'amd cpu', 'amd mobo', 'cabinet', 'cooler', 'fan', 'fan controller', 'gpu', 'gpu cable', 'gpu holder', 'hdd', 'intel cpu', 'intel mobo', 'keyboard&mouse', 'memory module radiator', 'mod cable', 'ram', 'smps', 'ssd', 'ups'];
+var EXCLUDED_ITEM_TYPES = ['cpu', 'motherboard', 'case', 'storage', 'others', '19500', 'graphic card', 'memory'];
+function isExcludedType(t) { var v = String(t).toLowerCase().trim(); return EXCLUDED_ITEM_TYPES.indexOf(v) !== -1; }
+const DEFAULT_QUOTATION_ITEM_TYPE_ORDER = ['all', 'cpu cooler', 'monitor', 'amd cpu', 'amd mobo', 'cabinet', 'cooler', 'fan', 'fan controller', 'gpu', 'gpu cable', 'gpu holder', 'hdd', 'intel cpu', 'intel mobo', 'keyboard&mouse', 'memory module radiator', 'mod cable', 'ram', 'smps', 'ssd', 'ups'];
 let quotationItemTypeOrder = DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
 
 function getQuotationCategorySortIndex(type) {
@@ -1807,18 +1809,21 @@ async function renderQuotationTypeFilters() {
         const seenMerge = new Set();
         orderFromSettings.forEach(function (t) {
             const v = String(t).toLowerCase().trim();
-            if (v && !seenMerge.has(v)) { seenMerge.add(v); filtersFromDb.push(String(t).trim()); }
+            if (v && !seenMerge.has(v) && !isExcludedType(v)) { seenMerge.add(v); filtersFromDb.push(String(t).trim()); }
         });
         productTypesFromSettings.forEach(function (t) {
             const v = String(t).toLowerCase().trim();
-            if (v && !seenMerge.has(v)) { seenMerge.add(v); filtersFromDb.push(String(t).trim()); }
+            if (v && !seenMerge.has(v) && !isExcludedType(v)) { seenMerge.add(v); filtersFromDb.push(String(t).trim()); }
         });
+    } else {
+        filtersFromDb = filtersFromDb.filter(function (t) { return !isExcludedType(t); });
     }
-    const typesFromItems = [...new Set(itemsData.map(item => item.type).filter(Boolean))];
+    const typesFromItems = [...new Set(itemsData.map(item => item.type).filter(Boolean))].filter(function (t) { return !isExcludedType(t); });
     const seen = new Set();
     const orderedPairs = [];
     orderedPairs.push({ value: '', label: 'All' });
     seen.add('');
+    seen.add('all');
     filtersFromDb.forEach(function (t) {
         const v = String(t).toLowerCase().trim();
         if (v && !seen.has(v)) { seen.add(v); orderedPairs.push({ value: v, label: String(t).trim() }); }
@@ -1827,6 +1832,12 @@ async function renderQuotationTypeFilters() {
     typesFromItems.forEach(function (t) {
         const v = String(t).toLowerCase().trim();
         if (v && !seen.has(v)) { seen.add(v); orderedPairs.push({ value: v, label: String(t).trim() }); }
+    });
+    orderedPairs.sort(function (a, b) {
+        var ia = itemsTypeFilterSortIndex(a.value);
+        var ib = itemsTypeFilterSortIndex(b.value);
+        if (ia !== ib) return ia - ib;
+        return String(a.value || '').localeCompare(String(b.value || ''), 'en-IN', { sensitivity: 'base' });
     });
 
     container.innerHTML = '';
@@ -3363,6 +3374,14 @@ async function renderHistoryList() {
     });
 }
 
+// Order for itemsTypeFilters: All, Intel CPU, AMD CPU, Intel Mobo, AMD Mobo, then the rest
+var ITEMS_TYPE_FILTER_PRIORITY = ['', 'intel cpu', 'amd cpu', 'intel mobo', 'amd mobo'];
+function itemsTypeFilterSortIndex(value) {
+    var v = String(value || '').toLowerCase().trim();
+    var i = ITEMS_TYPE_FILTER_PRIORITY.indexOf(v);
+    return i >= 0 ? i : ITEMS_TYPE_FILTER_PRIORITY.length;
+}
+
 // Render dynamic type filter buttons for Products (items list)
 async function renderItemsTypeFilters() {
     const container = document.getElementById('itemsTypeFilters');
@@ -3372,15 +3391,17 @@ async function renderItemsTypeFilters() {
     try {
         const items = await getItems();
         types = [...new Set(items.map(item => item.type).filter(Boolean))]
-            .sort((a, b) => a.localeCompare(b, 'en-IN', { sensitivity: 'base' }));
+            .filter(t => !isExcludedType(t));
     } catch (error) {
         // Silent fail, just show base types
     }
 
     const baseTypes = [
         { label: 'All', value: '' },
-        { label: 'CPU', value: 'cpu' },
-        { label: 'Motherboard', value: 'motherboard' },
+        { label: 'INTEL CPU', value: 'intel cpu' },
+        { label: 'AMD CPU', value: 'amd cpu' },
+        { label: 'INTEL MOBO', value: 'intel mobo' },
+        { label: 'AMD MOBO', value: 'amd mobo' },
         { label: 'RAM', value: 'ram' },
         { label: 'SSD', value: 'ssd' },
         { label: 'GPU', value: 'gpu' },
@@ -3393,12 +3414,21 @@ async function renderItemsTypeFilters() {
         { label: 'UPS', value: 'ups' },
         { label: 'LAPTOP', value: 'laptop' },
         { label: 'PRINTERS', value: 'printers' },
-        { label: 'NETWORKING PRODUCTS', value: 'networking products' },
-        { label: 'OTHERS', value: 'others' }
+        { label: 'NETWORKING PRODUCTS', value: 'networking products' }
     ];
 
     const baseValues = new Set(baseTypes.map(t => String(t.value).toLowerCase()));
     const extraTypes = types.filter(t => !baseValues.has(String(t).toLowerCase()));
+    const orderedPairs = baseTypes.slice();
+    extraTypes.forEach(type => {
+        orderedPairs.push({ label: type, value: type });
+    });
+    orderedPairs.sort((a, b) => {
+        var ia = itemsTypeFilterSortIndex(a.value);
+        var ib = itemsTypeFilterSortIndex(b.value);
+        if (ia !== ib) return ia - ib;
+        return String(a.value || '').localeCompare(String(b.value || ''), 'en-IN', { sensitivity: 'base' });
+    });
 
     container.innerHTML = '';
 
@@ -3439,14 +3469,8 @@ async function renderItemsTypeFilters() {
         return btn;
     }
 
-    // Base categories (including "All")
-    baseTypes.forEach(t => {
+    orderedPairs.forEach(t => {
         container.appendChild(createButton(t.label, t.value));
-    });
-
-    // Additional categories from Type dropdown / item types
-    extraTypes.forEach(type => {
-        container.appendChild(createButton(type, type));
     });
 }
 
@@ -4369,7 +4393,8 @@ async function renderSettings() {
 function renderQuotationItemsOrderList(order) {
     const listEl = document.getElementById('settings-quotation-items-order-list');
     if (!listEl) return;
-    const arr = Array.isArray(order) && order.length > 0 ? order.slice() : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+    let arr = Array.isArray(order) && order.length > 0 ? order.slice() : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+    arr = arr.filter(function (t) { return !isExcludedType(t); }).filter(function (t) { return String(t).toLowerCase().trim() !== 'all'; });
     listEl.innerHTML = '';
     arr.forEach(function (label, idx) {
         const li = document.createElement('li');
@@ -4410,7 +4435,7 @@ function mergeQuotationOrderWithAllTypes(savedOrder, productTypes, typesFromItem
     const out = [];
     const add = function (v) {
         const t = String(v).toLowerCase().trim();
-        if (!t || seen.has(t)) return;
+        if (!t || seen.has(t) || isExcludedType(t)) return;
         seen.add(t);
         out.push(t);
     };
@@ -6050,9 +6075,9 @@ async function updateTypeSuggestions() {
         // Type is now a select dropdown - suggestions no longer needed
         if (!document.getElementById('product-types')) return;
         const items = await getItems();
-        allProductTypes = [...new Set(items.map(item => item.type).filter(Boolean))];
+        allProductTypes = [...new Set(items.map(item => item.type).filter(Boolean))].filter(function (t) { return !isExcludedType(t); });
         
-        // Base categories that should always be available
+        // Base categories that should always be available (excluded: cpu, motherboard, case, storage, others, 19500)
         const baseCategories = [
             'MONITOR',
             'KEYBOARD&MOUSE',
@@ -6060,12 +6085,11 @@ async function updateTypeSuggestions() {
             'UPS',
             'LAPTOP',
             'PRINTERS',
-            'NETWORKING PRODUCTS',
-            'OTHERS'
+            'NETWORKING PRODUCTS'
         ];
         
-        // Combine base categories with existing types, removing duplicates
-        const allTypes = [...new Set([...baseCategories, ...allProductTypes])];
+        // Combine base categories with existing types, removing duplicates and excluded types
+        const allTypes = [...new Set([...baseCategories, ...allProductTypes])].filter(function (t) { return !isExcludedType(t); });
         
         const datalist = document.getElementById('product-types');
         datalist.innerHTML = '';

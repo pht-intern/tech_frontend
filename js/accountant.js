@@ -124,7 +124,11 @@
         })() : `${DEFAULT_ROLE.toLowerCase()}@rolewise.app`);
 
         let quotationItems = [];
-        const DEFAULT_QUOTATION_ITEM_TYPE_ORDER = ['all', 'cpu', 'cpu cooler', 'motherboard', 'memory', 'storage', 'graphic card', 'case', 'monitor', '19500', 'amd cpu', 'amd mobo', 'cabinet', 'cooler', 'fan', 'fan controller', 'gpu', 'gpu cable', 'gpu holder', 'hdd', 'intel cpu', 'intel mobo', 'keyboard&mouse', 'memory module radiator', 'mod cable', 'ram', 'smps', 'ssd', 'ups'];
+        var EXCLUDED_ITEM_TYPES = ['cpu', 'motherboard', 'case', 'storage', 'others', '19500', 'graphic card', 'memory'];
+        function isExcludedType(t) { var v = String(t).toLowerCase().trim(); return EXCLUDED_ITEM_TYPES.indexOf(v) !== -1; }
+        var QUOTATION_TYPE_FILTER_PRIORITY = ['', 'intel cpu', 'amd cpu', 'intel mobo', 'amd mobo'];
+        function quotationTypeFilterSortIndex(value) { var v = String(value || '').toLowerCase().trim(); var i = QUOTATION_TYPE_FILTER_PRIORITY.indexOf(v); return i >= 0 ? i : QUOTATION_TYPE_FILTER_PRIORITY.length; }
+        const DEFAULT_QUOTATION_ITEM_TYPE_ORDER = ['all', 'cpu cooler', 'monitor', 'amd cpu', 'amd mobo', 'cabinet', 'cooler', 'fan', 'fan controller', 'gpu', 'gpu cable', 'gpu holder', 'hdd', 'intel cpu', 'intel mobo', 'keyboard&mouse', 'memory module radiator', 'mod cable', 'ram', 'smps', 'ssd', 'ups'];
         function getQuotationCategorySortIndex(type, order) {
             const arr = order && order.length ? order : DEFAULT_QUOTATION_ITEM_TYPE_ORDER;
             const t = (type || '').toLowerCase().trim();
@@ -2102,7 +2106,7 @@
                 const r = await apiFetch('/settings');
                 settings = (r && r.data) ? r.data : (r || {});
             } catch (e) { /* use defaults */ }
-            const DEFAULT_ORDER = ['cpu', 'cpu cooler', 'motherboard', 'memory', 'storage', 'graphic card', 'case', 'monitor'];
+            const DEFAULT_ORDER = ['cpu cooler', 'monitor'];
             let filtersFromDb = Array.isArray(settings.quotationTypeFilters) ? settings.quotationTypeFilters.slice() : [];
             if (filtersFromDb.length === 0) {
                 const orderFromSettings = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
@@ -2112,18 +2116,21 @@
                 const seenMerge = new Set();
                 orderFromSettings.forEach(function (t) {
                     const v = String(t).toLowerCase().trim();
-                    if (v && !seenMerge.has(v)) { seenMerge.add(v); filtersFromDb.push(String(t).trim()); }
+                    if (v && !seenMerge.has(v) && !isExcludedType(v)) { seenMerge.add(v); filtersFromDb.push(String(t).trim()); }
                 });
                 productTypesFromSettings.forEach(function (t) {
                     const v = String(t).toLowerCase().trim();
-                    if (v && !seenMerge.has(v)) { seenMerge.add(v); filtersFromDb.push(String(t).trim()); }
+                    if (v && !seenMerge.has(v) && !isExcludedType(v)) { seenMerge.add(v); filtersFromDb.push(String(t).trim()); }
                 });
+            } else {
+                filtersFromDb = filtersFromDb.filter(function (t) { return !isExcludedType(t); });
             }
-            const typesFromItems = [...new Set(itemsData.map(item => item.type).filter(Boolean))];
+            const typesFromItems = [...new Set(itemsData.map(item => item.type).filter(Boolean))].filter(function (t) { return !isExcludedType(t); });
             const seen = new Set();
             const orderedPairs = [];
             orderedPairs.push({ value: '', label: 'All' });
             seen.add('');
+            seen.add('all');
             filtersFromDb.forEach(function (t) {
                 const v = String(t).toLowerCase().trim();
                 if (v && !seen.has(v)) { seen.add(v); orderedPairs.push({ value: v, label: String(t).trim() }); }
@@ -2132,6 +2139,12 @@
             typesFromItems.forEach(function (t) {
                 const v = String(t).toLowerCase().trim();
                 if (v && !seen.has(v)) { seen.add(v); orderedPairs.push({ value: v, label: String(t).trim() }); }
+            });
+            orderedPairs.sort(function (a, b) {
+                var ia = quotationTypeFilterSortIndex(a.value);
+                var ib = quotationTypeFilterSortIndex(b.value);
+                if (ia !== ib) return ia - ib;
+                return String(a.value || '').localeCompare(String(b.value || ''), 'en-IN', { sensitivity: 'base' });
             });
 
             container.innerHTML = '';
