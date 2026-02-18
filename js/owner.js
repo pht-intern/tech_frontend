@@ -2912,6 +2912,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                                 <th>S.No</th>
                                 <th>Type</th>
                                 <th>Description</th>
+                                <th class="text-right">Unit Price</th>
                                 <th class="text-right">Qty</th>
                                 <th class="text-right">Amount</th>
                             </tr>
@@ -2926,11 +2927,12 @@ async function generateQuotationHtml(quotation, options = {}) {
                                         <td>${snoOffset + idx + 1}</td>
                                         <td>${item.type || 'N/A'}</td>
                                         <td>${item.productName || 'N/A'}</td>
+                                        <td class="text-right">${formatRupee(itemPrice)}</td>
                                         <td class="text-right">${itemQuantity}</td>
                                         <td class="text-right">${formatRupee(itemTotal)}</td>
                                     </tr>
                                 `;
-                            }).join('') : '<tr><td colspan="5" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}
+                            }).join('') : '<tr><td colspan="6" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}
                         </tbody>
                     </table>
                     ${showTotals ? `<div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
