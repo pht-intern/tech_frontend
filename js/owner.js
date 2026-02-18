@@ -1779,6 +1779,11 @@ function getQuotationItems() {
     return quotationItems;
 }
 
+function invalidateQuotationTypeFiltersCache() {
+    const el = document.getElementById('quotationTypeFilters');
+    if (el) { el.removeAttribute('data-rendered'); }
+}
+
 // Dynamic type filters for "Add Items to Quotation" — synced from Settings (quotationItemTypeOrder + productTypes) + item types
 async function renderQuotationTypeFilters() {
     const container = document.getElementById('quotationTypeFilters');
@@ -5370,9 +5375,13 @@ document.getElementById('saveQuotationItemsOrderBtn')?.addEventListener('click',
             })
         });
         quotationItemTypeOrder = order.slice();
-        invalidateQuotationTypeFiltersCache();
+        if (typeof invalidateQuotationTypeFiltersCache === 'function') {
+            invalidateQuotationTypeFiltersCache();
+        }
         alert('Quotation Items order saved successfully!');
     } catch (e) {
+        console.error('Failed to save order:', e);
+
         alert('Failed to save order.');
     }
 });

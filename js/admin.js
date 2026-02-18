@@ -4854,7 +4854,9 @@ document.getElementById('saveQuotationItemsOrderBtn')?.addEventListener('click',
             })
         });
         quotationItemTypeOrder = order.slice();
-        invalidateQuotationTypeFiltersCache();
+        if (typeof invalidateQuotationTypeFiltersCache === 'function') {
+            invalidateQuotationTypeFiltersCache();
+        }
         alert('Quotation Items order saved successfully!');
     } catch (e) {
         alert('Failed to save order.');
