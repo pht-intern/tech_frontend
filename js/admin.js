@@ -2486,7 +2486,7 @@ async function generateQuotationPdf(quotation) {
         
         const rawItemsForPdf = quotation.items || quotation.products || quotation.lineItems || [];
         const itemsCount = Array.isArray(rawItemsForPdf) ? rawItemsForPdf.length : 0;
-        const needsMultiplePages = itemsCount > 9 || imgHeight > pageHeight;
+        const needsMultiplePages = itemsCount > 8 || imgHeight > pageHeight;
         
         if (needsMultiplePages) {
             // Multi-page logic
@@ -2663,7 +2663,7 @@ async function generateQuotationHtml(quotation, options = {}) {
     const quotationId = quotation.quotationId || quotation.id || 'N/A';
     const dateCreated = quotation.dateCreated || new Date().toLocaleDateString('en-IN');
 
-    // PDF pagination: 9 products per page, with header only on first page and footer only on last page
+    // PDF pagination: 8 products per page, with header only on first page and footer only on last page
     const pdfPage = options.pdfPage || null;
     let itemsForTable = items;
     let showTotals = true;
@@ -2734,7 +2734,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                         <div style="width: 200px;"></div>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
-                        <div>${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}</div>
+                        <div>${(function() { const line1 = [customer?.name, customer?.phone, customer?.email].filter(Boolean); const addr = customer?.address; if (!line1.length && !addr) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151;"><span style="font-weight: 600;">${line1.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span>${addr ? '<br><span style="font-weight: 600;">' + addr + '</span>' : ''}</div>`; })()}</div>
                         <div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div>
                     </div>
                     ` : ''}
@@ -2780,7 +2780,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
                         <div>
-                            ${(function() { const p = [customer?.name, customer?.phone, customer?.email, customer?.address].filter(Boolean); if (!p.length) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="font-weight: 600;">${p.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span></div>`; })()}
+                            ${(function() { const line1 = [customer?.name, customer?.phone, customer?.email].filter(Boolean); const addr = customer?.address; if (!line1.length && !addr) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151;"><span style="font-weight: 600;">${line1.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span>${addr ? '<br><span style="font-weight: 600;">' + addr + '</span>' : ''}</div>`; })()}
                         </div>
                         <div style="text-align: right;">
                             <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div>
@@ -3517,7 +3517,7 @@ async function downloadQuotationAsPdfDirect(quotation) {
         }
         const logoPng = logoDataUrl ? await imageDataUrlToPng(logoDataUrl) : null;
 
-        const PRODUCTS_PER_PAGE = 9;
+        const PRODUCTS_PER_PAGE = 8;
         const rawItems = quotation.items || quotation.products || quotation.lineItems || [];
         const itemsCount = Array.isArray(rawItems) ? rawItems.length : 0;
         const totalPages = Math.max(1, Math.ceil(itemsCount / PRODUCTS_PER_PAGE));
