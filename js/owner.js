@@ -2727,10 +2727,15 @@ async function generateQuotationHtml(quotation, options = {}) {
     }
 
     // Apply Quotation Items display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
-    const displayOrder = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
-        ? settings.quotationItemTypeOrder
+    const rawOrder = (settings && (settings.quotationItemTypeOrder || settings.quotationTypeFilters)) || [];
+    const displayOrder = Array.isArray(rawOrder) && rawOrder.length > 0
+        ? rawOrder.map(function (x) { return (x || '').toString().toLowerCase().trim(); }).filter(Boolean)
         : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
-    items = [...items].sort((a, b) => getQuotationCategorySortIndex(a.type, displayOrder) - getQuotationCategorySortIndex(b.type, displayOrder));
+    if (displayOrder.length > 0) {
+        items = items.slice().sort(function (a, b) {
+            return getQuotationCategorySortIndex(a.type, displayOrder) - getQuotationCategorySortIndex(b.type, displayOrder);
+        });
+    }
     
     // ALWAYS recalculate totals from items array (using temp table data if available)
     // This ensures downloaded quotation uses updated values from temp table, not items table
@@ -4352,8 +4357,7 @@ function renderQuotationItemsOrderList(order) {
         const title = String(label).replace(/\b\w/g, function (c) { return c.toUpperCase(); });
         li.innerHTML = '<span style="flex:1;">' + title + '</span>' +
             '<button type="button" class="btn" data-move="up" title="Move up" style="padding:4px 8px;"><i class="fas fa-arrow-up"></i></button>' +
-            '<button type="button" class="btn" data-move="down" title="Move down" style="padding:4px 8px;"><i class="fas fa-arrow-down"></i></button>' +
-            '<button type="button" class="btn danger" data-remove-type title="Remove" style="padding:4px 8px;"><i class="fas fa-times"></i></button>';
+            '<button type="button" class="btn" data-move="down" title="Move down" style="padding:4px 8px;"><i class="fas fa-arrow-down"></i></button>';
         listEl.appendChild(li);
     });
     listEl.querySelectorAll('[data-move="up"]').forEach(function (btn) {
@@ -4368,15 +4372,6 @@ function renderQuotationItemsOrderList(order) {
             const li = btn.closest('li');
             const next = li.nextElementSibling;
             if (next) { listEl.insertBefore(next, li); }
-        };
-    });
-    listEl.querySelectorAll('[data-remove-type]').forEach(function (btn) {
-        btn.onclick = function () {
-            const li = btn.closest('li');
-            const val = (li.dataset.value || '').trim().toLowerCase();
-            const current = getQuotationItemsOrderFromList();
-            quotationItemTypeOrder = current.filter(function (t) { return (t || '').toLowerCase() !== val; });
-            renderQuotationItemsOrderList(quotationItemTypeOrder);
         };
     });
 }

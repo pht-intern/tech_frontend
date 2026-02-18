@@ -3455,10 +3455,15 @@
     }
 
     // Apply Quotation Items display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
-    const displayOrder = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
-        ? settings.quotationItemTypeOrder
+    const rawOrder = (settings && (settings.quotationItemTypeOrder || settings.quotationTypeFilters)) || [];
+    const displayOrder = Array.isArray(rawOrder) && rawOrder.length > 0
+        ? rawOrder.map(function (x) { return (x || '').toString().toLowerCase().trim(); }).filter(Boolean)
         : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
-    items = [...items].sort((a, b) => getQuotationCategorySortIndex(a.type, displayOrder) - getQuotationCategorySortIndex(b.type, displayOrder));
+    if (displayOrder.length > 0) {
+        items = items.slice().sort(function (a, b) {
+            return getQuotationCategorySortIndex(a.type, displayOrder) - getQuotationCategorySortIndex(b.type, displayOrder);
+        });
+    }
     
     // ALWAYS recalculate totals from items (same as owner.js)
     const newSubTotal = items.reduce((sum, item) => {

@@ -2521,10 +2521,15 @@ async function generateQuotationHtml(quotation, options = {}) {
         console.warn('Failed to fetch temp items, using original items:', error);
     }
     // Apply Quotation Items display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
-    const displayOrder = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
-        ? settings.quotationItemTypeOrder
+    const rawOrder = (settings && (settings.quotationItemTypeOrder || settings.quotationTypeFilters)) || [];
+    const displayOrder = Array.isArray(rawOrder) && rawOrder.length > 0
+        ? rawOrder.map(function (x) { return (x || '').toString().toLowerCase().trim(); }).filter(Boolean)
         : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
-    items = [...items].sort((a, b) => getQuotationCategorySortIndex(a.type, displayOrder) - getQuotationCategorySortIndex(b.type, displayOrder));
+    if (displayOrder.length > 0) {
+        items = items.slice().sort(function (a, b) {
+            return getQuotationCategorySortIndex(a.type, displayOrder) - getQuotationCategorySortIndex(b.type, displayOrder);
+        });
+    }
     const newSubTotal = items.reduce((sum, item) => { const itemPrice = parseFloat(item.price || 0); const itemQuantity = parseInt(item.quantity || 1); return sum + (itemPrice * itemQuantity); }, 0);
     const newDiscountAmount = (newSubTotal * discountPercent) / 100;
     const newTotalAfterDiscount = newSubTotal - newDiscountAmount;

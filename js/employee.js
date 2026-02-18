@@ -3739,14 +3739,22 @@
             }
 
             // Apply Quotation Items display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
+            if (!Array.isArray(items)) items = [];
             try {
                 const settingsForOrder = await getSettings();
-                const displayOrder = Array.isArray(settingsForOrder.quotationItemTypeOrder) && settingsForOrder.quotationItemTypeOrder.length > 0
-                    ? settingsForOrder.quotationItemTypeOrder
-                    : DEFAULT_QUOTATION_ITEM_TYPE_ORDER;
-                items = [...items].sort((a, b) => getQuotationCategorySortIndex(a.type, displayOrder) - getQuotationCategorySortIndex(b.type, displayOrder));
+                const rawOrder = (settingsForOrder && (settingsForOrder.quotationItemTypeOrder || settingsForOrder.quotationTypeFilters)) || [];
+                const displayOrder = Array.isArray(rawOrder) && rawOrder.length > 0
+                    ? rawOrder.map(function (x) { return (x || '').toString().toLowerCase().trim(); }).filter(Boolean)
+                    : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+                if (displayOrder.length > 0) {
+                    items = items.slice().sort(function (a, b) {
+                        return getQuotationCategorySortIndex(a.type, displayOrder) - getQuotationCategorySortIndex(b.type, displayOrder);
+                    });
+                }
             } catch (e) {
-                items = [...items].sort((a, b) => getQuotationCategorySortIndex(a.type, DEFAULT_QUOTATION_ITEM_TYPE_ORDER) - getQuotationCategorySortIndex(b.type, DEFAULT_QUOTATION_ITEM_TYPE_ORDER));
+                items = items.slice().sort(function (a, b) {
+                    return getQuotationCategorySortIndex(a.type, DEFAULT_QUOTATION_ITEM_TYPE_ORDER) - getQuotationCategorySortIndex(b.type, DEFAULT_QUOTATION_ITEM_TYPE_ORDER);
+                });
             }
             
             // ALWAYS recalculate totals (same as owner.js)

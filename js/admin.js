@@ -4326,8 +4326,7 @@ function renderQuotationItemsOrderList(order) {
         const title = String(label).replace(/\b\w/g, function (c) { return c.toUpperCase(); });
         li.innerHTML = '<span style="flex:1;">' + title + '</span>' +
             '<button type="button" class="btn" data-move="up" title="Move up" style="padding:4px 8px;"><i class="fas fa-arrow-up"></i></button>' +
-            '<button type="button" class="btn" data-move="down" title="Move down" style="padding:4px 8px;"><i class="fas fa-arrow-down"></i></button>' +
-            '<button type="button" class="btn danger" data-remove-type title="Remove" style="padding:4px 8px;"><i class="fas fa-times"></i></button>';
+            '<button type="button" class="btn" data-move="down" title="Move down" style="padding:4px 8px;"><i class="fas fa-arrow-down"></i></button>';
         listEl.appendChild(li);
     });
     listEl.querySelectorAll('[data-move="up"]').forEach(function (btn) {
@@ -4342,15 +4341,6 @@ function renderQuotationItemsOrderList(order) {
             const li = btn.closest('li');
             const next = li.nextElementSibling;
             if (next) { listEl.insertBefore(next, li); }
-        };
-    });
-    listEl.querySelectorAll('[data-remove-type]').forEach(function (btn) {
-        btn.onclick = function () {
-            const li = btn.closest('li');
-            const val = (li.dataset.value || '').trim().toLowerCase();
-            const current = getQuotationItemsOrderFromList();
-            quotationItemTypeOrder = current.filter(function (t) { return (t || '').toLowerCase() !== val; });
-            renderQuotationItemsOrderList(quotationItemTypeOrder);
         };
     });
 }
