@@ -4295,6 +4295,160 @@ document.getElementById('removeLogoBtn')?.addEventListener('click', async functi
     }
 });
 
+/* ---------- Add Product validation (used by manager.html inline handlers) ---------- */
+let productNameValidationTimer = null;
+
+async function suggestSimilarProducts() {
+    const productNameInput = document.getElementById('product-name');
+    const suggestionsDiv = document.getElementById('similar-products-suggestions');
+    if (!productNameInput || !suggestionsDiv) return;
+    const inputValue = productNameInput.value.toLowerCase().trim();
+    if (inputValue.length < 2) {
+        suggestionsDiv.innerHTML = '';
+        return;
+    }
+    try {
+        const items = await getItems();
+        const similar = items
+            .filter(item => item.productName && item.productName.toLowerCase().includes(inputValue) && item.productName.toLowerCase() !== inputValue)
+            .slice(0, 3);
+        if (similar.length > 0) {
+            suggestionsDiv.innerHTML = '<div style="background:#f8f9fa;padding:8px;border-radius:4px;margin-top:4px;"><div style="font-size:11px;color:#7f8c8d;margin-bottom:4px;"><i class="fas fa-info-circle"></i> Similar products:</div>' +
+                similar.map(item => `<div style="font-size:12px;color:#34495E;padding:2px 0;">${item.productName} (${formatRupee(item.price)}) - ${item.type || 'N/A'}</div>`).join('') + '</div>';
+        } else {
+            suggestionsDiv.innerHTML = '';
+        }
+    } catch (e) { suggestionsDiv.innerHTML = ''; }
+}
+
+async function validateProductUrl() {
+    const urlInput = document.getElementById('item-url');
+    const validationDiv = document.getElementById('url-validation');
+    if (!urlInput || !validationDiv) return;
+    const url = urlInput.value.trim();
+    if (!url) {
+        validationDiv.innerHTML = '';
+        urlInput.style.borderColor = '';
+        return;
+    }
+    let isValidUrl = false;
+    try {
+        const urlObj = new URL(url);
+        isValidUrl = (urlObj.protocol === 'http:' || urlObj.protocol === 'https:');
+        if (isValidUrl) {
+            const hostname = urlObj.hostname;
+            isValidUrl = /^([\da-z]([\da-z-]*[\da-z])?\.)+[a-z]{2,}$/i.test(hostname) && hostname.length > 0;
+        }
+    } catch (e) { isValidUrl = false; }
+    if (!isValidUrl) {
+        validationDiv.innerHTML = '<span style="color:#E74C3C;"><i class="fas fa-exclamation-triangle"></i> Invalid URL format. Use http:// or https://</span>';
+        urlInput.style.borderColor = '#E74C3C';
+        return;
+    }
+    try {
+        const items = await getItems();
+        const duplicate = items.find(item => item.itemUrl && item.itemUrl.toLowerCase() === url.toLowerCase());
+        if (duplicate) {
+            validationDiv.innerHTML = '<span style="color:#E74C3C;"><i class="fas fa-exclamation-triangle"></i> URL already exists (' + duplicate.productName + ')</span>';
+            urlInput.style.borderColor = '#E74C3C';
+        } else {
+            validationDiv.innerHTML = '<span style="color:#27AE60;"><i class="fas fa-check-circle"></i> URL is available</span>';
+            urlInput.style.borderColor = '#27AE60';
+        }
+    } catch (e) {
+        validationDiv.innerHTML = '';
+        urlInput.style.borderColor = '';
+    }
+}
+
+async function validateProductName(excludeProductId) {
+    const nameInput = document.getElementById('product-name');
+    const validationDiv = document.getElementById('product-name-validation');
+    if (!nameInput || !validationDiv) return false;
+    const name = nameInput.value.trim();
+    if (!name) {
+        validationDiv.innerHTML = '';
+        nameInput.style.borderColor = '';
+        return false;
+    }
+    if (productNameValidationTimer) clearTimeout(productNameValidationTimer);
+    validationDiv.innerHTML = '<span style="color:#7f8c8d;"><i class="fas fa-spinner fa-spin"></i> Checking availability...</span>';
+    nameInput.style.borderColor = '#95a5a6';
+    try {
+        const items = await getItems();
+        const duplicate = items.find(item => {
+            if (excludeProductId && (item.productId === excludeProductId || item.id === excludeProductId)) return false;
+            return item.productName && item.productName.toLowerCase() === name.toLowerCase();
+        });
+        if (duplicate) {
+            validationDiv.innerHTML = '<span style="color:#E74C3C;"><i class="fas fa-exclamation-triangle"></i> Product name already exists (ID: ' + (duplicate.productId || duplicate.id) + ')</span>';
+            nameInput.style.borderColor = '#E74C3C';
+            return false;
+        }
+        validationDiv.innerHTML = '<span style="color:#27AE60;"><i class="fas fa-check-circle"></i> Product name is available</span>';
+        nameInput.style.borderColor = '#27AE60';
+        return true;
+    } catch (e) {
+        validationDiv.innerHTML = '';
+        nameInput.style.borderColor = '';
+        return false;
+    }
+}
+
+function validateProductNameDebounced(excludeProductId) {
+    if (productNameValidationTimer) clearTimeout(productNameValidationTimer);
+    productNameValidationTimer = setTimeout(() => { validateProductName(excludeProductId); }, 500);
+}
+
+function validatePrice() {
+    const priceInput = document.getElementById('price');
+    const validationDiv = document.getElementById('price-validation');
+    const priceRangeDiv = document.getElementById('price-range-info');
+    if (!priceInput) return;
+    var raw = (priceInput.value || '').replace(/,/g, '');
+    var price = parseFloat(raw);
+    if (validationDiv) {
+        if (isNaN(price) || price < 0) {
+            validationDiv.innerHTML = '';
+            if (priceRangeDiv) priceRangeDiv.innerHTML = '<i class="fas fa-info-circle"></i> Enter price to see comparison';
+            return;
+        }
+        if (price <= 0) {
+            validationDiv.innerHTML = '<span style="color:#E74C3C;"><i class="fas fa-exclamation-triangle"></i> Price must be greater than 0</span>';
+            priceInput.style.borderColor = '#E74C3C';
+        } else {
+            validationDiv.innerHTML = '<span style="color:#27AE60;"><i class="fas fa-check-circle"></i> Valid price</span>';
+            priceInput.style.borderColor = '#27AE60';
+        }
+    }
+    if (priceRangeDiv && !isNaN(price) && price > 0) {
+        getItems().then(items => {
+            const prices = items.map(item => parseFloat(item.price) || 0).filter(p => p > 0);
+            if (prices.length > 0) {
+                const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                var comparison = price < minPrice ? '<span style="color:#E67E22;">Below minimum (' + formatRupee(minPrice) + ')</span>' : price > maxPrice ? '<span style="color:#3498DB;">Above maximum (' + formatRupee(maxPrice) + ')</span>' : price < avgPrice ? '<span style="color:#F39C12;">Below average (' + formatRupee(avgPrice) + ')</span>' : '<span style="color:#27AE60;">Above average (' + formatRupee(avgPrice) + ')</span>';
+                priceRangeDiv.innerHTML = '<div style="margin-bottom:4px;"><strong>' + formatRupee(price) + '</strong></div><div style="font-size:11px;">' + comparison + '</div><div style="font-size:10px;color:#95a5a6;margin-top:4px;">Range: ' + formatRupee(minPrice) + ' - ' + formatRupee(maxPrice) + '</div>';
+            }
+        }).catch(function () {});
+    }
+}
+
+function validateDescription() {
+    const descInput = document.getElementById('description');
+    const validationDiv = document.getElementById('description-validation');
+    if (!descInput || !validationDiv) return;
+    const desc = descInput.value.trim();
+    if (desc.length > 0 && desc.length < 10) {
+        validationDiv.innerHTML = '<span style="color:#F39C12;"><i class="fas fa-info-circle"></i> Consider adding more details (' + desc.length + '/10+ chars)</span>';
+    } else if (desc.length >= 10) {
+        validationDiv.innerHTML = '<span style="color:#27AE60;"><i class="fas fa-check-circle"></i> Good description (' + desc.length + ' chars)</span>';
+    } else {
+        validationDiv.innerHTML = '';
+    }
+}
+
 /* ---------- Product Management ---------- */
 document.getElementById('addItemForm')?.addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -4307,7 +4461,9 @@ document.getElementById('addItemForm')?.addEventListener('submit', async functio
     const productId = document.getElementById('product-id').value;
     const productName = document.getElementById('product-name').value.trim();
     const itemUrl = document.getElementById('item-url').value.trim();
-    const price = parseFloat(document.getElementById('price').value);
+    var priceEl = document.getElementById('price');
+    var priceStr = (priceEl && priceEl.value) ? priceEl.value.replace(/,/g, '') : '';
+    const price = parseFloat(priceStr);
     const type = document.getElementById('type').value.trim();
     const description = document.getElementById('description').value.trim();
 
