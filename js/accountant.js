@@ -3055,7 +3055,7 @@
                 }
                 const logoPng = logoDataUrl ? await imageDataUrlToPng(logoDataUrl) : null;
 
-                const PRODUCTS_PER_PAGE = 14;
+                const PRODUCTS_PER_PAGE = 9;
                 const rawItems = quotation.items || quotation.products || quotation.lineItems || [];
                 const itemsCount = Array.isArray(rawItems) ? rawItems.length : 0;
                 const totalPages = Math.max(1, Math.ceil(itemsCount / PRODUCTS_PER_PAGE));
@@ -3299,7 +3299,7 @@
                 
                 const rawItemsForPdf = quotation.items || quotation.products || quotation.lineItems || [];
                 const itemsCount = Array.isArray(rawItemsForPdf) ? rawItemsForPdf.length : 0;
-                const needsMultiplePages = itemsCount > 14 || imgHeight > pageHeight;
+                const needsMultiplePages = itemsCount > 9 || imgHeight > pageHeight;
                 
                 if (needsMultiplePages) {
                     // Multi-page logic
@@ -3479,7 +3479,7 @@
             const quotationId = quotation.quotationId || quotation.id || 'N/A';
             const dateCreated = quotation.dateCreated || new Date().toLocaleDateString('en-IN');
 
-            // PDF pagination: 14 products per page, with header only on first page and footer only on last page
+            // PDF pagination: 9 products per page, with header only on first page and footer only on last page
             const pdfPage = options.pdfPage || null;
             let itemsForTable = items;
             let showTotals = true;
