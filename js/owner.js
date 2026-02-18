@@ -4282,6 +4282,23 @@ async function renderLogsList() {
     });
 }
 
+function setValue(id, value) {
+    var el = document.getElementById(id);
+    if (!el) {
+        console.warn('renderSettings: element not found:', id);
+        return;
+    }
+    el.value = value != null ? String(value) : '';
+}
+function setText(id, text) {
+    var el = document.getElementById(id);
+    if (!el) {
+        console.warn('renderSettings: element not found:', id);
+        return;
+    }
+    el.textContent = text != null ? String(text) : '';
+}
+
 async function renderSettings() {
     console.log('renderSettings() called - starting to render settings...');
     renderQuotationItemsOrderList(quotationItemTypeOrder && quotationItemTypeOrder.length ? quotationItemTypeOrder : DEFAULT_QUOTATION_ITEM_TYPE_ORDER);
@@ -4289,10 +4306,10 @@ async function renderSettings() {
         const settings = await getSettings();
         console.log('renderSettings() - settings received:', settings);
 
-        document.getElementById('settings-brand-name').value = settings.brand || '';
-    document.getElementById('settings-company-gst-id').value = settings.companyGstId || '';
-    document.getElementById('settings-validity-days').value = settings.validityDays ?? settings.defaultValidityDays ?? 3;
-    document.getElementById('validityDaysDisplay').textContent = settings.validityDays ?? settings.defaultValidityDays ?? 3;
+        setValue('settings-brand-name', settings.brand || '');
+        setValue('settings-company-gst-id', settings.companyGstId || '');
+        setValue('settings-validity-days', settings.validityDays ?? settings.defaultValidityDays ?? 3);
+        setText('validityDaysDisplay', settings.validityDays ?? settings.defaultValidityDays ?? 3);
 
     // PDF Theme and fonts (include custom themes from localStorage)
     const effectiveKey = getEffectivePdfThemeKey(settings);
@@ -4310,16 +4327,16 @@ async function renderSettings() {
     const noLogoText = document.getElementById('noLogoText');
     const removeLogoBtn = document.getElementById('removeLogoBtn');
 
-    if (logoBase64) {
-        logoPreview.src = logoBase64;
-        logoPreview.style.display = 'block';
-        noLogoText.style.display = 'none';
-        removeLogoBtn.style.display = 'inline-flex';
-    } else {
-        logoPreview.src = '';
-        logoPreview.style.display = 'none';
-        noLogoText.style.display = 'inline';
-        removeLogoBtn.style.display = 'none';
+    if (logoPreview || noLogoText || removeLogoBtn) {
+        if (logoBase64) {
+            if (logoPreview) { logoPreview.src = logoBase64; logoPreview.style.display = 'block'; }
+            if (noLogoText) noLogoText.style.display = 'none';
+            if (removeLogoBtn) removeLogoBtn.style.display = 'inline-flex';
+        } else {
+            if (logoPreview) { logoPreview.src = ''; logoPreview.style.display = 'none'; }
+            if (noLogoText) noLogoText.style.display = 'inline';
+            if (removeLogoBtn) removeLogoBtn.style.display = 'none';
+        }
     }
 
     // Quotation Items display order: saved order + all product types + any types from items
