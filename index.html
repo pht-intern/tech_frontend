@@ -1232,7 +1232,7 @@
             })
             .then(function(res) {
                 if (!res) return;
-                var logo = (res.data && res.data.logo) ? res.data.logo : res.logo;
+                var logo = null; /* logo no longer from settings API */
                 if (!logo || typeof logo !== 'string') return;
                 var navImg = document.getElementById('navLogoImg');
                 var footerImg = document.getElementById('footerLogoImg');

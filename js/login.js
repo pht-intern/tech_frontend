@@ -430,7 +430,7 @@ function applyCompanyLogo() {
         })
         .then(function(res) {
             if (!res) return;
-            var logo = (res.data && res.data.logo) ? res.data.logo : res.logo;
+            var logo = null; /* logo no longer from settings API */
             if (!logo || typeof logo !== 'string') return;
             var el = document.getElementById('companyLogoImg');
             if (el) el.src = logo;

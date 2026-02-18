@@ -17,7 +17,7 @@
                 const expiryTime = parseInt(expiryTimestamp, 10);
                 const currentTime = Date.now();
                 return currentTime >= expiryTime;
-            } catch (error) {
+            } catch (error) {   
                 return true; // On error, consider expired
             }
         }
@@ -2301,7 +2301,7 @@
             showPdfLoadingOverlay();
             try {
                 const settings = await getSettings();
-                let logoDataUrl = settings.logo || null;
+                let logoDataUrl = null;
                 if (!logoDataUrl && typeof window !== 'undefined' && window.location) {
                     const basePath = (window.location.pathname || '').replace(/\/[^/]*$/, '') || '';
                     const base = window.location.origin + (basePath ? basePath + '/' : '/') + 'images/Logo.';
@@ -2642,7 +2642,7 @@
                 const removeLogoBtn = document.getElementById('removeLogoBtn');
                 
                 if (logoPreview && noLogoText && removeLogoBtn) {
-                    const logoBase64 = settings.logo;
+                    const logoBase64 = '';
                     if (logoBase64) {
                         logoPreview.src = logoBase64;
                         logoPreview.style.display = 'block';
@@ -3809,7 +3809,7 @@
             if (!showFooterSection) pageNumFooter = '';
 
             const settings = await getSettings();
-            const logoBase64 = settings.logo || '';
+            const logoBase64 = '';
             const brandName = settings.brand || 'TECHTITANS';
             const companyGstId = settings.companyGstId || 'N/A';
             const validityDays = quotation.validityDays || settings.validityDays || settings.defaultValidityDays || 3;

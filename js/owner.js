@@ -2647,7 +2647,7 @@ async function generateQuotationHtml(quotation, options = {}) {
     }
     
     const settings = await getSettings();
-    const logoBase64 = settings.logo || '';
+    const logoBase64 = '';
     const brandName = settings.brand || 'TECHTITANS';
     const companyGstId = settings.companyGstId || 'N/A';
     const validityDays = quotation.validityDays || settings.validityDays || settings.defaultValidityDays || 3;
@@ -3691,7 +3691,7 @@ async function downloadQuotationAsPdfDirect(quotation) {
     showPdfLoadingOverlay();
     try {
         const settings = await getSettings();
-        let logoDataUrl = settings.logo || null;
+        let logoDataUrl = null;
         if (!logoDataUrl && typeof window !== 'undefined' && window.location) {
             const basePath = (window.location.pathname || '').replace(/\/[^/]*$/, '') || '';
             const base = window.location.origin + (basePath ? basePath + '/' : '/') + 'images/Logo.';
@@ -4322,7 +4322,7 @@ async function renderSettings() {
     if (fontTertiaryEl) fontTertiaryEl.value = getEffectivePdfFontTertiary();
 
     // Logo
-    const logoBase64 = settings.logo;
+    const logoBase64 = '';
     const logoPreview = document.getElementById('logoPreview');
     const noLogoText = document.getElementById('noLogoText');
     const removeLogoBtn = document.getElementById('removeLogoBtn');
@@ -5775,7 +5775,7 @@ async function handleLogoUpload(event) {
         await renderSettings();
         getSettings().then(s => {
             const logoEl = document.querySelector('.sidebar .brand img');
-            if (logoEl) logoEl.src = (s && s.logo) || 'images/Logo.svg';
+            if (logoEl) logoEl.src = 'images/Logo.svg';
         }).catch(() => {});
         alert('Company logo uploaded successfully!');
     } catch (e) { }
@@ -5837,7 +5837,7 @@ async function initializeDashboard() {
     // Apply company logo in sidebar (from settings)
     getSettings().then(s => {
         const logoEl = document.querySelector('.sidebar .brand img');
-        if (logoEl && s && s.logo) logoEl.src = s.logo;
+        if (logoEl) logoEl.src = 'images/Logo.svg';
     }).catch(() => {});
 
     // Load initial data - prioritize critical data first, then load others
