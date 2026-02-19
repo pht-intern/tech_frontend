@@ -1985,7 +1985,7 @@ async function addItemToQuotation(productId) {
     updateGrandTotal();
     if (document.getElementById('compatibleFilterToggle')?.checked) {
         const searchValue = document.getElementById('itemSearchInput')?.value || '';
-        const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+        const activeTypeFilter = document.querySelector('#quotationTypeFilters .type-filter-btn.active')?.dataset.type || '';
         renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
     }
 }
@@ -1996,7 +1996,7 @@ function removeItemFromQuotation(productId) {
     updateGrandTotal();
     if (document.getElementById('compatibleFilterToggle')?.checked) {
         const searchValue = document.getElementById('itemSearchInput')?.value || '';
-        const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+        const activeTypeFilter = document.querySelector('#quotationTypeFilters .type-filter-btn.active')?.dataset.type || '';
         renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
     }
 }
@@ -3276,40 +3276,88 @@ async function renderHistoryList() {
     });
 }
 
-// Order for itemsTypeFilters: All, Intel CPU, AMD CPU, Intel Mobo, AMD Mobo, then the rest
-var ITEMS_TYPE_FILTER_PRIORITY = ['', 'intel cpu', 'amd cpu', 'intel mobo', 'amd mobo'];
-function itemsTypeFilterSortIndex(value) {
+// Order for itemsTypeFilters: from database (quotationTypeFilters); fallback when DB empty
+var ITEMS_TYPE_FILTER_ORDER_FALLBACK = ['', 'intel cpu', 'amd cpu', 'intel mobo', 'amd mobo'];
+function itemsTypeFilterSortIndex(value, orderFromDb) {
     var v = String(value || '').toLowerCase().trim();
-    var i = ITEMS_TYPE_FILTER_PRIORITY.indexOf(v);
-    return i >= 0 ? i : ITEMS_TYPE_FILTER_PRIORITY.length;
+    var order = Array.isArray(orderFromDb) && orderFromDb.length ? orderFromDb.map(function (x) { return String(x).toLowerCase().trim(); }) : ITEMS_TYPE_FILTER_ORDER_FALLBACK;
+    var i = order.indexOf(v);
+    return i >= 0 ? i : order.length;
 }
 
-// Render dynamic type filter buttons for Products (items list)
+// Render dynamic type filter buttons for Products (items list) — types and order from database (settings)
 async function renderItemsTypeFilters() {
     const container = document.getElementById('itemsTypeFilters');
     if (!container) return;
 
-    let types = [];
+    let typesFromItems = [];
     try {
         const items = await getItems();
-        types = [...new Set(items.map(item => item.type).filter(Boolean))]
+        typesFromItems = [...new Set(items.map(item => item.type).filter(Boolean))]
             .filter(function (t) { return !isExcludedType(t); });
     } catch (error) {
-        // Silent fail, just show "All"
+        // Silent fail
     }
+
+    // Fetch type order from database (same as Quotation Products display order / product types)
+    var orderFromDb = [];
+    try {
+        var settingsRes = await getSettings();
+        var settings = settingsRes && settingsRes.data ? settingsRes.data : (settingsRes || {});
+        orderFromDb = Array.isArray(settings.quotationTypeFilters) && settings.quotationTypeFilters.length
+            ? settings.quotationTypeFilters.slice()
+            : (Array.isArray(settings.quotationItemTypeOrder) ? settings.quotationItemTypeOrder.slice() : []).concat(Array.isArray(settings.productTypes) ? settings.productTypes.map(function (x) { return String(x).trim(); }) : []);
+        var seen = new Set();
+        orderFromDb = orderFromDb.filter(function (t) {
+            var v = String(t).toLowerCase().trim();
+            if (!v || seen.has(v)) return false;
+            seen.add(v);
+            return true;
+        });
+    } catch (e) {
+        // Fallback: no order from DB
+    }
+
+    // Build ordered list: All, then DB order, then types from items not in DB
+    var orderLower = orderFromDb.map(function (t) { return String(t).toLowerCase().trim(); });
+    var orderedPairs = [{ label: 'All', value: '' }];
+    orderLower.forEach(function (t) {
+        if (!t || isExcludedType(t)) return;
+        var label = String(t).replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+        orderedPairs.push({ label: label, value: t });
+    });
+    typesFromItems.forEach(function (t) {
+        var v = String(t).toLowerCase().trim();
+        if (!v || isExcludedType(t)) return;
+        if (orderLower.indexOf(v) !== -1) return;
+        orderedPairs.push({ label: String(t).replace(/\b\w/g, function (c) { return c.toUpperCase(); }), value: v });
+    });
+    orderedPairs.sort(function (a, b) {
+        var ia = itemsTypeFilterSortIndex(a.value, orderFromDb);
+        var ib = itemsTypeFilterSortIndex(b.value, orderFromDb);
+        if (ia !== ib) return ia - ib;
+        return String(a.value || '').localeCompare(String(b.value || ''), 'en-IN', { sensitivity: 'base' });
+    });
 
     container.innerHTML = '';
 
+    // Same look as quotationTypeFilters (Add Items to Quotation section)
     function createButton(label, typeValue) {
         const btn = document.createElement('button');
-        btn.className = 'items-type-filter-btn';
-        btn.dataset.type = typeValue;
-        btn.textContent = label;
-
+        btn.className = 'type-filter-btn';
         if ((!itemsCurrentTypeFilter && typeValue === '') ||
             (itemsCurrentTypeFilter && typeValue.toLowerCase() === itemsCurrentTypeFilter.toLowerCase())) {
             btn.classList.add('active');
         }
+        btn.dataset.type = typeValue;
+        btn.textContent = (label || typeValue || '').toUpperCase();
+        btn.style.padding = '6px 12px';
+        btn.style.border = '1px solid var(--border)';
+        btn.style.borderRadius = '6px';
+        btn.style.background = '#fff';
+        btn.style.cursor = 'pointer';
+        btn.style.fontSize = '12px';
+        btn.style.transition = 'all 0.2s';
 
         btn.addEventListener('click', () => {
             itemsCurrentTypeFilter = typeValue || '';
@@ -3319,14 +3367,9 @@ async function renderItemsTypeFilters() {
             updatePriceSortHeader();
             updateTotalValueSortHeader();
             updateNameSortHeader();
-
-            // Toggle active state
-            container.querySelectorAll('.items-type-filter-btn').forEach(b => b.classList.remove('active'));
+            container.querySelectorAll('.type-filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-
-            // Reset to first page whenever filter changes
             itemsCurrentPage = 1;
-
             const searchInput = document.getElementById('productListSearchInput');
             const filter = searchInput ? searchInput.value.trim() : '';
             renderItemsList(filter);
@@ -3335,14 +3378,6 @@ async function renderItemsTypeFilters() {
         return btn;
     }
 
-    var orderedPairs = [{ label: 'All', value: '' }];
-    types.forEach(function (type) { orderedPairs.push({ label: type, value: type }); });
-    orderedPairs.sort(function (a, b) {
-        var ia = itemsTypeFilterSortIndex(a.value);
-        var ib = itemsTypeFilterSortIndex(b.value);
-        if (ia !== ib) return ia - ib;
-        return String(a.value || '').localeCompare(String(b.value || ''), 'en-IN', { sensitivity: 'base' });
-    });
     orderedPairs.forEach(function (t) {
         container.appendChild(createButton(t.label, t.value));
     });
@@ -4689,7 +4724,7 @@ document.getElementById('cancelEditProductBtn')?.addEventListener('click', close
 document.getElementById('createQuotationBtn')?.addEventListener('click', createQuotation);
 document.getElementById('cancelEditInCreateSectionBtn')?.addEventListener('click', cancelEditInCreateSection);
 document.getElementById('itemSearchInput')?.addEventListener('input', (e) => {
-    const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+    const activeTypeFilter = document.querySelector('#quotationTypeFilters .type-filter-btn.active')?.dataset.type || '';
     renderAvailableItemsForQuotation(e.target.value, activeTypeFilter);
 });
 
@@ -4702,7 +4737,7 @@ document.getElementById('quotationPriceSortBtn')?.addEventListener('click', func
     this.textContent = labels[state];
     this.classList.toggle('active', state !== 'none');
     const searchValue = document.getElementById('itemSearchInput')?.value || '';
-    const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+    const activeTypeFilter = document.querySelector('#quotationTypeFilters .type-filter-btn.active')?.dataset.type || '';
     renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
 });
 
@@ -4710,7 +4745,7 @@ document.getElementById('compatibleFilterToggle')?.addEventListener('change', fu
     const hint = document.getElementById('compatibleFilterHint');
     if (hint) hint.style.display = this.checked ? 'block' : 'none';
     const searchValue = document.getElementById('itemSearchInput')?.value || '';
-    const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
+    const activeTypeFilter = document.querySelector('#quotationTypeFilters .type-filter-btn.active')?.dataset.type || '';
     renderAvailableItemsForQuotation(searchValue, activeTypeFilter);
 });
 
@@ -4741,12 +4776,10 @@ document.addEventListener('click', async function(e) {
     }
 });
 
-// Type filter button handlers - use event delegation
+// Type filter button handlers - use event delegation (only for Add Items to Quotation section)
 document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('type-filter-btn')) {
-        // Remove active class from all buttons
-        document.querySelectorAll('.type-filter-btn').forEach(b => b.classList.remove('active'));
-        // Add active class to clicked button
+    if (e.target.closest('#quotationTypeFilters') && e.target.classList.contains('type-filter-btn')) {
+        document.querySelectorAll('#quotationTypeFilters .type-filter-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
         const typeFilter = e.target.dataset.type || '';
         const searchValue = document.getElementById('itemSearchInput')?.value || '';
@@ -4967,7 +5000,23 @@ document.getElementById('saveCompanyGstIdBtn')?.addEventListener('click', async 
     } catch (e) { }
 });
 
-document.getElementById('settingsAddProductTypeBtn')?.addEventListener('click', function () {
+async function saveProductTypesToBackend() {
+    const order = getQuotationItemsOrderFromList();
+    if (order.length === 0) return false;
+    await apiFetch('/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            quotationItemTypeOrder: order,
+            productTypes: order.map(function (x) { return String(x).toUpperCase(); })
+        })
+    });
+    quotationItemTypeOrder = order.slice();
+    if (typeof invalidateQuotationTypeFiltersCache === 'function') invalidateQuotationTypeFiltersCache();
+    return true;
+}
+
+document.getElementById('settingsAddProductTypeBtn')?.addEventListener('click', async function () {
     const input = document.getElementById('settings-new-product-type');
     if (!input) return;
     const raw = (input.value || '').trim();
@@ -4984,9 +5033,17 @@ document.getElementById('settingsAddProductTypeBtn')?.addEventListener('click', 
     quotationItemTypeOrder.push(orderLower);
     renderQuotationItemsOrderList(quotationItemTypeOrder);
     input.value = '';
+    try {
+        await saveProductTypesToBackend();
+        addLog('Setting Changed', CURRENT_USER_ROLE, 'Added product type: ' + value);
+        alert('Product type added and saved.');
+    } catch (e) {
+        console.error('Failed to save product type:', e);
+        alert('Type added to list but failed to save to database. Click "Save order" above to retry.');
+    }
 });
 
-document.getElementById('settingsDeleteProductTypeBtn')?.addEventListener('click', function () {
+document.getElementById('settingsDeleteProductTypeBtn')?.addEventListener('click', async function () {
     const sel = document.getElementById('settings-delete-product-type');
     if (!sel || !sel.value) {
         alert('Please select a type to delete.');
@@ -4998,6 +5055,14 @@ document.getElementById('settingsDeleteProductTypeBtn')?.addEventListener('click
     quotationItemTypeOrder.splice(idx, 1);
     renderQuotationItemsOrderList(quotationItemTypeOrder);
     sel.value = '';
+    try {
+        await saveProductTypesToBackend();
+        addLog('Setting Changed', CURRENT_USER_ROLE, 'Deleted product type: ' + value);
+        alert('Product type removed and saved.');
+    } catch (e) {
+        console.error('Failed to save after delete:', e);
+        alert('Type removed from list but failed to save to database. Click "Save order" above to retry.');
+    }
 });
 
 document.getElementById('saveQuotationItemsOrderBtn')?.addEventListener('click', async function () {
@@ -5007,21 +5072,11 @@ document.getElementById('saveQuotationItemsOrderBtn')?.addEventListener('click',
         return;
     }
     try {
-        await apiFetch('/settings', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                quotationItemTypeOrder: order,
-                productTypes: order.map(function (x) { return String(x).toUpperCase(); })
-            })
-        });
-        quotationItemTypeOrder = order.slice();
-        if (typeof invalidateQuotationTypeFiltersCache === 'function') {
-            invalidateQuotationTypeFiltersCache();
-        }
+        await saveProductTypesToBackend();
         addLog('Updated Quotation Products display order', CURRENT_USER_ROLE, 'Quotation Products display order saved.');
         alert('Quotation Items order saved successfully!');
     } catch (e) {
+        console.error('Failed to save order:', e);
         alert('Failed to save order.');
     }
 });
