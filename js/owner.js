@@ -2690,7 +2690,7 @@ async function generateQuotationHtml(quotation, options = {}) {
     // Company details - using defaults if not in settings
     const companyAddress = settings.companyAddress || '1102, second Floor, Before Atithi Satkar<br>Hotel OTC Road, Bangalore 560002';
     const companyEmail = settings.companyEmail || 'advanceinfotech21@gmail.com';
-    const companyPhone = settings.companyPhone || '+91 63626 18184';
+    const companyPhone = settings.companyPhone || '+91 63626 18183 | +91 80507 02019';
 
     // Ensure numeric values are parsed
     let subTotal = parseFloat(quotation.subTotal || 0);
@@ -2872,9 +2872,9 @@ async function generateQuotationHtml(quotation, options = {}) {
                     </div>
                     ${showFooterSection ? `
                     <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: ${pdfSizeTertiary}px; text-align: center; line-height: 1.7; color: #5c5c5c;">
-                        <div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div>
-                        <div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div>
-                        <div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div>
+                        <div>Free <span style="color: ${theme.primary}">Pan-India shipping</span> available, 100% genuine parts with proper GST invoice, and direct brand/manufacturer warranty on all components.</div>
+                        <div>Includes <span style="color: ${theme.primary}">3-year</span> technical call support <span style="color: ${theme.accent}">(Monday to Saturday, 12 PM–7 PM)</span> and Windows 11 Pro installation with lifetime license support.</div>
+                        <div>Prices valid for <span style="color: ${theme.primary}">limited time</span> due to frequent market changes in GPU/RAM/SSD.</div>
                     </div>
                     ` : ''}
                 </div>
@@ -2897,7 +2897,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                     ${showHeaderSection ? `
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;">
                         <div>
-                            <div style="font-size: ${pdfSizeTertiary}px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div>
+                            <div style="font-size: ${pdfSizeTertiary}px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">Advance InfoTech</div>
                             <div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyAddress}</div>
                             <div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyEmail}</div>
                             <div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyPhone}</div>
@@ -2961,9 +2961,9 @@ async function generateQuotationHtml(quotation, options = {}) {
                     ${showFooterSection ? `
                     <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: ${pdfSizeTertiary}px; text-align: center; line-height: 1.7; color: #5c5c5c;">
                         ${pageNumFooter ? `<div style="margin-bottom: 8px; font-weight: 600;">${pageNumFooter}</div>` : ''}
-                        <div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div>
-                        <div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div>
-                        <div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div>
+                        <div>Free <span style="color: ${theme.primary}">Pan-India shipping</span> available, 100% genuine parts with proper GST invoice, and direct brand/manufacturer warranty on all components.</div>
+                        <div>Includes <span style="color: ${theme.primary}">3-year</span> technical call support <span style="color: ${theme.accent}">(Monday to Saturday, 12 PM–7 PM)</span> and Windows 11 Pro installation with lifetime license support.</div>
+                        <div>Prices valid for <span style="color: ${theme.primary}">limited time</span> due to frequent market changes in GPU/RAM/SSD.</div>
                     </div>
                     ` : ''}
                 </div>
