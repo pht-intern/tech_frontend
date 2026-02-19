@@ -462,8 +462,11 @@
                 btn.classList.remove('active');
             });
 
-            // Set main navigation active state
-            const navLink = document.querySelector(`#sideNav a[data-tab="${sectionId}"]`);
+            // Set main navigation active state (keep Quotations active for viewHistory/quotationDrafts; Products for addItem/itemDrafts)
+            let sideNavTab = sectionId;
+            if (sectionId === 'viewHistory' || sectionId === 'quotationDrafts') sideNavTab = 'createQuotation';
+            else if (sectionId === 'addItem' || sectionId === 'itemDrafts') sideNavTab = 'itemsList';
+            const navLink = document.querySelector(`#sideNav a[data-tab="${sideNavTab}"]`);
             if (navLink) navLink.classList.add('active');
 
             // Set section tab active state (for the active section)
@@ -524,7 +527,7 @@
                     if (cancelEditBtn) cancelEditBtn.style.display = '';
                 } else {
                     if (createBtn) createBtn.textContent = 'Create Quotation';
-                    document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create quotation'; else el.textContent = 'Create quotation'; });
+                    document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Quotations'; else el.textContent = 'Quotations'; });
                     const sectionTitle = document.getElementById('createQuotationSectionTitle');
                     if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
                     const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
@@ -2597,7 +2600,7 @@
             currentEditQuotationId = null;
             const createBtn = document.getElementById('createQuotationBtn');
             if (createBtn) createBtn.textContent = 'Create Quotation';
-            document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create quotation'; else el.textContent = 'Create quotation'; });
+            document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Quotations'; else el.textContent = 'Quotations'; });
             const sectionTitle = document.getElementById('createQuotationSectionTitle');
             if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
             const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
@@ -2654,7 +2657,7 @@
                     currentEditQuotationId = null;
                     const createBtn = document.getElementById('createQuotationBtn');
                     if (createBtn) createBtn.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create Quotation';
-                    document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> Create quotation' : 'Create quotation'; });
+                    document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> Quotations' : 'Quotations'; });
                     const sectionTitle = document.getElementById('createQuotationSectionTitle');
                     if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
                     const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
@@ -3373,18 +3376,21 @@
         async function getSettings() {
             try {
                 const response = await apiFetch('/settings');
-                if (response && response.data) {
-                    return response.data;
+                // API returns { success, data: { brand, companyGstId, defaultValidityDays, ... } } – same source as owner/admin
+                const data = response?.data ?? response ?? {};
+                if (typeof data === 'object' && data !== null) {
+                    return data;
                 }
             } catch (error) {
-                // Fallback to localStorage
+                // Fallback below
             }
-            // Fallback to localStorage
+            // Fallback only when API fails – so settings from owner/admin apply when API works
             return {
                 logo: readLS(LS_KEYS.logo) || '',
-                brand: readLS(LS_KEYS.brand) || 'RoleWise Tech',
+                brand: readLS(LS_KEYS.brand) || 'TECHTITANS',
                 companyGstId: readLS(LS_KEYS.companyGstId) || 'N/A',
                 validityDays: readLS(LS_KEYS.validityDays) || 3,
+                defaultValidityDays: readLS(LS_KEYS.validityDays) || 3,
                 companyAddress: '1102, second Floor, Before Atithi Satkar Hotel OTC Road, Bangalore 560002',
                 companyEmail: 'advanceinfotech21@gmail.com'
             };
@@ -3395,7 +3401,7 @@
             const logoBase64 = '';
             const brandName = settings.brand || 'TECHTITANS';
             const companyGstId = settings.companyGstId || 'N/A';
-            const validityDays = quotation.validityDays || settings.validityDays || 3;
+            const validityDays = quotation.validityDays ?? settings.validityDays ?? settings.defaultValidityDays ?? 3;
 
             // Get PDF theme colors and fonts (same as owner.js)
             const pdfThemeName = getEffectivePdfThemeKey(settings);
@@ -3467,7 +3473,7 @@
         console.warn('Failed to fetch temp items, using original items:', error);
     }
 
-    // Apply Quotation Items display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
+    // Apply Quotation Products display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
     const rawOrder = (settings && (settings.quotationItemTypeOrder || settings.quotationTypeFilters)) || [];
     const displayOrder = Array.isArray(rawOrder) && rawOrder.length > 0
         ? rawOrder.map(function (x) { return (x || '').toString().toLowerCase().trim(); }).filter(Boolean)
@@ -3626,6 +3632,7 @@
                 const row = body.insertRow();
                 row.insertCell().textContent = log.timestamp;
                 row.insertCell().textContent = log.user;
+                row.insertCell().textContent = log.ip_address || '—';
                 row.insertCell().textContent = log.role;
                 row.insertCell().textContent = log.action;
                 row.insertCell().textContent = log.details;
@@ -4504,8 +4511,8 @@
                     localStorage.removeItem(key);
                 });
 
-                // Redirect to login page
-                window.location.href = '/login.html';
+                // Redirect to index
+                window.location.href = '/index.html';
             } catch (error) {
                 // Even if API call fails, clear local storage and redirect
                 const allKeys = [
@@ -4523,7 +4530,7 @@
                     localStorage.removeItem(key);
                 });
                 
-                window.location.href = '/login.html';
+                window.location.href = '/index.html';
             }
         }
 

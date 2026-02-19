@@ -866,6 +866,7 @@
                             <tr>
                                 <th>Timestamp</th>
                                 <th>User</th>
+                                <th>IP Address</th>
                                 <th>Role</th>
                                 <th>Action</th>
                                 <th>Details</th>
@@ -880,22 +881,44 @@
 
         <section id="settings" class="content-section" style="display:none">
             <div class="card" id="settings-quotation-items-order-card">
-                <h2>Quotation Items display order</h2>
-                <p class="muted">Add product types and set the order in which they appear in the Quotation Items section when adding products. Use <strong>Up</strong> / <strong>Down</strong> to reorder and <strong>Remove</strong> to delete. Types are stored in uppercase; this order applies across all dashboards.</p>
+                <h2>Quotation Products display order</h2>
+                <p class="muted">Set the order in which product types appear in the Quotation Items section when adding products. Select item(s) with the checkbox, then use <strong>Up</strong> / <strong>Down</strong> above to reorder. This order applies across all dashboards.</p>
                 <div style="margin-top:18px">
-                    <div class="form-field" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
-                        <input type="text" id="settings-new-product-type" placeholder="e.g. GPU, CABINET" maxlength="100" style="width:220px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
-                        <button type="button" class="btn primary" id="settingsAddProductTypeBtn"><i class="fas fa-plus"></i> Add type</button>
+                    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+                        <button type="button" class="btn" id="settings-quotation-order-move-up" title="Move selected up" style="padding:6px 12px;"><i class="fas fa-arrow-up"></i> Up</button>
+                        <button type="button" class="btn" id="settings-quotation-order-move-down" title="Move selected down" style="padding:6px 12px;"><i class="fas fa-arrow-down"></i> Down</button>
                     </div>
-                    <div style="margin-bottom:8px; font-weight:600; font-size:13px;">Order (top = first):</div>
                     <ul id="settings-quotation-items-order-list" style="list-style:none; padding:0; margin:0 0 12px 0; max-width:500px; max-height:320px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:8px; background:#f9fafb; padding:8px;">
                         <!-- Filled by JS -->
                     </ul>
                     <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                         <button class="btn primary" id="saveQuotationItemsOrderBtn"><i class="fas fa-save"></i> Save order</button>
-                        <button class="btn secondary" id="resetQuotationItemsOrderBtn" type="button"><i class="fas fa-undo"></i> Reset to default</button>
                     </div>
-                    <small class="muted" style="display:block;margin-top:8px">Saved list defines both product types and their display order in Create/Edit Quotation.</small>
+                    <small class="muted" style="display:block;margin-top:8px;font-style:italic">*Saved list defines both product types and their display order in Create/Edit Quotation.*</small>
+                </div>
+            </div>
+
+            <div class="card" id="settings-product-types-card">
+                <h2>Product types</h2>
+                <p class="muted">Add new product types or remove existing ones. Changes apply after you click <strong>Save order</strong> in the section above.</p>
+                <div style="margin-top:18px">
+                    <div class="form-field" style="margin-bottom:18px;">
+                        <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Add type</label>
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <input type="text" id="settings-new-product-type" placeholder="e.g. GPU, CABINET" maxlength="100" style="width:220px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
+                            <button type="button" class="btn primary" id="settingsAddProductTypeBtn"><i class="fas fa-plus"></i> Add type</button>
+                        </div>
+                    </div>
+                    <div class="form-field">
+                        <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Delete type</label>
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <select id="settings-delete-product-type" style="width:220px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
+                                <option value="">— Select type to delete —</option>
+                                <!-- Filled by JS -->
+                            </select>
+                            <button type="button" class="btn secondary" id="settingsDeleteProductTypeBtn"><i class="fas fa-trash-alt"></i> Delete type</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -908,7 +931,7 @@
                         <input type="number" id="settings-validity-days" min="1" max="365" placeholder="30" style="width:100px; padding:8px" required>
                         <button class="btn primary" id="saveValidityBtn"><i class="fas fa-save"></i> Save Validity</button>
                     </div>
-                    <small class="muted" style="display:block;margin-top:8px">The number of days a quotation will be valid from the date of creation. Currently: <strong id="validityDaysDisplay">30</strong> days.</small>
+                    <small class="muted" style="display:block;margin-top:8px;font-style:italic">*The number of days a quotation will be valid from the date of creation. Currently: <strong id="validityDaysDisplay">30</strong> days.*</small>
                 </div>
             </div>
 
@@ -921,7 +944,7 @@
                         <input type="text" id="settings-company-gst-id" maxlength="15" pattern="[A-Za-z0-9]{15}" placeholder="Unique Alphanumeric GSTIN" style="width:250px; padding:8px" required>
                         <button class="btn primary" id="saveCompanyGstIdBtn"><i class="fas fa-save"></i> Save GSTIN</button>
                     </div>
-                    <small class="muted" style="display:block;margin-top:8px">This GSTIN will appear on all generated quotation PDFs as the seller's GST ID.</small>
+                    <small class="muted" style="display:block;margin-top:8px;font-style:italic">*This GSTIN will appear on all generated quotation PDFs as the seller's GST ID.*</small>
                 </div>
             </div>
 
@@ -950,7 +973,7 @@
                             <div id="previewBorder" style="width:40px; height:20px; background:#e5e7eb; border-radius:3px;"></div>
                         </div>
                     </div>
-                    <small class="muted" style="display:block;margin-top:8px">The selected theme will be applied to headers, borders, and accent colors in your PDF quotations.</small>
+                    <small class="muted" style="display:block;margin-top:8px;font-style:italic">*The selected theme will be applied to headers, borders, and accent colors in your PDF quotations.*</small>
                 </div>
             </div>
 
@@ -962,45 +985,93 @@
                         <label for="settings-pdf-font-primary" style="margin:0; width:150px">Primary (heading)</label>
                         <select id="settings-pdf-font-primary" style="width:200px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
                             <option value="segoe">Segoe UI (default)</option>
+                            <option value="segoe-variable">Segoe UI Variable (Windows 11)</option>
                             <option value="arial">Arial</option>
-                            <option value="helvetica">Helvetica</option>
-                            <option value="verdana">Verdana</option>
-                            <option value="georgia">Georgia</option>
+                            <option value="calibri">Calibri</option>
                             <option value="times">Times New Roman</option>
+                            <option value="verdana">Verdana</option>
+                            <option value="tahoma">Tahoma</option>
+                            <option value="trebuchet">Trebuchet MS</option>
+                            <option value="georgia">Georgia</option>
+                            <option value="cambria">Cambria</option>
+                            <option value="candara">Candara</option>
+                            <option value="consolas">Consolas (monospace)</option>
+                            <option value="corbel">Corbel</option>
+                            <option value="impact">Impact</option>
+                            <option value="comic-sans">Comic Sans MS</option>
+                            <option value="lucida-console">Lucida Console</option>
+                            <option value="palatino">Palatino Linotype</option>
+                            <option value="book-antiqua">Book Antiqua</option>
+                            <option value="franklin-gothic">Franklin Gothic</option>
+                            <option value="helvetica">Helvetica</option>
                             <option value="system">System UI</option>
                         </select>
+                        <label for="settings-pdf-font-size-primary" style="margin:0 0 0 12px; width:60px">Size (px)</label>
+                        <input type="number" id="settings-pdf-font-size-primary" min="8" max="48" value="26" style="width:70px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
                         <span class="muted" style="font-size:12px">Quotation heading</span>
                     </div>
                     <div class="form-field" style="display:flex; align-items:center; gap:15px; margin-bottom:14px">
                         <label for="settings-pdf-font-secondary" style="margin:0; width:150px">Secondary (table)</label>
                         <select id="settings-pdf-font-secondary" style="width:200px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
                             <option value="segoe">Segoe UI (default)</option>
+                            <option value="segoe-variable">Segoe UI Variable (Windows 11)</option>
                             <option value="arial">Arial</option>
-                            <option value="helvetica">Helvetica</option>
-                            <option value="verdana">Verdana</option>
-                            <option value="georgia">Georgia</option>
+                            <option value="calibri">Calibri</option>
                             <option value="times">Times New Roman</option>
+                            <option value="verdana">Verdana</option>
+                            <option value="tahoma">Tahoma</option>
+                            <option value="trebuchet">Trebuchet MS</option>
+                            <option value="georgia">Georgia</option>
+                            <option value="cambria">Cambria</option>
+                            <option value="candara">Candara</option>
+                            <option value="consolas">Consolas (monospace)</option>
+                            <option value="corbel">Corbel</option>
+                            <option value="impact">Impact</option>
+                            <option value="comic-sans">Comic Sans MS</option>
+                            <option value="lucida-console">Lucida Console</option>
+                            <option value="palatino">Palatino Linotype</option>
+                            <option value="book-antiqua">Book Antiqua</option>
+                            <option value="franklin-gothic">Franklin Gothic</option>
+                            <option value="helvetica">Helvetica</option>
                             <option value="system">System UI</option>
                         </select>
+                        <label for="settings-pdf-font-size-secondary" style="margin:0 0 0 12px; width:60px">Size (px)</label>
+                        <input type="number" id="settings-pdf-font-size-secondary" min="8" max="48" value="14" style="width:70px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
                         <span class="muted" style="font-size:12px">Items table</span>
                     </div>
                     <div class="form-field" style="display:flex; align-items:center; gap:15px; margin-bottom:14px">
                         <label for="settings-pdf-font-tertiary" style="margin:0; width:150px">Tertiary (body)</label>
                         <select id="settings-pdf-font-tertiary" style="width:200px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
                             <option value="segoe">Segoe UI (default)</option>
+                            <option value="segoe-variable">Segoe UI Variable (Windows 11)</option>
                             <option value="arial">Arial</option>
-                            <option value="helvetica">Helvetica</option>
-                            <option value="verdana">Verdana</option>
-                            <option value="georgia">Georgia</option>
+                            <option value="calibri">Calibri</option>
                             <option value="times">Times New Roman</option>
+                            <option value="verdana">Verdana</option>
+                            <option value="tahoma">Tahoma</option>
+                            <option value="trebuchet">Trebuchet MS</option>
+                            <option value="georgia">Georgia</option>
+                            <option value="cambria">Cambria</option>
+                            <option value="candara">Candara</option>
+                            <option value="consolas">Consolas (monospace)</option>
+                            <option value="corbel">Corbel</option>
+                            <option value="impact">Impact</option>
+                            <option value="comic-sans">Comic Sans MS</option>
+                            <option value="lucida-console">Lucida Console</option>
+                            <option value="palatino">Palatino Linotype</option>
+                            <option value="book-antiqua">Book Antiqua</option>
+                            <option value="franklin-gothic">Franklin Gothic</option>
+                            <option value="helvetica">Helvetica</option>
                             <option value="system">System UI</option>
                         </select>
+                        <label for="settings-pdf-font-size-tertiary" style="margin:0 0 0 12px; width:60px">Size (px)</label>
+                        <input type="number" id="settings-pdf-font-size-tertiary" min="8" max="48" value="12" style="width:70px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
                         <span class="muted" style="font-size:12px">All other text</span>
                     </div>
                     <div style="margin-top:8px">
                         <button class="btn primary" id="savePdfFontBtn"><i class="fas fa-save"></i> Save Fonts</button>
                     </div>
-                    <small class="muted" style="display:block;margin-top:8px">Primary: main title; Secondary: table cells; Tertiary: company details, dates, totals, footer.</small>
+                    <small class="muted" style="display:block;margin-top:8px;font-style:italic">*Primary: main title; Secondary: table cells; Tertiary: company details, dates, totals, footer. Sizes in pixels (8–48).*</small>
                 </div>
             </div>
 

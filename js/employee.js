@@ -848,7 +848,7 @@
             const createBtn = document.getElementById('createQuotationBtn');
             if (createBtn) createBtn.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create Quotation';
             document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .section-tabs .tab-btn[data-tab="createQuotation"]').forEach(el => {
-                el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> Create quotation' : 'Create quotation';
+                el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> Quotations' : 'Quotations';
             });
             const sectionTitle = document.getElementById('createQuotationSectionTitle');
             if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
@@ -2685,10 +2685,16 @@
         // --- API Helper Functions ---
         async function apiFetch(endpoint, options = {}) {
             try {
-                // Ensure credentials (cookies/sessions) are sent with requests
+                // Auth: session cookie (credentials) + X-User-Email fallback when cookie not sent (e.g. cross-origin / cPanel)
+                const authHeaders = {};
+                const email = localStorage.getItem(LS_KEYS.userEmail);
+                if (email) authHeaders['X-User-Email'] = email;
+                const token = localStorage.getItem('token');
+                if (token) authHeaders['Authorization'] = 'Bearer ' + token;
                 const fetchOptions = {
                     ...options,
-                    credentials: 'include'  // Send cookies with cross-origin requests
+                    credentials: 'include',
+                    headers: { ...authHeaders, ...(options.headers || {}) }
                 };
                 const url = endpoint.startsWith('/_') ? endpoint : `${API_BASE}${endpoint}`;
                 const response = await fetch(url, fetchOptions);
@@ -2757,6 +2763,11 @@
         async function loadQuotationDrafts(alsoRefreshPageList) {
             try {
                 const res = await apiFetch('/drafts/quotations');
+                if (res == null) {
+                    renderQuotationDraftsList([], 'quotationDraftsList');
+                    if (currentSectionId === 'quotationDrafts') renderQuotationDraftsList([], 'quotationDraftsPageList');
+                    return;
+                }
                 const list = Array.isArray(res) ? res : (res.data || []);
                 renderQuotationDraftsList(list, 'quotationDraftsList');
                 if (alsoRefreshPageList || currentSectionId === 'quotationDrafts') {
@@ -3356,7 +3367,10 @@
                 btn.classList.remove('active');
             });
 
-            document.querySelector(`#sideNav a[data-tab="${id}"]`)?.classList.add('active');
+            let sideNavTab = id;
+            if (id === 'viewHistory' || id === 'quotationDrafts') sideNavTab = 'createQuotation';
+            else if (id === 'addItem' || id === 'itemDrafts') sideNavTab = 'itemsList';
+            document.querySelector(`#sideNav a[data-tab="${sideNavTab}"]`)?.classList.add('active');
             document.querySelector(`.section-tabs button[data-tab="${id}"]`)?.classList.add('active');
 
             // Load section-specific data
@@ -3384,7 +3398,7 @@
                 } else {
                     if (createBtn) createBtn.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create Quotation';
                     document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .section-tabs .tab-btn[data-tab="createQuotation"]').forEach(el => {
-                        el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> Create quotation' : 'Create quotation';
+                        el.innerHTML = el.tagName === 'A' ? '<i class="fas fa-file-invoice-dollar"></i> Quotations' : 'Quotations';
                     });
                     if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
                     if (cancelEditBtn) cancelEditBtn.style.display = 'none';
@@ -3613,25 +3627,26 @@
 
         // --- PDF Generation ---
         async function getSettings() {
-            console.trace('🔍 getSettings called - tracking API call origin');
             try {
                 const response = await apiFetch('/settings');
-                if (response && response.data) {
-                    return response.data;
+                // API returns { success, data: { brand, companyGstId, ... } } – same source as owner/admin so settings apply everywhere
+                const data = response?.data ?? response ?? {};
+                if (typeof data === 'object' && data !== null) {
+                    return data;
                 }
             } catch (error) {
-                // Fallback to defaults
+                // Fallback below
             }
-            // Fallback to defaults
             return {
                 logo: '',
-                brand: 'RoleWise Tech',
+                brand: 'TECHTITANS',
                 companyGstId: 'N/A',
                 validityDays: 3,
                 defaultValidityDays: 3,
                 pdfTheme: 'default',
-                companyAddress: '123 Business Lane, City, State 400001',
-                companyEmail: 'contact@rolewise.app'
+                companyAddress: '1102, second Floor, Before Atithi Satkar Hotel OTC Road, Bangalore 560002',
+                companyEmail: 'advanceinfotech21@gmail.com',
+                companyPhone: '+91 63626 18184'
             };
         }
 
@@ -3751,7 +3766,7 @@
                 console.warn('Failed to fetch temp items, using original items:', error);
             }
 
-            // Apply Quotation Items display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
+            // Apply Quotation Products display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
             if (!Array.isArray(items)) items = [];
             try {
                 const settingsForOrder = await getSettings();
@@ -4026,8 +4041,8 @@
                     localStorage.removeItem(key);
                 });
 
-                // Redirect to login page
-                window.location.href = '/login.html';
+                // Redirect to index
+                window.location.href = '/index.html';
             } catch (error) {
                 // Even if API call fails, clear local storage and redirect
                 const allKeys = [
@@ -4045,7 +4060,7 @@
                     localStorage.removeItem(key);
                 });
                 
-                window.location.href = '/login.html';
+                window.location.href = '/index.html';
             }
         }
 

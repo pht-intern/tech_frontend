@@ -381,12 +381,13 @@ async function handleLogin(event) {
             }
         } else {
             // Login failed - extract error message from backend format
-            const errorMessage = responseData.error || 
-                responseData.message || 
+            // Backend returns "Someone is already using this user." when same email is logged in elsewhere
+            const errorMessage = responseData.error ||
+                responseData.message ||
                 'Invalid email or password. Please try again.';
-            
+
             showError(errorMessage);
-            
+
             // Clear password field for security
             passwordInput.value = '';
             passwordInput.focus();

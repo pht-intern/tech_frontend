@@ -42,9 +42,37 @@ const PDF_FONT_TERTIARY_KEY = 'owner_pdf_font_tertiary';
 function getEffectivePdfFontPrimary() { try { return localStorage.getItem(PDF_FONT_PRIMARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; } }
 function getEffectivePdfFontSecondary() { try { return localStorage.getItem(PDF_FONT_SECONDARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; } }
 function getEffectivePdfFontTertiary() { try { return localStorage.getItem(PDF_FONT_TERTIARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; } }
+const PDF_FONT_SIZE_PRIMARY_KEY = 'owner_pdf_font_size_primary';
+const PDF_FONT_SIZE_SECONDARY_KEY = 'owner_pdf_font_size_secondary';
+const PDF_FONT_SIZE_TERTIARY_KEY = 'owner_pdf_font_size_tertiary';
+function getEffectivePdfFontSizePrimary() { try { const v = parseInt(localStorage.getItem(PDF_FONT_SIZE_PRIMARY_KEY), 10); return (v >= 8 && v <= 48) ? v : 26; } catch (e) { return 26; } }
+function getEffectivePdfFontSizeSecondary() { try { const v = parseInt(localStorage.getItem(PDF_FONT_SIZE_SECONDARY_KEY), 10); return (v >= 8 && v <= 48) ? v : 14; } catch (e) { return 14; } }
+function getEffectivePdfFontSizeTertiary() { try { const v = parseInt(localStorage.getItem(PDF_FONT_SIZE_TERTIARY_KEY), 10); return (v >= 8 && v <= 48) ? v : 12; } catch (e) { return 12; } }
 function getPdfFontFamilyCss(fontKey) {
     const key = fontKey || 'segoe';
-    const map = { segoe: "'Segoe UI', system-ui, -apple-system, sans-serif", arial: "Arial, Helvetica, sans-serif", helvetica: "Helvetica, Arial, sans-serif", verdana: "Verdana, Geneva, sans-serif", georgia: "Georgia, serif", times: "'Times New Roman', Times, serif", system: "system-ui, -apple-system, sans-serif" };
+    const map = {
+        segoe: "'Segoe UI', system-ui, -apple-system, sans-serif",
+        'segoe-variable': "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
+        arial: "Arial, Helvetica, sans-serif",
+        calibri: "Calibri, Candara, sans-serif",
+        times: "'Times New Roman', Times, serif",
+        verdana: "Verdana, Geneva, sans-serif",
+        tahoma: "Tahoma, Geneva, sans-serif",
+        trebuchet: "'Trebuchet MS', Helvetica, sans-serif",
+        georgia: "Georgia, serif",
+        cambria: "Cambria, 'Hoefler Text', serif",
+        candara: "Candara, Calibri, sans-serif",
+        consolas: "Consolas, 'Courier New', monospace",
+        corbel: "Corbel, 'Lucida Grande', sans-serif",
+        impact: "Impact, Charcoal, sans-serif",
+        'comic-sans': "'Comic Sans MS', cursive, sans-serif",
+        'lucida-console': "'Lucida Console', Monaco, monospace",
+        palatino: "'Palatino Linotype', 'Book Antiqua', Palatino, serif",
+        'book-antiqua': "'Book Antiqua', Palatino, serif",
+        'franklin-gothic': "'Franklin Gothic Medium', 'Arial Narrow', sans-serif",
+        helvetica: "Helvetica, Arial, sans-serif",
+        system: "system-ui, -apple-system, sans-serif"
+    };
     return map[key] || map.segoe;
 }
 function getCustomPdfThemes() { try { const raw = localStorage.getItem(PDF_CUSTOM_THEMES_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
@@ -1100,6 +1128,7 @@ async function handleCsvImport(event) {
         const updated = result.updated || 0;
         const total = result.total || (imported + updated);
         const errDetails = result.error_details;
+        addLog('Data Imported', CURRENT_USER_ROLE, `Imported/Updated ${total} products from CSV`);
         let msg = `CSV import complete. ${imported} products imported, ${updated} products updated (${total} total).`;
         if (errDetails && errDetails.length) msg += '\n\nDetails: ' + errDetails.join('; ');
         alert(msg);
@@ -2150,7 +2179,7 @@ async function createQuotation() {
                 currentEditQuotationId = null;
                 const createBtn = document.getElementById('createQuotationBtn');
                 if (createBtn) createBtn.textContent = 'Create Quotation';
-                document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create quotation'; else el.textContent = 'Create quotation'; });
+                document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Quotations'; else el.textContent = 'Quotations'; });
                 const sectionTitle = document.getElementById('createQuotationSectionTitle');
                 if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
                 const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
@@ -2489,6 +2518,9 @@ async function generateQuotationHtml(quotation, options = {}) {
     const pdfFontPrimary = getPdfFontFamilyCss(getEffectivePdfFontPrimary());
     const pdfFontSecondary = getPdfFontFamilyCss(getEffectivePdfFontSecondary());
     const pdfFontTertiary = getPdfFontFamilyCss(getEffectivePdfFontTertiary());
+    const pdfSizePrimary = getEffectivePdfFontSizePrimary();
+    const pdfSizeSecondary = getEffectivePdfFontSizeSecondary();
+    const pdfSizeTertiary = getEffectivePdfFontSizeTertiary();
     const companyAddress = settings.companyAddress || '1102, second Floor, Before Atithi Satkar<br>Hotel OTC Road, Bangalore 560002';
     const companyEmail = settings.companyEmail || 'advanceinfotech21@gmail.com';
     const companyPhone = settings.companyPhone || '+91 63626 18184';
@@ -2533,7 +2565,7 @@ async function generateQuotationHtml(quotation, options = {}) {
     } catch (error) {
         console.warn('Failed to fetch temp items, using original items:', error);
     }
-    // Apply Quotation Items display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
+    // Apply Quotation Products display order from Settings to PDF (same order as Create/Edit UI; persists after product edits)
     const rawOrder = (settings && (settings.quotationItemTypeOrder || settings.quotationTypeFilters)) || [];
     const displayOrder = Array.isArray(rawOrder) && rawOrder.length > 0
         ? rawOrder.map(function (x) { return (x || '').toString().toLowerCase().trim(); }).filter(Boolean)
@@ -2592,17 +2624,17 @@ async function generateQuotationHtml(quotation, options = {}) {
             if (!imgSrc) return '';
             return `<div style="margin-bottom: 24px; width: 100%; position: relative;"><img src="${imgSrc}" alt="Preview" style="width: 90%; max-height: 650px; margin: 0 auto; object-fit: contain; border: 1px solid ${theme.border}; border-radius: 8px; display: block;"><div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;"><span style="font-size: 48px; font-weight: 700; color: rgba(255,255,255,0.45); letter-spacing: 0.15em; transform: rotate(-35deg); white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.4);">TECHTITANS</span></div></div>`;
         }).join('');
-        return `<div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;"><style>.theme-border { border-color: ${theme.border} !important; }</style>${headerLogoHtml}${headerCustomerImageHtml}${showHeaderSection ? `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;"><div><div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: 12px; color: #6b7280;">${companyAddress}</div><div style="font-size: 12px; color: #6b7280;">${companyEmail}</div><div style="font-size: 12px; color: #6b7280;">${companyPhone}</div></div><div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Project Preview</h1></div><div style="width: 200px;"></div></div><div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const line1 = [customer?.name, customer?.phone, customer?.email].filter(Boolean); const addr = customer?.address; if (!line1.length && !addr) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151;"><span style="font-weight: 600;">${line1.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span>${addr ? '<br><span style="font-weight: 600;">' + addr + '</span>' : ''}</div>`; })()}</div><div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div></div>` : ''}<div style="margin-top: 24px; margin-bottom: 24px;">${imagesGridHtml}</div>${showFooterSection ? `<div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;"><div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div>` : ''}</div>`;
+        return `<div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;"><style>.theme-border { border-color: ${theme.border} !important; }</style>${headerLogoHtml}${headerCustomerImageHtml}${showHeaderSection ? `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;"><div><div style="font-size: ${pdfSizeTertiary}px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyAddress}</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyEmail}</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyPhone}</div></div><div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: ${pdfSizePrimary}px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Project Preview</h1></div><div style="width: 200px;"></div></div><div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const line1 = [customer?.name, customer?.phone, customer?.email].filter(Boolean); const addr = customer?.address; if (!line1.length && !addr) return ''; return `<div style="font-size: ${pdfSizeTertiary}px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: ${pdfSizeTertiary}px; color: #374151;"><span style="font-weight: 600;">${line1.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span>${addr ? '<br><span style="font-weight: 600;">' + addr + '</span>' : ''}</div>`; })()}</div><div style="text-align: right;"><div style="font-size: ${pdfSizeTertiary}px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: ${pdfSizeTertiary}px;">${dateCreated}</div></div></div>` : ''}<div style="margin-top: 24px; margin-bottom: 24px;">${imagesGridHtml}</div>${showFooterSection ? `<div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: ${pdfSizeTertiary}px; text-align: center; line-height: 1.7; color: #5c5c5c;"><div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div>` : ''}</div>`;
     }
     return `
                 <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
-                    <style>.q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 14px; font-family: ${pdfFontSecondary}; }.q-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid ${theme.primary}; color: ${theme.secondary}; font-weight: 600; }.q-table td { padding: 14px 12px; border-bottom: 1px solid ${theme.border}; }.q-table .text-right { text-align: right; }.theme-header { color: ${theme.primary}; }.theme-accent { color: ${theme.accent}; }.theme-border { border-color: ${theme.border} !important; }</style>
+                    <style>.q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: ${pdfSizeSecondary}px; font-family: ${pdfFontSecondary}; }.q-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid ${theme.primary}; color: ${theme.secondary}; font-weight: 600; }.q-table td { padding: 14px 12px; border-bottom: 1px solid ${theme.border}; }.q-table .text-right { text-align: right; }.theme-header { color: ${theme.primary}; }.theme-accent { color: ${theme.accent}; }.theme-border { border-color: ${theme.border} !important; }</style>
                     ${headerLogoHtml}${headerCustomerImageHtml}
-                    ${showHeaderSection ? `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;"><div><div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: 12px; color: #6b7280;">${companyAddress}</div><div style="font-size: 12px; color: #6b7280;">${companyEmail}</div><div style="font-size: 12px; color: #6b7280;">${companyPhone}</div></div><div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: 26px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Quotation</h1></div><div style="width: 200px;"></div></div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const line1 = [customer?.name, customer?.phone, customer?.email].filter(Boolean); const addr = customer?.address; if (!line1.length && !addr) return ''; return `<div style="font-size: 14px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: 12px; color: #374151; "><span style="font-weight: 600;">${line1.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span>${addr ? '<br><span style="font-weight: 600;">' + addr + '</span>' : ''}</div>`; })()}</div><div style="text-align: right;"><div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: 14px;">${dateCreated}</div></div></div>` : ''}
+                    ${showHeaderSection ? `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;"><div><div style="font-size: ${pdfSizeTertiary}px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyAddress}</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyEmail}</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyPhone}</div></div><div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: ${pdfSizePrimary}px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Quotation</h1></div><div style="width: 200px;"></div></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const line1 = [customer?.name, customer?.phone, customer?.email].filter(Boolean); const addr = customer?.address; if (!line1.length && !addr) return ''; return `<div style="font-size: ${pdfSizeTertiary}px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: ${pdfSizeTertiary}px; color: #374151; "><span style="font-weight: 600;">${line1.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span>${addr ? '<br><span style="font-weight: 600;">' + addr + '</span>' : ''}</div>`; })()}</div><div style="text-align: right;"><div style="font-size: ${pdfSizeTertiary}px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: ${pdfSizeTertiary}px;">${dateCreated}</div></div></div>` : ''}
                     <table class="q-table"><thead><tr><th>S.No</th><th>Type</th><th>Description</th><th class="text-right">Unit Price</th><th class="text-right">Qty</th><th class="text-right">Amount</th></tr></thead><tbody>${itemsForTable.length > 0 ? itemsForTable.map((item, idx) => { const itemPrice = parseFloat(item.price || 0); const itemQuantity = parseInt(item.quantity || 1); const itemTotal = itemPrice * itemQuantity; return `<tr><td>${snoOffset + idx + 1}</td><td>${item.type || 'N/A'}</td><td>${item.productName || 'N/A'}</td><td class="text-right">${formatRupee(itemPrice)}</td><td class="text-right">${itemQuantity}</td><td class="text-right">${formatRupee(itemTotal)}</td></tr>`; }).join('') : '<tr><td colspan="6" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}</tbody></table>
-                    ${showTotals ? `<div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div style="display: inline-block; width: 260px; text-align: right;"><div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px;"><span style="color: #6b7280;">Subtotal (excl). GST)</span><span>${formatRupee(totalAfterDiscount)}</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; margin-top: 8px; border-top: 2px solid ${theme.primary}; font-size: 16px; font-weight: 600;"><span>Total</span><span>${formatRupee(grandTotal)}</span></div></div></div>` : ''}
-                    ${showFooterSection ? `<div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: 14px; text-align: center; line-height: 1.7; color: #5c5c5c;">${pageNumFooter ? `<div style="margin-bottom: 8px; font-weight: 600;">${pageNumFooter}</div>` : ''}<div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div>` : ''}
+                    ${showTotals ? `<div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div style="display: inline-block; width: 260px; text-align: right;"><div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: ${pdfSizeTertiary}px;"><span style="color: #6b7280;">Subtotal (excl). GST)</span><span>${formatRupee(totalAfterDiscount)}</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; margin-top: 8px; border-top: 2px solid ${theme.primary}; font-size: ${pdfSizeTertiary + 2}px; font-weight: 600;"><span>Total</span><span>${formatRupee(grandTotal)}</span></div></div></div>` : ''}
+                    ${showFooterSection ? `<div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: ${pdfSizeTertiary}px; text-align: center; line-height: 1.7; color: #5c5c5c;">${pageNumFooter ? `<div style="margin-bottom: 8px; font-weight: 600;">${pageNumFooter}</div>` : ''}<div>All prices are valid for <span style="color: ${theme.primary}">${validityDays} days</span> from the date of quotation.</div><div>"<span style="color: ${theme.primary}">Free</span> pan India warranty" • <span style="color: ${theme.primary}">3-year</span> call support <span style="color: ${theme.accent}">Monday to Saturday 12pm to 7pm</span></div><div>All products from <span style="color: ${theme.primary}">direct manufacture</span> or <span style="color: ${theme.primary}">store warranty</span></div></div>` : ''}
                 </div>
     `;
 }
@@ -3588,7 +3620,7 @@ function cancelEditInCreateSection() {
     currentEditQuotationId = null;
     const createBtn = document.getElementById('createQuotationBtn');
     if (createBtn) createBtn.textContent = 'Create Quotation';
-    document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create quotation'; else el.textContent = 'Create quotation'; });
+    document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Quotations'; else el.textContent = 'Quotations'; });
     const sectionTitle = document.getElementById('createQuotationSectionTitle');
     if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
     const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
@@ -3685,6 +3717,7 @@ async function renderLogsList() {
         const row = body.insertRow();
         row.insertCell().textContent = log.timestamp;
         row.insertCell().textContent = log.user;
+        row.insertCell().textContent = log.ip_address || '—';
         row.insertCell().textContent = log.role;
         row.insertCell().textContent = log.action;
         row.insertCell().textContent = log.details;
@@ -4126,7 +4159,8 @@ function showSection(sectionId) {
         btn.classList.remove('active');
     });
 
-    document.querySelector(`#sideNav a[data-tab="${sectionId}"]`)?.classList.add('active');
+    const sideNavTab = (sectionId === 'viewHistory' || sectionId === 'quotationDrafts') ? 'createQuotation' : sectionId;
+    document.querySelector(`#sideNav a[data-tab="${sideNavTab}"]`)?.classList.add('active');
 
     const tabBtn = document.querySelector(`#dashboardTabs button[data-tab="${sectionId}"]`);
     if (tabBtn) tabBtn.classList.add('active');
@@ -4156,7 +4190,7 @@ function showSection(sectionId) {
             if (cancelEditBtn) cancelEditBtn.style.display = '';
         } else {
             if (createBtn) createBtn.textContent = 'Create Quotation';
-            document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Create quotation'; else el.textContent = 'Create quotation'; });
+            document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Quotations'; else el.textContent = 'Quotations'; });
             const sectionTitle = document.getElementById('createQuotationSectionTitle');
             if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
             const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
@@ -4228,6 +4262,7 @@ document.getElementById('saveBrandNameBtn')?.addEventListener('click', async fun
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ brand: brandName })
         });
+        addLog('Setting Changed', CURRENT_USER_ROLE, `Updated brand name to ${brandName}`);
         alert('Brand name saved successfully!');
     } catch (e) { }
 });
@@ -4244,6 +4279,7 @@ document.getElementById('saveCompanyGstIdBtn')?.addEventListener('click', async 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ companyGstId: gstId })
         });
+        addLog('Setting Changed', CURRENT_USER_ROLE, 'Updated Company GST ID');
         alert('Company GST ID saved successfully!');
     } catch (e) { }
 });
@@ -4261,6 +4297,7 @@ document.getElementById('saveValidityBtn')?.addEventListener('click', async func
             body: JSON.stringify({ defaultValidityDays: days })
         });
         document.getElementById('validityDaysDisplay').textContent = days;
+        addLog('Setting Changed', CURRENT_USER_ROLE, `Updated quotation validity to ${days} days`);
         alert('Quotation validity saved successfully!');
     } catch (e) { }
 });
@@ -4291,6 +4328,7 @@ async function handleLogoUpload(event) {
             const logoEl = document.querySelector('.sidebar .brand img');
             if (logoEl) logoEl.src = 'images/Logo.svg';
         }).catch(() => {});
+        addLog('Setting Changed', CURRENT_USER_ROLE, 'Uploaded company logo');
         alert('Company logo uploaded successfully!');
     } catch (e) { }
 }
@@ -4302,6 +4340,7 @@ document.getElementById('removeLogoBtn')?.addEventListener('click', async functi
         await renderSettings();
         const logoEl = document.querySelector('.sidebar .brand img');
         if (logoEl) logoEl.src = 'images/Logo.svg';
+        addLog('Setting Changed', CURRENT_USER_ROLE, 'Removed company logo');
         alert('Company logo removed.');
     } catch (e) {
         alert('Failed to remove logo.');
@@ -4517,6 +4556,7 @@ async function deleteQuotation(quotationId) {
     if (!confirm(`Are you sure you want to delete quotation ID ${quotationId}?`)) return;
     try {
         await apiFetch(`/quotations/${quotationId}`, { method: 'DELETE' });
+        addLog('Quotation Deleted', CURRENT_USER_ROLE, `Deleted quotation: ${quotationId}`);
         renderHistoryList();
         updateSummary();
     } catch (e) { }
@@ -4530,6 +4570,7 @@ async function deleteLog(logId) {
     if (!confirm('Are you sure you want to delete this log entry?')) return;
     try {
         await apiFetch(`/logs/${logId}`, { method: 'DELETE' });
+        addLog('Log Deleted', CURRENT_USER_ROLE, `Deleted log entry: ${logId}`);
         renderLogsList();
         updateSummary();
     } catch (e) { }
@@ -4607,8 +4648,8 @@ async function handleLogout() {
             localStorage.removeItem(key);
         });
 
-        // Redirect to login page
-        window.location.href = '/login.html';
+        // Redirect to index
+        window.location.href = '/index.html';
     } catch (error) {
         // Even if API call fails, clear local storage and redirect
         const allKeys = [
@@ -4626,7 +4667,7 @@ async function handleLogout() {
             localStorage.removeItem(key);
         });
         
-        window.location.href = '/login.html';
+        window.location.href = '/index.html';
     }
 }
 
