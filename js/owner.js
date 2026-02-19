@@ -4436,7 +4436,7 @@ function renderQuotationItemsOrderList(order) {
         li.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #eee;';
         li.dataset.index = idx;
         li.dataset.value = label;
-        const title = String(label).replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+        const title = String(label).toUpperCase();
         const slNo = idx + 1;
         const slSpan = document.createElement('span');
         slSpan.style.cssText = 'min-width:28px;font-weight:600;color:#6b7280;';
@@ -6252,8 +6252,32 @@ async function loadAddProductDynamicData() {
         renderRecentProducts(items);
         renderProductTypes(items);
         updateTypeSuggestions();
+        await populateAddProductTypeDropdown(items);
     } catch (error) {
         // Silent fail
+    }
+}
+
+async function populateAddProductTypeDropdown(items) {
+    const typeSelect = document.getElementById('type');
+    if (!typeSelect) return;
+    try {
+        const settings = await getSettings();
+        const savedOrder = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
+            ? settings.quotationItemTypeOrder
+            : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+        const productTypesList = Array.isArray(settings.productTypes) ? settings.productTypes.slice() : [];
+        const arr = Array.isArray(items) ? items : (items && items.data) || [];
+        const typesFromItems = [...new Set(arr.map(function (item) { return item.type; }).filter(Boolean))];
+        const order = mergeQuotationOrderWithAllTypes(savedOrder, productTypesList, typesFromItems).filter(function (t) { return t !== 'all'; });
+        typeSelect.innerHTML = '<option value="">Select Product Type</option>';
+        order.forEach(function (t) {
+            const label = String(t).toUpperCase();
+            typeSelect.appendChild(new Option(label, t));
+        });
+    } catch (e) {
+        console.error('Failed to load product types for dropdown:', e);
+        typeSelect.innerHTML = '<option value="">Select Product Type</option>';
     }
 }
 

@@ -438,11 +438,45 @@ async function loadAddProductDynamicData() {
         updateProductStatistics(items);
         renderRecentProducts(items);
         renderProductTypes(items);
+        await populateAddProductTypeDropdown(items);
     } catch (error) {
         if (document.getElementById('recentProductsList'))
             document.getElementById('recentProductsList').innerHTML = '<p class="muted" style="text-align:center; padding:20px;">Unable to load.</p>';
         if (document.getElementById('productTypesList'))
             document.getElementById('productTypesList').innerHTML = '<p class="muted" style="text-align:center; padding:20px;">Unable to load.</p>';
+    }
+}
+
+async function populateAddProductTypeDropdown(items) {
+    const typeSelect = document.getElementById('type');
+    if (!typeSelect) return;
+    try {
+        const settings = await getSettings();
+        const savedOrder = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
+            ? settings.quotationItemTypeOrder.slice()
+            : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+        const productTypesList = Array.isArray(settings.productTypes) ? settings.productTypes.slice() : [];
+        const arr = Array.isArray(items) ? items : (items && items.data) || [];
+        const typesFromItems = [...new Set(arr.map(function (item) { return item.type; }).filter(Boolean))].map(function (t) { return String(t).toLowerCase().trim(); });
+        const seen = new Set();
+        const order = [];
+        function add(v) {
+            const t = String(v).toLowerCase().trim();
+            if (!t || t === 'all' || seen.has(t)) return;
+            seen.add(t);
+            order.push(t);
+        }
+        (savedOrder || []).forEach(add);
+        (productTypesList || []).forEach(add);
+        (typesFromItems || []).forEach(add);
+        typeSelect.innerHTML = '<option value="">Select Product Type</option>';
+        order.forEach(function (t) {
+            const label = String(t).toUpperCase();
+            typeSelect.appendChild(new Option(label, t));
+        });
+    } catch (e) {
+        console.error('Failed to load product types for dropdown:', e);
+        typeSelect.innerHTML = '<option value="">Select Product Type</option>';
     }
 }
 
@@ -2636,7 +2670,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                 <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
                     <style>.q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: ${pdfSizeSecondary}px; font-family: ${pdfFontSecondary}; }.q-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid ${theme.primary}; color: ${theme.secondary}; font-weight: 600; }.q-table td { padding: 14px 12px; border-bottom: 1px solid ${theme.border}; }.q-table .text-right { text-align: right; }.theme-header { color: ${theme.primary}; }.theme-accent { color: ${theme.accent}; }.theme-border { border-color: ${theme.border} !important; }</style>
                     ${headerLogoHtml}${headerCustomerImageHtml}
-                    ${showHeaderSection ? `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;"><div><div style="font-size: ${pdfSizeTertiary}px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">AdvanceInfoTech</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyAddress}</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyEmail}</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyPhone}</div></div><div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: ${pdfSizePrimary}px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Quotation</h1></div><div style="width: 200px;"></div></div>
+                    ${showHeaderSection ? `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;"><div><div style="font-size: ${pdfSizeTertiary}px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">Advance InfoTech</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyAddress}</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyEmail}</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyPhone}</div></div><div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: ${pdfSizePrimary}px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Quotation</h1></div><div style="width: 200px;"></div></div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const line1 = [customer?.name, customer?.phone, customer?.email].filter(Boolean); const addr = customer?.address; if (!line1.length && !addr) return ''; return `<div style="font-size: ${pdfSizeTertiary}px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: ${pdfSizeTertiary}px; color: #374151; "><span style="font-weight: 600;">${line1.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span>${addr ? '<br><span style="font-weight: 600;">' + addr + '</span>' : ''}</div>`; })()}</div><div style="text-align: right;"><div style="font-size: ${pdfSizeTertiary}px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: ${pdfSizeTertiary}px;">${dateCreated}</div></div></div>` : ''}
                     <table class="q-table"><thead><tr><th>S.No</th><th>Type</th><th>Description</th><th class="text-right">Unit Price</th><th class="text-right">Qty</th><th class="text-right">Amount</th></tr></thead><tbody>${itemsForTable.length > 0 ? itemsForTable.map((item, idx) => { const itemPrice = parseFloat(item.price || 0); const itemQuantity = parseInt(item.quantity || 1); const itemTotal = itemPrice * itemQuantity; return `<tr><td>${snoOffset + idx + 1}</td><td>${item.type || 'N/A'}</td><td>${item.productName || 'N/A'}</td><td class="text-right">${formatRupee(itemPrice)}</td><td class="text-right">${itemQuantity}</td><td class="text-right">${formatRupee(itemTotal)}</td></tr>`; }).join('') : '<tr><td colspan="6" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}</tbody></table>
                     ${showTotals ? `<div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div style="display: inline-block; width: 260px; text-align: right;"><div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: ${pdfSizeTertiary}px;"><span style="color: #6b7280;">Subtotal (excl). GST)</span><span>${formatRupee(totalAfterDiscount)}</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; margin-top: 8px; border-top: 2px solid ${theme.primary}; font-size: ${pdfSizeTertiary + 2}px; font-weight: 600;"><span>Total</span><span>${formatRupee(grandTotal)}</span></div></div></div>` : ''}

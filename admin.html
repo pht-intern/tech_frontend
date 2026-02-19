@@ -194,22 +194,6 @@
                         <label for="type">Type</label>
                         <select id="type" required style="padding:10px;border-radius:8px;border:1px solid var(--border);width:100%">
                             <option value="">Select Product Type</option>
-                            <option value="laptop">LAPTOP</option>
-                            <option value="monitor">MONITOR</option>
-                            <option value="keyboard&mouse">KEYBOARD&MOUSE</option>
-                            <option value="printers">PRINTERS</option>
-                            <option value="accessories">ACCESSORIES</option>
-                            <option value="ups">UPS</option>
-                            <option value="networking products">NETWORKING PRODUCTS</option>
-                            <option value="others">OTHERS</option>
-                            <option value="cpu">CPU</option>
-                            <option value="motherboard">MOTHERBOARD</option>
-                            <option value="ram">RAM</option>
-                            <option value="gpu">GPU</option>
-                            <option value="psu">PSU</option>
-                            <option value="case">CASE</option>
-                            <option value="cooler">CPU COOLER</option>
-                            <option value="storage">STORAGE</option>
                         </select>
                     </div>
 
@@ -542,7 +526,7 @@
                             <textarea id="cust-address" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border)" placeholder="Optional"></textarea>
                         </div>
                         <div style="margin-top:10px">
-                            <label class="muted">Upload Image <span class="muted">(Optional, for quotation page 2)</span></label>
+                            <label class="muted">Upload Image <span class="muted">(Optional)</span></label>
                             <div style="position: relative; border: 2px dashed #cbd5e1; border-radius:8px; padding:20px; text-align:center; background:#f8fafc; transition: all 0.3s ease; cursor: pointer;" 
                                  onmouseover="this.style.borderColor='#3b82f6'; this.style.background='#eff6ff';" 
                                  onmouseout="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';">
@@ -880,27 +864,9 @@
         </section>
 
         <section id="settings" class="content-section" style="display:none">
-            <div class="card" id="settings-quotation-items-order-card">
-                <h2>Quotation Products display order</h2>
-                <p class="muted">Set the order in which product types appear in the Quotation Items section when adding products. Select item(s) with the checkbox, then use <strong>Up</strong> / <strong>Down</strong> above to reorder. This order applies across all dashboards.</p>
-                <div style="margin-top:18px">
-                    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
-                        <button type="button" class="btn" id="settings-quotation-order-move-up" title="Move selected up" style="padding:6px 12px;"><i class="fas fa-arrow-up"></i> Up</button>
-                        <button type="button" class="btn" id="settings-quotation-order-move-down" title="Move selected down" style="padding:6px 12px;"><i class="fas fa-arrow-down"></i> Down</button>
-                    </div>
-                    <ul id="settings-quotation-items-order-list" style="list-style:none; padding:0; margin:0 0 12px 0; max-width:500px; max-height:320px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:8px; background:#f9fafb; padding:8px;">
-                        <!-- Filled by JS -->
-                    </ul>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                        <button class="btn primary" id="saveQuotationItemsOrderBtn"><i class="fas fa-save"></i> Save order</button>
-                    </div>
-                    <small class="muted" style="display:block;margin-top:8px;font-style:italic">*Saved list defines both product types and their display order in Create/Edit Quotation.*</small>
-                </div>
-            </div>
-
             <div class="card" id="settings-product-types-card">
                 <h2>Product types</h2>
-                <p class="muted">Add new product types or remove existing ones. Changes apply after you click <strong>Save order</strong> in the section above.</p>
+                <p class="muted">Add new product types or remove existing ones. Reorder them in the section below, then click <strong>Save order</strong>.</p>
                 <div style="margin-top:18px">
                     <div class="form-field" style="margin-bottom:18px;">
                         <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Add type</label>
@@ -919,6 +885,24 @@
                             <button type="button" class="btn secondary" id="settingsDeleteProductTypeBtn"><i class="fas fa-trash-alt"></i> Delete type</button>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="card" id="settings-quotation-items-order-card">
+                <h2>Quotation Products display order</h2>
+                <p class="muted">Set the order in which product types appear in the Quotation Items section when adding products. Select item(s) with the checkbox, then use <strong>Up</strong> / <strong>Down</strong> above to reorder. This order applies across all dashboards.</p>
+                <div style="margin-top:18px">
+                    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+                        <button type="button" class="btn" id="settings-quotation-order-move-up" title="Move selected up" style="padding:6px 12px;"><i class="fas fa-arrow-up"></i> Up</button>
+                        <button type="button" class="btn" id="settings-quotation-order-move-down" title="Move selected down" style="padding:6px 12px;"><i class="fas fa-arrow-down"></i> Down</button>
+                    </div>
+                    <ul id="settings-quotation-items-order-list" style="list-style:none; padding:0; margin:0 0 12px 0; max-width:500px; max-height:320px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:8px; background:#f9fafb; padding:8px;">
+                        <!-- Filled by JS -->
+                    </ul>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                        <button class="btn primary" id="saveQuotationItemsOrderBtn"><i class="fas fa-save"></i> Save order</button>
+                    </div>
+                    <small class="muted" style="display:block;margin-top:8px;font-style:italic">*Saved list defines both product types and their display order in Create/Edit Quotation.*</small>
                 </div>
             </div>
 
