@@ -2840,7 +2840,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                 </div>
             `;
         }).join('');
-        return `
+        return (getCustomFontsCssForPdf() ? getCustomFontsCssForPdf() + '\n' : '') + `
                 <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
                     <style>.theme-border { border-color: ${theme.border} !important; }</style>
                     ${headerLogoHtml}
@@ -2875,7 +2875,7 @@ async function generateQuotationHtml(quotation, options = {}) {
         `;
     }
 
-    return `
+    return (getCustomFontsCssForPdf() ? getCustomFontsCssForPdf() + '\n' : '') + `
                 <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
                     <style>
                         .q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: ${pdfSizeSecondary}px; font-family: ${pdfFontSecondary}; }
@@ -4362,6 +4362,7 @@ async function renderSettings() {
     var fontPrimaryEl = document.getElementById('settings-pdf-font-primary');
     var fontSecondaryEl = document.getElementById('settings-pdf-font-secondary');
     var fontTertiaryEl = document.getElementById('settings-pdf-font-tertiary');
+    refreshPdfCustomFontOptions();
     if (fontPrimaryEl) fontPrimaryEl.value = getEffectivePdfFontPrimary();
     if (fontSecondaryEl) fontSecondaryEl.value = getEffectivePdfFontSecondary();
     if (fontTertiaryEl) fontTertiaryEl.value = getEffectivePdfFontTertiary();
@@ -5665,6 +5666,7 @@ const PDF_FONT_TERTIARY_KEY = 'owner_pdf_font_tertiary';
 const PDF_FONT_SIZE_PRIMARY_KEY = 'owner_pdf_font_size_primary';
 const PDF_FONT_SIZE_SECONDARY_KEY = 'owner_pdf_font_size_secondary';
 const PDF_FONT_SIZE_TERTIARY_KEY = 'owner_pdf_font_size_tertiary';
+const PDF_CUSTOM_FONTS_KEY = 'owner_pdf_custom_fonts';
 
 function getEffectivePdfFontPrimary() {
     try { return localStorage.getItem(PDF_FONT_PRIMARY_KEY) || 'segoe'; } catch (e) { return 'segoe'; }
@@ -5686,8 +5688,28 @@ function getEffectivePdfFontSizeTertiary() {
     try { const v = parseInt(localStorage.getItem(PDF_FONT_SIZE_TERTIARY_KEY), 10); return (v >= 8 && v <= 48) ? v : 12; } catch (e) { return 12; }
 }
 
+function getCustomPdfFonts() {
+    try {
+        const raw = localStorage.getItem(PDF_CUSTOM_FONTS_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function setCustomPdfFonts(list) {
+    try {
+        localStorage.setItem(PDF_CUSTOM_FONTS_KEY, JSON.stringify(list));
+    } catch (e) { }
+}
+
 function getPdfFontFamilyCss(fontKey) {
     const key = fontKey || 'segoe';
+    if (key.indexOf('custom_') === 0) {
+        const custom = getCustomPdfFonts();
+        const found = custom.find(function (f) { return f.id === key; });
+        if (found && found.name) return "'" + found.name + "', sans-serif";
+    }
     const map = {
         segoe: "'Segoe UI', system-ui, -apple-system, sans-serif",
         'segoe-variable': "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
@@ -5785,6 +5807,72 @@ function refreshPdfThemeSelect(selectedValue) {
     if (selectedValue !== undefined && selectedValue !== null) {
         themeSelect.value = selectedValue;
         updateThemePreview(selectedValue);
+    }
+}
+
+function getCustomFontsCssForPdf() {
+    var primary = getEffectivePdfFontPrimary();
+    var secondary = getEffectivePdfFontSecondary();
+    var tertiary = getEffectivePdfFontTertiary();
+    var keys = [primary, secondary, tertiary];
+    var custom = getCustomPdfFonts();
+    var used = {};
+    keys.forEach(function (k) {
+        if (k && k.indexOf('custom_') === 0) used[k] = true;
+    });
+    var origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+    var rules = [];
+    custom.forEach(function (f) {
+        if (!f.id || !used[f.id] || !f.url) return;
+        var name = (f.name || 'CustomFont').replace(/'/g, "\\'");
+        var url = (origin + f.url).replace(/'/g, "\\'");
+        var format = f.url.indexOf('.woff2') !== -1 ? 'woff2' : f.url.indexOf('.woff') !== -1 ? 'woff' : f.url.indexOf('.otf') !== -1 ? 'opentype' : 'truetype';
+        rules.push('@font-face{font-family:\'' + name + '\';src:url(\'' + url + '\') format(\'' + format + '\');}');
+    });
+    if (rules.length === 0) return '';
+    return '<style>' + rules.join('') + '</style>';
+}
+
+function refreshPdfCustomFontOptions() {
+    var custom = getCustomPdfFonts();
+    var styleId = 'pdf-custom-fonts-style';
+    var el = document.getElementById(styleId);
+    if (el) el.remove();
+    if (custom.length > 0) {
+        var sheet = document.createElement('style');
+        sheet.id = styleId;
+        var origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+        var css = '';
+        custom.forEach(function (f) {
+            if (!f.url || !f.name) return;
+            var name = (f.name || 'CustomFont').replace(/'/g, "\\'");
+            var url = (origin + f.url).replace(/'/g, "\\'");
+            var format = f.url.indexOf('.woff2') !== -1 ? 'woff2' : f.url.indexOf('.woff') !== -1 ? 'woff' : f.url.indexOf('.otf') !== -1 ? 'opentype' : 'truetype';
+            css += '@font-face{font-family:\'' + name + '\';src:url(\'' + url + '\') format(\'' + format + '\');}';
+        });
+        sheet.textContent = css;
+        document.head.appendChild(sheet);
+    }
+    ['settings-pdf-font-primary', 'settings-pdf-font-secondary', 'settings-pdf-font-tertiary'].forEach(function (id) {
+        var sel = document.getElementById(id);
+        if (!sel) return;
+        Array.from(sel.options).forEach(function (opt) {
+            if (opt.value && opt.value.indexOf('custom_') === 0) opt.remove();
+        });
+        custom.forEach(function (f) {
+            var opt = document.createElement('option');
+            opt.value = f.id;
+            opt.textContent = (f.name || 'Custom') + ' (uploaded)';
+            sel.appendChild(opt);
+        });
+    });
+    var listEl = document.getElementById('pdf-custom-fonts-list');
+    if (listEl) {
+        if (custom.length === 0) {
+            listEl.innerHTML = '';
+        } else {
+            listEl.innerHTML = 'Uploaded: ' + custom.map(function (f) { return (f.name || f.id) + ' (' + f.id + ')'; }).join(', ');
+        }
     }
 }
 
@@ -5944,6 +6032,44 @@ if (document.readyState === 'loading') {
 } else {
     initializePdfThemeSettings();
 }
+
+// PDF Font upload
+document.getElementById('uploadPdfFontBtn')?.addEventListener('click', function () {
+    var input = document.getElementById('settings-pdf-font-upload');
+    if (!input || !input.files || !input.files[0]) {
+        alert('Please select a font file (.ttf, .otf, .woff, or .woff2).');
+        return;
+    }
+    var file = input.files[0];
+    var ext = (file.name || '').toLowerCase();
+    if (!/\.(ttf|otf|woff|woff2)$/.test(ext)) {
+        alert('Invalid file type. Use .ttf, .otf, .woff, or .woff2');
+        return;
+    }
+    var formData = new FormData();
+    formData.append('font', file);
+    var btn = this;
+    btn.disabled = true;
+    apiFetch('/upload-font', { method: 'POST', body: formData })
+        .then(function (res) {
+            var data = (res && res.data) ? res.data : res;
+            if (data && data.url) {
+                var custom = getCustomPdfFonts();
+                var id = 'custom_' + (Date.now().toString(36) + Math.random().toString(36).slice(2));
+                custom.push({ id: id, name: data.name || 'Custom Font', url: data.url });
+                setCustomPdfFonts(custom);
+                refreshPdfCustomFontOptions();
+                input.value = '';
+                alert('Font uploaded. Select it from the dropdowns above and save.');
+            } else {
+                alert((res && res.error) || (data && data.error) || 'Upload failed.');
+            }
+        })
+        .catch(function (err) {
+            alert(err && err.message ? err.message : 'Font upload failed.');
+        })
+        .finally(function () { btn.disabled = false; });
+});
 
 // PDF Fonts save (separate section: primary, secondary, tertiary)
 document.getElementById('savePdfFontBtn')?.addEventListener('click', function () {
@@ -6641,9 +6767,10 @@ async function handleLogout() {
     }
 
     try {
-        // Call logout API
+        // Call logout API (credentials: 'include' so session cookie is sent and server can clear it)
         const response = await fetch(`${API_BASE}/logout`, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json'
             },

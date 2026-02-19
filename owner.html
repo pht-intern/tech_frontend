@@ -1116,6 +1116,15 @@
                         <input type="number" id="settings-pdf-font-size-tertiary" min="8" max="48" value="12" style="width:70px; padding:8px; border:1px solid #d1d5db; border-radius:6px;">
                         <span class="muted" style="font-size:12px">All other text</span>
                     </div>
+                    <div class="form-field" style="margin-top:18px; padding-top:14px; border-top:1px solid #e5e7eb;">
+                        <label style="margin:0 0 8px 0; display:block;">Upload custom fonts</label>
+                        <p class="muted" style="margin:0 0 10px 0; font-size:13px;">Upload .ttf, .otf, .woff, or .woff2 files to use in PDFs. After uploading, select them from the dropdowns above.</p>
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <input type="file" id="settings-pdf-font-upload" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" style="max-width:240px;">
+                            <button type="button" class="btn" id="uploadPdfFontBtn"><i class="fas fa-upload"></i> Upload font</button>
+                        </div>
+                        <div id="pdf-custom-fonts-list" style="margin-top:10px; font-size:13px; color:#6b7280;"></div>
+                    </div>
                     <div style="margin-top:8px">
                         <button class="btn primary" id="savePdfFontBtn"><i class="fas fa-save"></i> Save Fonts</button>
                     </div>

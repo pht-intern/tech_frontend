@@ -4624,6 +4624,7 @@ async function handleLogout() {
         // Call logout API
         const response = await fetch(`${API_BASE}/logout`, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json'
             },
