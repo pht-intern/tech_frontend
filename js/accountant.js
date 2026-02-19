@@ -2143,9 +2143,15 @@
                 const v = String(t).toLowerCase().trim();
                 if (v && !seen.has(v)) { seen.add(v); orderedPairs.push({ value: v, label: String(t).trim() }); }
             });
+            // Sort by Quotation Products display order from Settings (filtersFromDb); keep "All" first
+            var displayOrderLower = (filtersFromDb || []).map(function (x) { return String(x).toLowerCase().trim(); });
             orderedPairs.sort(function (a, b) {
-                var ia = quotationTypeFilterSortIndex(a.value);
-                var ib = quotationTypeFilterSortIndex(b.value);
+                if ((a.value || '') === '') return -1;
+                if ((b.value || '') === '') return 1;
+                var ia = displayOrderLower.indexOf((a.value || '').toLowerCase().trim());
+                var ib = displayOrderLower.indexOf((b.value || '').toLowerCase().trim());
+                if (ia < 0) ia = displayOrderLower.length;
+                if (ib < 0) ib = displayOrderLower.length;
                 if (ia !== ib) return ia - ib;
                 return String(a.value || '').localeCompare(String(b.value || ''), 'en-IN', { sensitivity: 'base' });
             });
