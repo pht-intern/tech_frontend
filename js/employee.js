@@ -138,6 +138,7 @@
             }
             return arr.length + 1;
         }
+        let cachedQuotationItemTypeOrder = null; // Type order from settings for Quotation Items section
         let isCreatingNewQuotation = true; // Track if we're creating a new quotation (true) or editing existing (false)
         let quotationHistory = []; 
         let currentQuotationId = null;
@@ -269,6 +270,7 @@
                 const r = await apiFetch('/settings');
                 settings = (r && r.data) ? r.data : (r || {});
             } catch (e) { /* use defaults */ }
+            cachedQuotationItemTypeOrder = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length ? settings.quotationItemTypeOrder.slice() : null;
             // Use quotationTypeFilters from database; fallback to merging order + productTypes
             let filtersFromDb = Array.isArray(settings.quotationTypeFilters) ? settings.quotationTypeFilters.slice() : [];
             if (filtersFromDb.length === 0) {
@@ -1827,7 +1829,8 @@
                 return;
             }
 
-            const sortedItems = [...quotationItems].sort((a, b) => getQuotationCategorySortIndex(a.type, DEFAULT_QUOTATION_ITEM_TYPE_ORDER) - getQuotationCategorySortIndex(b.type, DEFAULT_QUOTATION_ITEM_TYPE_ORDER));
+            const order = (cachedQuotationItemTypeOrder && cachedQuotationItemTypeOrder.length) ? cachedQuotationItemTypeOrder.slice() : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+            const sortedItems = [...quotationItems].sort((a, b) => getQuotationCategorySortIndex(a.type, order) - getQuotationCategorySortIndex(b.type, order));
             sortedItems.forEach(item => {
                 const row = body.insertRow();
                 const productName = item.productName || item.name || 'N/A';

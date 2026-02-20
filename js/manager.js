@@ -216,6 +216,7 @@ function isExcludedType(t) { var v = String(t).toLowerCase().trim(); return EXCL
 var QUOTATION_TYPE_FILTER_PRIORITY = ['', 'intel cpu', 'amd cpu', 'intel mobo', 'amd mobo'];
 function quotationTypeFilterSortIndex(value) { var v = String(value || '').toLowerCase().trim(); var i = QUOTATION_TYPE_FILTER_PRIORITY.indexOf(v); return i >= 0 ? i : QUOTATION_TYPE_FILTER_PRIORITY.length; }
 const DEFAULT_QUOTATION_ITEM_TYPE_ORDER = ['all', 'cpu cooler', 'monitor', 'amd cpu', 'amd mobo', 'cabinet', 'cooler', 'fan', 'fan controller', 'gpu', 'gpu cable', 'gpu holder', 'hdd', 'intel cpu', 'intel mobo', 'keyboard&mouse', 'memory module radiator', 'mod cable', 'ram', 'smps', 'ssd', 'ups'];
+let cachedQuotationItemTypeOrder = null; // Type order from settings for Quotation Items section
 function getQuotationCategorySortIndex(type, order) {
     const arr = order && order.length ? order : DEFAULT_QUOTATION_ITEM_TYPE_ORDER;
     const t = (type || '').toLowerCase().trim();
@@ -1799,6 +1800,7 @@ async function renderQuotationTypeFilters(items = null) {
         const orderFromSettings = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
             ? settings.quotationItemTypeOrder.slice()
             : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+        cachedQuotationItemTypeOrder = orderFromSettings.length ? orderFromSettings.slice() : null;
         const productTypesFromSettings = Array.isArray(settings.productTypes) ? settings.productTypes.slice() : [];
         const seenMerge = new Set();
         orderFromSettings.forEach(function (t) {
@@ -2161,7 +2163,8 @@ function renderQuotationItems() {
         return;
     }
 
-    const sortedItems = [...quotationItems].sort((a, b) => getQuotationCategorySortIndex(a.type, DEFAULT_QUOTATION_ITEM_TYPE_ORDER) - getQuotationCategorySortIndex(b.type, DEFAULT_QUOTATION_ITEM_TYPE_ORDER));
+    const order = (cachedQuotationItemTypeOrder && cachedQuotationItemTypeOrder.length) ? cachedQuotationItemTypeOrder.slice() : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+    const sortedItems = [...quotationItems].sort((a, b) => getQuotationCategorySortIndex(a.type, order) - getQuotationCategorySortIndex(b.type, order));
     sortedItems.forEach(item => {
         const itemTotal = item.price * item.quantity;
         const itemGstAmount = itemTotal * (item.gstRate / 100);
@@ -5011,10 +5014,11 @@ async function initializeDashboard() {
 
     applyRoleRestrictions();
 
-    // Apply company logo in sidebar (from settings)
+    // Apply company logo in sidebar (from settings) and cache type order for Quotation Items
     getSettings().then(s => {
         const logoEl = document.querySelector('.sidebar .brand img');
         if (logoEl) logoEl.src = 'images/Logo.svg';
+        cachedQuotationItemTypeOrder = Array.isArray(s.quotationItemTypeOrder) && s.quotationItemTypeOrder.length ? s.quotationItemTypeOrder.slice() : null;
     }).catch(() => {});
 
     // Load initial data

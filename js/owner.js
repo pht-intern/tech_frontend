@@ -2145,7 +2145,8 @@ function renderQuotationItems() {
         return;
     }
 
-    quotationItems.forEach(item => {
+    const sortedItems = [...quotationItems].sort((a, b) => getQuotationCategorySortIndex(a.type) - getQuotationCategorySortIndex(b.type));
+    sortedItems.forEach(item => {
         const itemTotal = item.price * item.quantity;
         const itemGstAmount = itemTotal * (item.gstRate / 100);
         const total = itemTotal + itemGstAmount; // Total including GST
