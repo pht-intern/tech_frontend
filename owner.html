@@ -859,6 +859,9 @@
             <div class="card" style="flex-grow: 1; display: flex; flex-direction: column;">
                 <h2>User Activity Logs</h2>
                 <p class="muted">A chronological record of actions taken by users across roles. Owner can delete logs.</p>
+                <div style="margin-top:12px; margin-bottom:10px;">
+                    <input type="text" id="logsSearchInput" placeholder="Search logs by user, role, action, details..." aria-label="Search logs" style="width:100%; max-width:400px; padding:8px 12px; border:1px solid #d1d5db; border-radius:6px; font-size:14px;">
+                </div>
                 <div style="margin-top:12px;overflow-y:auto; overflow-x:auto; flex-grow: 1; max-height: calc(100vh - 250px);">
                     <table class="data-table">
                         <thead>

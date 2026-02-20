@@ -2688,7 +2688,8 @@ async function generateQuotationHtml(quotation, options = {}) {
                     type: tempItem.type || item.type,
                     price: tempPrice || tempTotalPrice || item.price,
                     gstRate: gstRate,
-                    quantity: item.quantity || 1
+                    quantity: item.quantity || 1,
+                    itemUrl: tempItem.itemUrl || item.itemUrl || item.url || ''
                 };
             }
             return item;
@@ -2859,6 +2860,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                                 <th>S.No</th>
                                 <th>Type</th>
                                 <th>Description</th>
+                                <th style="width:52px;font-size:11px;">Link</th>
                                 <th class="text-right">Unit Price</th>
                                 <th class="text-right">Qty</th>
                                 <th class="text-right">Amount</th>
@@ -2869,17 +2871,20 @@ async function generateQuotationHtml(quotation, options = {}) {
                                 const itemPrice = parseFloat(item.price || 0);
                                 const itemQuantity = parseInt(item.quantity || 1);
                                 const itemTotal = itemPrice * itemQuantity;
+                                const linkUrl = (item.itemUrl || item.url || '').trim();
+                                const linkCell = linkUrl ? `<a href="${linkUrl}" style="color:${theme.primary};text-decoration:none;" title="${linkUrl}"><i class="fas fa-link" style="font-size:12px;"></i></a>` : '—';
                                 return `
                                     <tr>
                                         <td>${snoOffset + idx + 1}</td>
                                         <td>${item.type || 'N/A'}</td>
                                         <td>${item.productName || 'N/A'}</td>
+                                        <td style="text-align:center;">${linkCell}</td>
                                         <td class="text-right">${formatRupee(itemPrice)}</td>
                                         <td class="text-right">${itemQuantity}</td>
                                         <td class="text-right">${formatRupee(itemTotal)}</td>
                                     </tr>
                                 `;
-                            }).join('') : '<tr><td colspan="6" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}
+                            }).join('') : '<tr><td colspan="7" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}
                         </tbody>
                     </table>
                     ${showTotals ? `<div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};">
@@ -4344,6 +4349,35 @@ async function renderLogsList() {
         row.insertCell().textContent = log.action;
         row.insertCell().textContent = log.details;
     });
+
+    filterLogsTable();
+    if (!window._adminLogsSearchListenerAttached) {
+        window._adminLogsSearchListenerAttached = true;
+        const searchEl = document.getElementById('logsSearchInput');
+        if (searchEl) searchEl.addEventListener('input', filterLogsTable);
+    }
+}
+
+function filterLogsTable() {
+    const body = document.getElementById('logsListBody');
+    const noLogsMessage = document.getElementById('noLogsMessage');
+    const searchInput = document.getElementById('logsSearchInput');
+    if (!body || !noLogsMessage) return;
+    const term = (searchInput && searchInput.value) ? searchInput.value.trim().toLowerCase() : '';
+    const rows = Array.from(body.querySelectorAll('tr'));
+    let visible = 0;
+    rows.forEach(row => {
+        const text = (row.textContent || '').toLowerCase();
+        const show = !term || text.includes(term);
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+    if (rows.length > 0 && visible === 0 && term) {
+        noLogsMessage.textContent = 'No matching logs. Try a different search.';
+        noLogsMessage.style.display = 'block';
+    } else if (visible > 0) {
+        noLogsMessage.style.display = 'none';
+    }
 }
 
 function setValue(id, value) {
