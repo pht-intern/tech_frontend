@@ -2887,7 +2887,7 @@
             if (draftQuotationDebounceId) clearTimeout(draftQuotationDebounceId);
             draftQuotationDebounceId = setTimeout(function () {
                 draftQuotationDebounceId = null;
-                if (currentSectionId === 'createQuotation') saveQuotationDraftToServer();
+                if (currentSectionId === 'createQuotation') saveQuotationDraftToServer().then(function () { loadQuotationDrafts(); });
             }, DRAFT_DEBOUNCE_MS);
         }
 

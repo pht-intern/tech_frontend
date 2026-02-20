@@ -150,6 +150,15 @@
         }
         let currentEditQuotationId = null; // When editing via create section (like resume drafts)
         let isCreatingNewQuotation = true; // Track if we're creating a new quotation (true) or editing existing (false)
+        const DRAFT_AUTO_SAVE_MS = 10000;
+        const DRAFT_DEBOUNCE_MS = 2500;
+        let draftQuotationIntervalId = null;
+        let draftQuotationDebounceId = null;
+        let currentQuotationDraftId = null;
+        let draftItemIntervalId = null;
+        let draftItemDebounceId = null;
+        let currentItemDraftId = null;
+        let currentSectionId = '';
         let itemsCurrentPage = 1;
         const itemsPerPage = 5;
         let itemsCurrentPriceSort = 'none';
@@ -168,6 +177,66 @@
 
         function formatRupee(amount) {
             return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+        }
+
+        // --- Add Product form validation (no inline handlers) ---
+        function validateProductUrl() {
+            const input = document.getElementById('item-url');
+            const msgEl = document.getElementById('url-validation');
+            if (!input) return;
+            const val = (input.value || '').trim();
+            if (!val) { if (msgEl) msgEl.textContent = ''; return; }
+            const pattern = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/.*)?$/i;
+            if (!pattern.test(val)) {
+                if (msgEl) msgEl.textContent = 'Please enter a valid URL.';
+                input.setCustomValidity('Invalid URL');
+            } else {
+                if (msgEl) msgEl.textContent = '';
+                input.setCustomValidity('');
+            }
+        }
+
+        function validateProductName() {
+            const input = document.getElementById('product-name');
+            const msgEl = document.getElementById('product-name-validation');
+            if (!input) return;
+            const val = (input.value || '').trim();
+            if (val.length > 0 && val.length < 3) {
+                if (msgEl) msgEl.textContent = 'Product name must be at least 3 characters.';
+            } else {
+                if (msgEl) msgEl.textContent = '';
+            }
+        }
+
+        function suggestSimilarProducts() {
+            // Placeholder for future API-based similar product suggestions
+        }
+
+        function validatePrice() {
+            const input = document.getElementById('price');
+            const msgEl = document.getElementById('price-validation');
+            if (!input) return;
+            const value = (input.value || '').replace(/,/g, '');
+            const price = parseFloat(value);
+            if (value !== '' && (isNaN(price) || price < 0)) {
+                if (msgEl) msgEl.textContent = 'Please enter a valid price.';
+            } else {
+                if (msgEl) msgEl.textContent = '';
+            }
+        }
+
+        function validateDescription() {
+            const input = document.getElementById('description');
+            const msgEl = document.getElementById('description-validation');
+            if (!input) return;
+            const val = (input.value || '').trim();
+            if (val.length > 0 && val.length < 10) {
+                input.style.borderColor = '#dc3545';
+                if (msgEl) msgEl.textContent = 'Description should be at least 10 characters.';
+            } else {
+                input.style.borderColor = '';
+                if (msgEl) msgEl.textContent = '';
+            }
         }
 
         function updatePriceSortHeader() {
@@ -436,10 +505,380 @@
             return rule ? parseFloat(rule.percent) : parseFloat(defaultGst);
         }
 
+        // --- Quotation draft (Saved drafts in Create Quotation) ---
+        function buildQuotationDraftPayload() {
+            const customerName = document.getElementById('cust-name')?.value.trim() || '';
+            const phoneNumber = document.getElementById('phone-number')?.value.trim() || '';
+            const customerEmail = document.getElementById('cust-email')?.value.trim() || '';
+            const customerAddress = document.getElementById('cust-address')?.value.trim() || '';
+            const items = quotationItems || [];
+            const hasAnyContent = phoneNumber || customerName || customerEmail || customerAddress || items.length > 0;
+            if (!hasAnyContent) return null;
+            let subTotal = items.reduce((sum, item) => sum + (parseFloat(item.price || 0) * (item.quantity || 1)), 0);
+            const discountPercent = parseFloat(document.getElementById('discount-percent')?.value || 0);
+            let discountAmount = subTotal * (discountPercent / 100);
+            let totalGstAmount = items.reduce((sum, item) => sum + (item.price * item.quantity * (parseFloat(item.gstRate || 0) / 100)), 0);
+            let grandTotal = (subTotal - discountAmount) + totalGstAmount;
+            const itemsForApi = items.map(item => ({
+                productId: String(item.productId || item.id),
+                productName: String(item.productName || item.name),
+                price: String(parseFloat(item.price || 0).toFixed(2)),
+                quantity: parseInt(item.quantity || 1),
+                gstRate: String(parseFloat(item.gstRate || 0).toFixed(2))
+            }));
+            return {
+                draftId: currentQuotationDraftId || undefined,
+                dateCreated: new Date().toLocaleDateString('en-IN'),
+                customer: { name: customerName || '—', phone: phoneNumber || '0', email: customerEmail || null, address: customerAddress || null },
+                items: itemsForApi,
+                images: typeof getAccountantUploadedImages === 'function' ? getAccountantUploadedImages() : [],
+                subTotal: String(subTotal.toFixed(2)),
+                discountPercent: String(discountPercent.toFixed(2)),
+                discountAmount: String(discountAmount.toFixed(2)),
+                totalGstAmount: String(totalGstAmount.toFixed(2)),
+                grandTotal: String(grandTotal.toFixed(2)),
+                createdBy: CURRENT_USER_EMAIL ? CURRENT_USER_EMAIL.split('@')[0] : ''
+            };
+        }
+
+        async function saveQuotationDraftToServer() {
+            const payload = buildQuotationDraftPayload();
+            if (!payload) return;
+            try {
+                const res = await apiFetch('/drafts/quotations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = res.data || res;
+                if (data && data.id) currentQuotationDraftId = data.id;
+            } catch (e) {
+                console.warn('Draft save failed:', e);
+            }
+        }
+
+        async function loadQuotationDrafts(alsoRefreshPageList) {
+            try {
+                const res = await apiFetch('/drafts/quotations');
+                const list = Array.isArray(res) ? res : (res.data || []);
+                renderQuotationDraftsList(list, 'quotationDraftsList');
+                if (alsoRefreshPageList || currentSectionId === 'quotationDrafts') {
+                    renderQuotationDraftsList(list, 'quotationDraftsPageList');
+                }
+            } catch (e) {
+                console.warn('Load quotation drafts failed:', e);
+                renderQuotationDraftsList([], 'quotationDraftsList');
+                if (currentSectionId === 'quotationDrafts') renderQuotationDraftsList([], 'quotationDraftsPageList');
+            }
+        }
+
+        function renderQuotationDraftsList(drafts, containerId) {
+            const el = document.getElementById(containerId);
+            if (!el) return;
+            if (!drafts || drafts.length === 0) {
+                el.innerHTML = '<p class="muted" style="text-align:center; padding:12px; font-size:13px;">No drafts</p>';
+                return;
+            }
+            el.innerHTML = drafts.map(d => {
+                const label = (d.customer && d.customer.phone) ? `${d.customer.phone}` : (d.draftQuotationId || `Draft #${d.id}`);
+                const dateStr = d.updated_at ? new Date(d.updated_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '';
+                return `<div class="draft-row" data-draft-id="${d.id}" style="padding:10px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:8px; background:#fafafa;">
+                    <div style="font-weight:500; font-size:13px;">${label}</div>
+                    <div class="muted" style="font-size:11px; margin-top:4px;">${dateStr} · ${(d.items || []).length} items</div>
+                    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                        <button type="button" class="btn" style="padding:4px 10px; font-size:12px;" data-action="resume-quotation-draft" data-id="${d.id}">Resume</button>
+                        <button type="button" class="btn primary" style="padding:4px 10px; font-size:12px;" data-action="convert-quotation-draft" data-id="${d.id}">Convert to quotation</button>
+                        <button type="button" class="btn" style="padding:4px 10px; font-size:12px; color:#dc3545;" data-action="delete-quotation-draft" data-id="${d.id}">Delete</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function resumeQuotationDraft(draftId) {
+            try {
+                const res = await apiFetch(`/drafts/quotations/${draftId}`);
+                const d = res.data || res;
+                if (!d) return;
+                currentQuotationDraftId = d.id;
+                document.getElementById('cust-name').value = (d.customer && d.customer.name) ? d.customer.name : '';
+                document.getElementById('phone-number').value = (d.customer && d.customer.phone) ? d.customer.phone : '';
+                document.getElementById('cust-email').value = (d.customer && d.customer.email) ? d.customer.email : '';
+                document.getElementById('cust-address').value = (d.customer && d.customer.address) ? d.customer.address : '';
+                const discountPercentInput = document.getElementById('discount-percent');
+                if (discountPercentInput) discountPercentInput.value = d.discountPercent != null ? d.discountPercent : 0;
+                quotationItems = (d.items || []).map(it => ({
+                    productId: it.productId,
+                    productName: it.productName,
+                    price: it.price,
+                    quantity: it.quantity || 1,
+                    gstRate: it.gstRate != null ? it.gstRate : 0
+                }));
+                if (typeof setAccountantUploadedImages === 'function') setAccountantUploadedImages(Array.isArray(d.images) && d.images.length > 0 ? [d.images[0]] : []);
+                renderQuotationItems();
+                updateGrandTotal();
+                showSection('createQuotation');
+                loadQuotationDrafts(true);
+                const cancelResumeBtn = document.getElementById('cancelResumeDraftBtn');
+                if (cancelResumeBtn) cancelResumeBtn.style.display = '';
+            } catch (e) {
+                console.warn('Resume draft failed:', e);
+                alert('Failed to load draft.');
+            }
+        }
+
+        function cancelResumeDraft() {
+            currentQuotationDraftId = null;
+            quotationItems = [];
+            document.getElementById('cust-name').value = '';
+            document.getElementById('phone-number').value = '';
+            document.getElementById('cust-email').value = '';
+            document.getElementById('cust-address').value = '';
+            const discountPercentInput = document.getElementById('discount-percent');
+            if (discountPercentInput) discountPercentInput.value = '0';
+            if (typeof setAccountantUploadedImages === 'function') setAccountantUploadedImages([]);
+            renderQuotationItems();
+            updateGrandTotal();
+            const cancelResumeBtn = document.getElementById('cancelResumeDraftBtn');
+            if (cancelResumeBtn) cancelResumeBtn.style.display = 'none';
+            loadQuotationDrafts();
+        }
+
+        async function convertQuotationDraft(draftId) {
+            try {
+                await apiFetch(`/drafts/quotations/${draftId}/convert`, { method: 'POST' });
+                if (currentQuotationDraftId === draftId) currentQuotationDraftId = null;
+                loadQuotationDrafts(true);
+                const cancelResumeBtn = document.getElementById('cancelResumeDraftBtn');
+                if (cancelResumeBtn) cancelResumeBtn.style.display = 'none';
+                alert('Quotation created from draft successfully.');
+                renderHistoryList();
+            } catch (e) {
+                alert(e.message || 'Failed to convert draft.');
+            }
+        }
+
+        async function deleteQuotationDraft(draftId) {
+            if (!confirm('Delete this draft?')) return;
+            try {
+                await apiFetch(`/drafts/quotations/${draftId}`, { method: 'DELETE' });
+                if (currentQuotationDraftId === draftId) currentQuotationDraftId = null;
+                loadQuotationDrafts(true);
+            } catch (e) {
+                console.warn('Delete draft failed:', e);
+            }
+        }
+
+        // --- Product (item) drafts (Saved drafts in Create product) ---
+        function buildItemDraftPayload() {
+            const productId = document.getElementById('product-id')?.value?.trim();
+            const productName = document.getElementById('product-name')?.value?.trim();
+            const itemUrl = document.getElementById('item-url')?.value?.trim();
+            const type = document.getElementById('type')?.value?.trim();
+            const description = document.getElementById('description')?.value?.trim();
+            const hasAnyContent = productId || productName || itemUrl || type || description || document.getElementById('price')?.value;
+            if (!hasAnyContent) return null;
+            const price = parseFloat(document.getElementById('price')?.value) || 0;
+            const gst = document.getElementById('gst')?.value ? parseFloat(document.getElementById('gst').value) : 0;
+            const totalPrice = price + (price * (gst / 100));
+            return {
+                draftId: currentItemDraftId || undefined,
+                productId: productId || `DRAFT-P-${Date.now()}`,
+                itemUrl: itemUrl || '',
+                productName: productName || '',
+                type: type || '',
+                price: String(price.toFixed(2)),
+                gst: String(gst),
+                totalPrice: String(totalPrice.toFixed(2)),
+                description: description || '',
+                addedBy: CURRENT_USER_EMAIL ? CURRENT_USER_EMAIL.split('@')[0] : ''
+            };
+        }
+
+        async function saveItemDraftToServer() {
+            const payload = buildItemDraftPayload();
+            if (!payload) return;
+            try {
+                const res = await apiFetch('/drafts/items', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = res.data || res;
+                if (data && data.id) currentItemDraftId = data.id;
+            } catch (e) {
+                console.warn('Product draft save failed:', e);
+            }
+        }
+
+        async function loadItemDrafts(alsoRefreshPageList) {
+            try {
+                const res = await apiFetch('/drafts/items');
+                const list = Array.isArray(res) ? res : (res.data || []);
+                renderItemDraftsList(list, 'productDraftsList');
+                if (alsoRefreshPageList || currentSectionId === 'itemDrafts') {
+                    renderItemDraftsList(list, 'productDraftsPageList');
+                }
+            } catch (e) {
+                console.warn('Load product drafts failed:', e);
+                renderItemDraftsList([], 'productDraftsList');
+                if (currentSectionId === 'itemDrafts') renderItemDraftsList([], 'productDraftsPageList');
+            }
+        }
+
+        function renderItemDraftsList(drafts, containerId) {
+            const el = document.getElementById(containerId);
+            if (!el) return;
+            if (!drafts || drafts.length === 0) {
+                el.innerHTML = '<p class="muted" style="text-align:center; padding:12px; font-size:13px;">No drafts</p>';
+                return;
+            }
+            el.innerHTML = drafts.map(d => {
+                const label = d.productName || d.productId || `Draft #${d.id}`;
+                const dateStr = d.updated_at ? new Date(d.updated_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '';
+                return `<div class="draft-row" data-draft-id="${d.id}" style="padding:10px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:8px; background:#fafafa;">
+                    <div style="font-weight:500; font-size:13px;">${(label || '').replace(/</g, '&lt;')}</div>
+                    <div class="muted" style="font-size:11px; margin-top:4px;">${dateStr}</div>
+                    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                        <button type="button" class="btn" style="padding:4px 10px; font-size:12px;" data-action="resume-item-draft" data-id="${d.id}">Resume</button>
+                        <button type="button" class="btn primary" style="padding:4px 10px; font-size:12px;" data-action="convert-item-draft" data-id="${d.id}">Convert to product</button>
+                        <button type="button" class="btn" style="padding:4px 10px; font-size:12px; color:#dc3545;" data-action="delete-item-draft" data-id="${d.id}">Delete</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function resumeItemDraft(draftId) {
+            try {
+                const res = await apiFetch(`/drafts/items/${draftId}`);
+                const d = res.data || res;
+                if (!d) return;
+                currentItemDraftId = d.id;
+                showSection('addItem');
+                document.getElementById('product-id').value = d.productId || '';
+                document.getElementById('item-url').value = d.itemUrl || '';
+                document.getElementById('product-name').value = d.productName || '';
+                const typeEl = document.getElementById('type');
+                if (typeEl) typeEl.value = d.type || '';
+                document.getElementById('price').value = d.price != null ? d.price : '';
+                document.getElementById('gst').value = d.gst != null ? d.gst : '';
+                document.getElementById('description').value = d.description || '';
+                updateCompatFieldsVisibility('type', 'compatFieldsContainer');
+                loadItemDrafts(true);
+            } catch (e) {
+                console.warn('Resume product draft failed:', e);
+                alert('Failed to load draft.');
+            }
+        }
+
+        async function convertItemDraft(draftId) {
+            try {
+                await apiFetch(`/drafts/items/${draftId}/convert`, { method: 'POST' });
+                if (currentItemDraftId === draftId) currentItemDraftId = null;
+                loadItemDrafts(true);
+                alert('Product created from draft successfully.');
+                renderItemsList().catch(() => {});
+                loadAddProductDynamicData();
+            } catch (e) {
+                alert(e.message || 'Failed to convert draft.');
+            }
+        }
+
+        async function deleteItemDraft(draftId) {
+            if (!confirm('Delete this draft?')) return;
+            try {
+                await apiFetch(`/drafts/items/${draftId}`, { method: 'DELETE' });
+                if (currentItemDraftId === draftId) currentItemDraftId = null;
+                loadItemDrafts(true);
+            } catch (e) {
+                console.warn('Delete draft failed:', e);
+            }
+        }
+
+        function scheduleItemDraftSave() {
+            if (draftItemDebounceId) clearTimeout(draftItemDebounceId);
+            draftItemDebounceId = setTimeout(function () {
+                draftItemDebounceId = null;
+                if (currentSectionId === 'addItem') saveItemDraftToServer().then(() => loadItemDrafts());
+            }, DRAFT_DEBOUNCE_MS);
+        }
+
+        function saveDraftWithKeepalive() {
+            if (currentSectionId === 'createQuotation') {
+                const payload = buildQuotationDraftPayload();
+                if (payload) {
+                    fetch(`${API_BASE}/drafts/quotations`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        credentials: 'include',
+                        keepalive: true
+                    }).catch(() => {});
+                }
+            }
+            if (currentSectionId === 'addItem') {
+                const payload = buildItemDraftPayload();
+                if (payload) {
+                    fetch(`${API_BASE}/drafts/items`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        credentials: 'include',
+                        keepalive: true
+                    }).catch(() => {});
+                }
+            }
+        }
+
+        function scheduleQuotationDraftSave() {
+            if (draftQuotationDebounceId) clearTimeout(draftQuotationDebounceId);
+            draftQuotationDebounceId = setTimeout(function () {
+                draftQuotationDebounceId = null;
+                if (currentSectionId === 'createQuotation') saveQuotationDraftToServer().then(() => loadQuotationDrafts());
+            }, DRAFT_DEBOUNCE_MS);
+        }
+
+        (function setupDraftDebounceListeners() {
+            ['cust-name', 'phone-number', 'cust-email', 'cust-address', 'discount-percent'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', scheduleQuotationDraftSave);
+                    el.addEventListener('change', scheduleQuotationDraftSave);
+                }
+            });
+            ['product-id', 'item-url', 'product-name', 'type', 'price', 'gst', 'description'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', scheduleItemDraftSave);
+                    el.addEventListener('change', scheduleItemDraftSave);
+                }
+            });
+        })();
+
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') saveDraftWithKeepalive(); });
+        window.addEventListener('beforeunload', function () { saveDraftWithKeepalive(); });
+
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-action][data-id]');
+            if (!btn) return;
+            const action = btn.getAttribute('data-action');
+            const id = parseInt(btn.getAttribute('data-id'), 10);
+            if (action === 'resume-quotation-draft') { resumeQuotationDraft(id); return; }
+            if (action === 'convert-quotation-draft') { convertQuotationDraft(id); return; }
+            if (action === 'delete-quotation-draft') { deleteQuotationDraft(id); return; }
+            if (action === 'resume-item-draft') { resumeItemDraft(id); return; }
+            if (action === 'convert-item-draft') { convertItemDraft(id); return; }
+            if (action === 'delete-item-draft') { deleteItemDraft(id); return; }
+        });
+
         // --- UI Logic ---
 
         // Tab/Section Switching
         async function showSection(sectionId) {
+            currentSectionId = sectionId || '';
+            if (draftQuotationIntervalId) { clearInterval(draftQuotationIntervalId); draftQuotationIntervalId = null; }
+            if (draftQuotationDebounceId) { clearTimeout(draftQuotationDebounceId); draftQuotationDebounceId = null; }
+            if (draftItemIntervalId) { clearInterval(draftItemIntervalId); draftItemIntervalId = null; }
+            if (draftItemDebounceId) { clearTimeout(draftItemDebounceId); draftItemDebounceId = null; }
             // When leaving Customers section, refresh search bars and reset pagination
             const prevSection = Array.from(document.querySelectorAll('.content-section')).find(s => s.style.display !== 'none');
             if (prevSection && prevSection.id === 'viewCustomers') {
@@ -512,10 +951,16 @@
                 handleItemEditReset();
                 updateCompatFieldsVisibility('type', 'compatFieldsContainer');
                 populateAddProductTypeDropdown();
+                loadAddProductDynamicData();
+                loadItemDrafts();
+                draftItemIntervalId = setInterval(function () { saveItemDraftToServer(); loadItemDrafts(); }, DRAFT_AUTO_SAVE_MS);
+            } else if (sectionId === 'itemDrafts') {
+                loadItemDrafts(true);
             } else if (sectionId === 'createQuotation') {
                 if (!currentEditQuotationId) quotationItems = [];
                 renderQuotationItems();
                 updateGrandTotal();
+                loadQuotationDrafts();
                 renderQuotationTypeFilters(window.cachedItems);
                 renderAvailableItemsForQuotation('', '', window.cachedItems);
                 const createBtn = document.getElementById('createQuotationBtn');
@@ -526,6 +971,8 @@
                     if (sectionTitle) sectionTitle.textContent = 'Edit Quotation';
                     const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
                     if (cancelEditBtn) cancelEditBtn.style.display = '';
+                    const cancelResumeBtn = document.getElementById('cancelResumeDraftBtn');
+                    if (cancelResumeBtn) cancelResumeBtn.style.display = 'none';
                 } else {
                     if (createBtn) createBtn.textContent = 'Create Quotation';
                     document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Quotations'; else el.textContent = 'Quotations'; });
@@ -533,7 +980,12 @@
                     if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
                     const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
                     if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+                    const cancelResumeBtn = document.getElementById('cancelResumeDraftBtn');
+                    if (cancelResumeBtn) cancelResumeBtn.style.display = currentQuotationDraftId ? '' : 'none';
+                    draftQuotationIntervalId = setInterval(function () { saveQuotationDraftToServer(); loadQuotationDrafts(); }, DRAFT_AUTO_SAVE_MS);
                 }
+            } else if (sectionId === 'quotationDrafts') {
+                loadQuotationDrafts(true);
             }
         }
 
@@ -830,7 +1282,12 @@
             }
 
             writeItems(items);
-            
+            currentItemDraftId = null;
+            loadItemDrafts();
+            updateProductStatistics(items);
+            renderRecentProducts(items);
+            renderProductTypes(items);
+
             // Create/update GST rule if GST is provided
             if (gst !== null && !isNaN(gst) && gst >= 0) {
                 let rules = getGstRules();
@@ -2324,6 +2781,7 @@
 
             renderQuotationItems();
             updateGrandTotal();
+            scheduleQuotationDraftSave();
             if (document.getElementById('compatibleFilterToggle')?.checked) {
                 const searchValue = document.getElementById('itemSearchInput')?.value || '';
                 const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
@@ -2335,6 +2793,7 @@
             quotationItems = quotationItems.filter(item => item.productId !== productId);
             renderQuotationItems();
             updateGrandTotal();
+            scheduleQuotationDraftSave();
             if (document.getElementById('compatibleFilterToggle')?.checked) {
                 const searchValue = document.getElementById('itemSearchInput')?.value || '';
                 const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
@@ -2353,6 +2812,7 @@
             }
             renderQuotationItems();
             updateGrandTotal();
+            scheduleQuotationDraftSave();
         }
 
         async function updateItemPrice(productId, newPrice) {
@@ -2412,9 +2872,10 @@
                     console.warn('Failed to save to temp table:', tempError);
                 }
             }
-            
+
             renderQuotationItems();
             updateGrandTotal();
+            scheduleQuotationDraftSave();
         }
 
         async function updateItemGstRate(productId, newGstRate) {
@@ -2467,6 +2928,7 @@
             
             renderQuotationItems();
             updateGrandTotal();
+            scheduleQuotationDraftSave();
         }
 
         function renderQuotationItems() {
@@ -2622,6 +3084,8 @@
             if (typeof setAccountantUploadedImages === 'function') setAccountantUploadedImages([]);
             renderQuotationItems();
             updateGrandTotal();
+            currentQuotationDraftId = null;
+            loadQuotationDrafts();
         }
 
         async function createQuotation() {
@@ -2679,6 +3143,8 @@
                     if (typeof clearAccountantImageUpload === 'function') clearAccountantImageUpload();
                     renderQuotationItems();
                     updateGrandTotal();
+                    currentQuotationDraftId = null;
+                    loadQuotationDrafts();
                     renderHistoryList();
                     renderCustomerDetailsList();
                     addLog('Quotation Updated', CURRENT_USER_ROLE, `Updated quotation: ${qid}`);
@@ -2833,6 +3299,8 @@
             if (typeof clearAccountantImageUpload === 'function') clearAccountantImageUpload();
             renderQuotationItems();
             updateGrandTotal();
+            currentQuotationDraftId = null;
+            loadQuotationDrafts();
             showSection('viewHistory');
         }
 
@@ -3439,6 +3907,135 @@
                 typeSelect.innerHTML = '';
                 typeSelect.appendChild(new Option(keepText, ''));
             }
+        }
+
+        // --- Add Product dynamic data (Product Statistics, Recent Products, Product Types) ---
+        async function loadAddProductDynamicData() {
+            try {
+                const items = await getItems();
+                const arr = Array.isArray(items) ? items : (items && items.data) || [];
+                updateProductStatistics(arr);
+                renderRecentProducts(arr);
+                renderProductTypes(arr);
+            } catch (error) {
+                if (document.getElementById('recentProductsList'))
+                    document.getElementById('recentProductsList').innerHTML = '<p class="muted" style="text-align:center; padding:20px;">Unable to load.</p>';
+                if (document.getElementById('productTypesList'))
+                    document.getElementById('productTypesList').innerHTML = '<p class="muted" style="text-align:center; padding:20px;">Unable to load.</p>';
+            }
+        }
+
+        function updateProductStatistics(items) {
+            const el = id => document.getElementById(id);
+            if (!el('statsTotalProducts')) return;
+            if (!items || items.length === 0) {
+                el('statsTotalProducts').textContent = '0';
+                el('statsProductTypes').textContent = '0';
+                el('statsAvgPrice').textContent = formatRupee(0);
+                el('statsPriceRange').textContent = 'N/A';
+                if (el('statsThisMonth')) el('statsThisMonth').textContent = '0';
+                return;
+            }
+            el('statsTotalProducts').textContent = items.length;
+            const types = new Set(items.map(item => item.type).filter(Boolean));
+            el('statsProductTypes').textContent = types.size;
+            const prices = items.map(item => parseFloat(item.price) || 0).filter(p => p > 0);
+            const avgPrice = prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
+            el('statsAvgPrice').textContent = formatRupee(avgPrice);
+            if (prices.length > 0) {
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                el('statsPriceRange').textContent = `${formatRupee(minPrice)} - ${formatRupee(maxPrice)}`;
+            } else {
+                el('statsPriceRange').textContent = 'N/A';
+            }
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            const monthlyItems = items.filter(item => {
+                try {
+                    let itemDate;
+                    if (item.dateAdded) {
+                        if (typeof item.dateAdded === 'string' && item.dateAdded.includes('/')) {
+                            const parts = item.dateAdded.split('/');
+                            if (parts.length === 3)
+                                itemDate = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                            else
+                                itemDate = new Date(item.dateAdded);
+                        } else itemDate = new Date(item.dateAdded);
+                    } else if (item.created_at) itemDate = new Date(item.created_at);
+                    else return false;
+                    return itemDate.getMonth() === currentMonth && itemDate.getFullYear() === currentYear;
+                } catch (e) { return false; }
+            });
+            if (el('statsThisMonth')) el('statsThisMonth').textContent = monthlyItems.length;
+        }
+
+        function renderRecentProducts(items) {
+            const listDiv = document.getElementById('recentProductsList');
+            if (!listDiv) return;
+            if (!items || items.length === 0) {
+                listDiv.innerHTML = '<p class="muted" style="text-align:center; padding:20px;">No products yet.</p>';
+                return;
+            }
+            const recentItems = items
+                .slice()
+                .sort((a, b) => {
+                    const dateA = new Date(a.dateAdded || a.created_at || 0);
+                    const dateB = new Date(b.dateAdded || b.created_at || 0);
+                    return dateB - dateA;
+                })
+                .slice(0, 5);
+            listDiv.innerHTML = recentItems.map(item => {
+                const itemDate = new Date(item.dateAdded || item.created_at || Date.now());
+                const date = itemDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                const pid = String(item.productId || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                return `
+            <div style="padding: 8px; border-bottom: 1px solid #f2f6fb; cursor: pointer;"
+                 onclick="editItem('${pid}')"
+                 onmouseover="this.style.backgroundColor='#f8f9fa'"
+                 onmouseout="this.style.backgroundColor='transparent'">
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                    <i class="fas fa-box" style="color: #3A648C; font-size: 14px; margin-top: 2px;"></i>
+                    <div style="flex: 1;">
+                        <div style="font-weight: bold; color: #34495E; font-size: 13px;">${(item.productName || 'N/A').replace(/</g, '&lt;')}</div>
+                        <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">
+                            <span style="color: #27AE60; font-weight: bold;">${formatRupee(item.price || 0)}</span>
+                            <span style="margin: 0 6px;">•</span>
+                            ${(item.type || 'N/A').replace(/</g, '&lt;')}
+                        </div>
+                        <div style="font-size: 10px; color: #95a5a6; margin-top: 2px;">
+                            ${(item.productId || 'N/A').replace(/</g, '&lt;')} • ${date}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+            }).join('');
+        }
+
+        function renderProductTypes(items) {
+            const listDiv = document.getElementById('productTypesList');
+            if (!listDiv) return;
+            if (!items || items.length === 0) {
+                listDiv.innerHTML = '<p class="muted" style="text-align:center; padding:20px;">No product types yet.</p>';
+                return;
+            }
+            const typeCounts = {};
+            items.forEach(item => {
+                if (item.type) typeCounts[item.type] = (typeCounts[item.type] || 0) + 1;
+            });
+            const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+            if (sortedTypes.length === 0) {
+                listDiv.innerHTML = '<p class="muted" style="text-align:center; padding:20px;">No product types yet.</p>';
+                return;
+            }
+            listDiv.innerHTML = sortedTypes.map(([type, count]) => `
+        <div style="padding: 6px 8px; border-bottom: 1px solid #f2f6fb; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 13px; color: #34495E;">${type.replace(/</g, '&lt;')}</span>
+            <span style="font-size: 12px; color: #7f8c8d; background: #f8f9fa; padding: 2px 8px; border-radius: 12px;">${count}</span>
+        </div>
+    `).join('');
         }
 
         async function generateQuotationHtml(quotation, options = {}) {
@@ -4292,8 +4889,14 @@ s                    ${showFooterSection ? `<div style="position: absolute; bott
         // Initialize edit product modal
         initEditProductModal();
         document.getElementById('addItemForm')?.addEventListener('reset', handleItemEditReset);
+        document.getElementById('item-url')?.addEventListener('blur', validateProductUrl);
+        document.getElementById('product-name')?.addEventListener('input', suggestSimilarProducts);
+        document.getElementById('product-name')?.addEventListener('blur', validateProductName);
+        document.getElementById('price')?.addEventListener('input', validatePrice);
+        document.getElementById('description')?.addEventListener('input', validateDescription);
         document.getElementById('createQuotationBtn')?.addEventListener('click', createQuotation);
         document.getElementById('cancelEditInCreateSectionBtn')?.addEventListener('click', cancelEditInCreateSection);
+        document.getElementById('cancelResumeDraftBtn')?.addEventListener('click', cancelResumeDraft);
 
         // --- Accountant Image Upload ---
         const ACC_MAX_IMAGE_MB = 10;

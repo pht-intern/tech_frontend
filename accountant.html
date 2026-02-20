@@ -142,11 +142,6 @@
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h2>Add New Product</h2>
-                    <input type="file" id="importCsvInput" accept=".csv" style="display:none" onchange="handleCsvImport(event)">
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn" onclick="document.getElementById('importCsvInput').click()"><i class="fas fa-file-import"></i> Import CSV</button>
-                        <button type="button" class="btn secondary" onclick="downloadSampleProductsCsv()" title="Download CSV template matching Products table columns"><i class="fas fa-download"></i> Sample CSV</button>
-                    </div>
                 </div>
                 <p class="muted">Enter the details of the new product. Product ID will be auto-generated.</p>
 
@@ -158,13 +153,13 @@
 
                     <div class="form-field">
                         <label for="item-url">Website URL <span class="muted">(Must be unique)</span></label>
-                        <input type="url" id="item-url" placeholder="https://example.com/product-page" required onblur="validateProductUrl()">
+                        <input type="url" id="item-url" placeholder="https://example.com/product-page" required>
                         <div id="url-validation" style="font-size:12px; margin-top:4px;"></div>
                     </div>
 
                     <div class="form-field">
                         <label for="product-name">Product Name</label>
-                        <input type="text" id="product-name" placeholder="e.g. Office PC 01" required oninput="suggestSimilarProducts(); validateProductNameDebounced();" onblur="validateProductName()">
+                        <input type="text" id="product-name" placeholder="e.g. Office PC 01" required>
                         <div id="similar-products-suggestions" style="font-size:12px; margin-top:4px;"></div>
                         <div id="product-name-validation" style="font-size:12px; margin-top:4px;"></div>
                     </div>
@@ -178,7 +173,7 @@
 
                     <div class="form-field">
                         <label for="price">Price (INR)</label>
-                        <input type="number" id="price" placeholder="e.g. 105999.00" required min="0" step="0.01" oninput="validatePrice()">
+                        <input type="number" id="price" placeholder="e.g. 105999.00" required min="0" step="0.01">
                         <div id="price-validation" style="font-size:12px; margin-top:4px;"></div>
                     </div>
                     
@@ -205,7 +200,7 @@
 
                     <div class="form-field" style="grid-column: 1 / 3;">
                         <label for="description">Description</label>
-                        <textarea id="description" placeholder="e.g. Core i7, 16GB RAM, 1TB SSD, RTX 3080" oninput="validateDescription()"></textarea>
+                        <textarea id="description" placeholder="e.g. Core i7, 16GB RAM, 1TB SSD, RTX 3080"></textarea>
                         <div id="description-validation" style="font-size:12px; margin-top:4px;"></div>
                     </div>
 
@@ -628,6 +623,7 @@
                             </div>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                             <button id="cancelEditInCreateSectionBtn" type="button" class="btn" style="display:none;"><i class="fas fa-times"></i> Cancel edit</button>
+                            <button id="cancelResumeDraftBtn" type="button" class="btn" style="display:none;"><i class="fas fa-times"></i> Cancel</button>
                             <button id="createQuotationBtn" class="btn primary" style="flex:1;min-width:0;"><i class="fas fa-file-invoice-dollar"></i> Create Quotation</button>
                         </div>
                         </div>
@@ -901,7 +897,7 @@
 
                     <div class="form-field">
                         <label for="edit-product-name">Product Name</label>
-                        <input type="text" id="edit-product-name" placeholder="e.g. Office PC 01" required oninput="validateEditProductNameDebounced()" onblur="validateEditProductName()">
+                        <input type="text" id="edit-product-name" placeholder="e.g. Office PC 01" required>
                         <div id="edit-product-name-validation" style="font-size:12px; margin-top:4px;"></div>
                     </div>
 

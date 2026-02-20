@@ -202,6 +202,15 @@ let CURRENT_USER_EMAIL = userEmailFromStorage || (userObjFromStorage ? (() => {
 })() : `${DEFAULT_ROLE.toLowerCase()}@rolewise.app`);
 
 let quotationItems = [];
+const DRAFT_AUTO_SAVE_MS = 10000;
+const DRAFT_DEBOUNCE_MS = 2500;
+let draftQuotationIntervalId = null;
+let draftQuotationDebounceId = null;
+let currentQuotationDraftId = null;
+let draftItemIntervalId = null;
+let draftItemDebounceId = null;
+let currentItemDraftId = null;
+let currentSectionId = '';
 var EXCLUDED_ITEM_TYPES = ['cpu', 'motherboard', 'case', 'storage', 'others', '19500', 'graphic card', 'memory'];
 function isExcludedType(t) { var v = String(t).toLowerCase().trim(); return EXCLUDED_ITEM_TYPES.indexOf(v) !== -1; }
 var QUOTATION_TYPE_FILTER_PRIORITY = ['', 'intel cpu', 'amd cpu', 'intel mobo', 'amd mobo'];
@@ -846,6 +855,8 @@ async function saveItem(event) {
             }
         }
 
+        currentItemDraftId = null;
+        loadItemDrafts();
         form.reset();
         document.getElementById('product-id').value = generateProductId();
         showSection('itemsList');
@@ -1965,6 +1976,7 @@ async function addItemToQuotation(productId) {
 
     renderQuotationItems();
     updateGrandTotal();
+    scheduleQuotationDraftSave();
     if (document.getElementById('compatibleFilterToggle')?.checked) {
         const searchValue = document.getElementById('itemSearchInput')?.value || '';
         const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
@@ -1976,6 +1988,7 @@ function removeItemFromQuotation(productId) {
     quotationItems = quotationItems.filter(item => item.productId !== productId);
     renderQuotationItems();
     updateGrandTotal();
+    scheduleQuotationDraftSave();
     if (document.getElementById('compatibleFilterToggle')?.checked) {
         const searchValue = document.getElementById('itemSearchInput')?.value || '';
         const activeTypeFilter = document.querySelector('.type-filter-btn.active')?.dataset.type || '';
@@ -1994,6 +2007,7 @@ function updateItemQuantity(productId, newQuantity) {
     }
     renderQuotationItems();
     updateGrandTotal();
+    scheduleQuotationDraftSave();
 }
 
 async function updateItemPrice(productId, newPrice) {
@@ -2050,6 +2064,7 @@ async function updateItemPrice(productId, newPrice) {
     
     renderQuotationItems();
     updateGrandTotal();
+    scheduleQuotationDraftSave();
 }
 
 async function updateItemGstRate(productId, newGstRate) {
@@ -2102,6 +2117,7 @@ async function updateItemGstRate(productId, newGstRate) {
     
     renderQuotationItems();
     updateGrandTotal();
+    scheduleQuotationDraftSave();
 }
 
 function renderQuotationItems() {
@@ -2237,6 +2253,8 @@ async function createQuotation() {
                 renderHistoryList();
                 renderCustomersList();
                 renderCustomerDetailsList();
+                currentQuotationDraftId = null;
+                loadQuotationDrafts();
                 alert('Quotation updated successfully.');
             } else {
                 alert(res?.message || 'Failed to update quotation.');
@@ -2373,6 +2391,8 @@ async function createQuotation() {
         document.getElementById('itemSearchInput').value = '';
         renderAvailableItemsForQuotation();
         if (typeof clearManagerImageUpload === 'function') clearManagerImageUpload();
+        currentQuotationDraftId = null;
+        loadQuotationDrafts();
 
         alert('Quotation created successfully!');
     } catch (e) {
@@ -3658,6 +3678,7 @@ function closeEditQuotationModal() {
 function cancelEditInCreateSection() {
     if (!currentEditQuotationId) return;
     currentEditQuotationId = null;
+    currentQuotationDraftId = null;
     const createBtn = document.getElementById('createQuotationBtn');
     if (createBtn) createBtn.textContent = 'Create Quotation';
     document.querySelectorAll('#sideNav a[data-tab="createQuotation"], .tab-btn[data-tab="createQuotation"]').forEach(el => { if (el.tagName === 'A') el.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Quotations'; else el.textContent = 'Quotations'; });
@@ -3675,6 +3696,7 @@ function cancelEditInCreateSection() {
     if (typeof clearManagerImageUpload === 'function') clearManagerImageUpload();
     renderQuotationItems();
     updateGrandTotal();
+    loadQuotationDrafts();
 }
 
 function initEditQuotationModal() {
@@ -4176,7 +4198,337 @@ document.getElementById('phone-number')?.addEventListener('blur', async function
     }
 });
 
+// --- Quotation drafts (Saved drafts in Create Quotation) ---
+function buildQuotationDraftPayload() {
+    const customerName = document.getElementById('cust-name')?.value.trim() || '';
+    const phoneNumber = document.getElementById('phone-number')?.value.trim() || '';
+    const customerEmail = document.getElementById('cust-email')?.value.trim() || '';
+    const customerAddress = document.getElementById('cust-address')?.value.trim() || '';
+    const items = getQuotationItems();
+    const hasAnyContent = phoneNumber || customerName || customerEmail || customerAddress || (items && items.length > 0);
+    if (!hasAnyContent) return null;
+    let subTotal = 0;
+    if (items && items.length) subTotal = items.reduce((sum, item) => sum + (parseFloat(item.price || 0) * (item.quantity || 1)), 0);
+    const discountPercent = parseFloat(document.getElementById('discount-percent')?.value || 0) || 0;
+    const discountAmount = subTotal * (discountPercent / 100);
+    let totalGstAmount = 0;
+    if (items && items.length) totalGstAmount = items.reduce((sum, item) => sum + (item.price * item.quantity * (parseFloat(item.gstRate || 0) / 100)), 0);
+    const grandTotal = (subTotal - discountAmount) + totalGstAmount;
+    const itemsForApi = (items || []).map(item => ({
+        productId: String(item.productId || item.id || ''),
+        productName: String(item.productName || item.name || ''),
+        price: String(parseFloat(item.price || 0).toFixed(2)),
+        quantity: parseInt(item.quantity || 1, 10),
+        gstRate: String(parseFloat(item.gstRate || 0).toFixed(2))
+    }));
+    return {
+        draftId: currentQuotationDraftId || undefined,
+        dateCreated: new Date().toLocaleDateString('en-IN'),
+        customer: { name: customerName || '—', phone: phoneNumber || '0', email: customerEmail || null, address: customerAddress || null },
+        items: itemsForApi,
+        images: (typeof getManagerUploadedImages === 'function' ? getManagerUploadedImages() : []) || [],
+        subTotal: String(subTotal.toFixed(2)),
+        discountPercent: String(discountPercent.toFixed(2)),
+        discountAmount: String(discountAmount.toFixed(2)),
+        totalGstAmount: String(totalGstAmount.toFixed(2)),
+        grandTotal: String(grandTotal.toFixed(2)),
+        createdBy: CURRENT_USER_EMAIL ? CURRENT_USER_EMAIL.split('@')[0] : ''
+    };
+}
+
+async function saveQuotationDraftToServer() {
+    const payload = buildQuotationDraftPayload();
+    if (!payload) return;
+    try {
+        payload.images = await mgrEnsureImagesAreUrls(payload.images || []);
+        const res = await apiFetch('/drafts/quotations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = res.data || res;
+        if (data && data.id) currentQuotationDraftId = data.id;
+    } catch (e) {
+        console.warn('Draft save failed:', e);
+    }
+}
+
+async function loadQuotationDrafts(alsoRefreshPageList) {
+    try {
+        const res = await apiFetch('/drafts/quotations');
+        const list = Array.isArray(res) ? res : (res.data || []);
+        renderQuotationDraftsList(list, 'quotationDraftsList');
+        if (alsoRefreshPageList || currentSectionId === 'quotationDrafts') {
+            renderQuotationDraftsList(list, 'quotationDraftsPageList');
+        }
+    } catch (e) {
+        console.warn('Load quotation drafts failed:', e);
+        renderQuotationDraftsList([], 'quotationDraftsList');
+        if (currentSectionId === 'quotationDrafts') renderQuotationDraftsList([], 'quotationDraftsPageList');
+    }
+}
+
+function renderQuotationDraftsList(drafts, containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!drafts || drafts.length === 0) {
+        el.innerHTML = '<p class="muted" style="text-align:center; padding:12px; font-size:13px;">No drafts</p>';
+        return;
+    }
+    el.innerHTML = drafts.map(d => {
+        const label = (d.customer && d.customer.phone) ? String(d.customer.phone) : (d.draftQuotationId || 'Draft #' + d.id);
+        const dateStr = d.updated_at ? new Date(d.updated_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '';
+        return '<div class="draft-row" data-draft-id="' + d.id + '" style="padding:10px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:8px; background:#fafafa;">' +
+            '<div style="font-weight:500; font-size:13px;">' + (label || '').replace(/</g, '&lt;') + '</div>' +
+            '<div class="muted" style="font-size:11px; margin-top:4px;">' + dateStr + ' · ' + (d.items || []).length + ' items</div>' +
+            '<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">' +
+            '<button type="button" class="btn" style="padding:4px 10px; font-size:12px;" data-action="resume-quotation-draft" data-id="' + d.id + '">Resume</button>' +
+            '<button type="button" class="btn primary" style="padding:4px 10px; font-size:12px;" data-action="convert-quotation-draft" data-id="' + d.id + '">Convert to quotation</button>' +
+            '<button type="button" class="btn" style="padding:4px 10px; font-size:12px; color:#dc3545;" data-action="delete-quotation-draft" data-id="' + d.id + '">Delete</button>' +
+            '</div></div>';
+    }).join('');
+}
+
+async function resumeQuotationDraft(draftId) {
+    try {
+        const res = await apiFetch('/drafts/quotations/' + draftId);
+        const d = res.data || res;
+        if (!d) return;
+        currentQuotationDraftId = d.id;
+        document.getElementById('cust-name').value = (d.customer && d.customer.name) ? d.customer.name : '';
+        document.getElementById('phone-number').value = (d.customer && d.customer.phone) ? d.customer.phone : '';
+        document.getElementById('cust-email').value = (d.customer && d.customer.email) ? d.customer.email : '';
+        document.getElementById('cust-address').value = (d.customer && d.customer.address) ? d.customer.address : '';
+        const discountPercentInput = document.getElementById('discount-percent');
+        if (discountPercentInput) discountPercentInput.value = d.discountPercent != null ? d.discountPercent : 0;
+        quotationItems = (d.items || []).map(it => ({ productId: it.productId, productName: it.productName, price: it.price, quantity: it.quantity || 1, gstRate: it.gstRate != null ? it.gstRate : 0 }));
+        managerUploadedImagesArray = Array.isArray(d.images) && d.images.length > 0 ? [d.images[0]] : [];
+        renderManagerImagePreviews();
+        renderQuotationItems();
+        updateGrandTotal();
+        showSection('createQuotation');
+        loadQuotationDrafts(true);
+    } catch (e) {
+        console.warn('Resume draft failed:', e);
+        alert('Failed to load draft.');
+    }
+}
+
+async function convertQuotationDraft(draftId) {
+    try {
+        await apiFetch('/drafts/quotations/' + draftId + '/convert', { method: 'POST' });
+        if (currentQuotationDraftId === draftId) currentQuotationDraftId = null;
+        loadQuotationDrafts(true);
+        alert('Quotation created from draft successfully.');
+        renderHistoryList();
+    } catch (e) {
+        alert(e.message || 'Failed to convert draft.');
+    }
+}
+
+async function deleteQuotationDraft(draftId) {
+    if (!confirm('Delete this draft?')) return;
+    try {
+        await apiFetch('/drafts/quotations/' + draftId, { method: 'DELETE' });
+        if (currentQuotationDraftId === draftId) currentQuotationDraftId = null;
+        loadQuotationDrafts(true);
+    } catch (e) {
+        console.warn('Delete draft failed:', e);
+    }
+}
+
+// --- Product (item) drafts ---
+function buildItemDraftPayload() {
+    const productId = document.getElementById('product-id')?.value?.trim();
+    const productName = document.getElementById('product-name')?.value?.trim();
+    const itemUrl = document.getElementById('item-url')?.value?.trim();
+    const type = document.getElementById('type')?.value?.trim();
+    const description = document.getElementById('description')?.value?.trim();
+    const hasAnyContent = productId || productName || itemUrl || type || description || document.getElementById('price')?.value;
+    if (!hasAnyContent) return null;
+    const price = parseFloat(document.getElementById('price')?.value) || 0;
+    const gst = document.getElementById('gst')?.value ? parseFloat(document.getElementById('gst').value) : 0;
+    const totalPrice = price + (price * (gst / 100));
+    return {
+        draftId: currentItemDraftId || undefined,
+        productId: productId || 'DRAFT-P-' + Date.now(),
+        itemUrl: itemUrl || '',
+        productName: productName || '',
+        type: type || '',
+        price: String(price.toFixed(2)),
+        gst: String(gst),
+        totalPrice: String(totalPrice.toFixed(2)),
+        description: description || '',
+        addedBy: CURRENT_USER_EMAIL ? CURRENT_USER_EMAIL.split('@')[0] : ''
+    };
+}
+
+async function saveItemDraftToServer() {
+    const payload = buildItemDraftPayload();
+    if (!payload) return;
+    try {
+        const res = await apiFetch('/drafts/items', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = res.data || res;
+        if (data && data.id) currentItemDraftId = data.id;
+    } catch (e) {
+        console.warn('Product draft save failed:', e);
+    }
+}
+
+async function loadItemDrafts(alsoRefreshPageList) {
+    try {
+        const res = await apiFetch('/drafts/items');
+        const list = Array.isArray(res) ? res : (res.data || []);
+        renderItemDraftsList(list, 'productDraftsList');
+        if (alsoRefreshPageList || currentSectionId === 'itemDrafts') {
+            renderItemDraftsList(list, 'productDraftsPageList');
+        }
+    } catch (e) {
+        console.warn('Load product drafts failed:', e);
+        renderItemDraftsList([], 'productDraftsList');
+        if (currentSectionId === 'itemDrafts') renderItemDraftsList([], 'productDraftsPageList');
+    }
+}
+
+function renderItemDraftsList(drafts, containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!drafts || drafts.length === 0) {
+        el.innerHTML = '<p class="muted" style="text-align:center; padding:12px; font-size:13px;">No drafts</p>';
+        return;
+    }
+    el.innerHTML = drafts.map(d => {
+        const label = d.productName || d.productId || 'Draft #' + d.id;
+        const dateStr = d.updated_at ? new Date(d.updated_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '';
+        return '<div class="draft-row" data-draft-id="' + d.id + '" style="padding:10px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:8px; background:#fafafa;">' +
+            '<div style="font-weight:500; font-size:13px;">' + (label || '').replace(/</g, '&lt;') + '</div>' +
+            '<div class="muted" style="font-size:11px; margin-top:4px;">' + dateStr + '</div>' +
+            '<div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">' +
+            '<button type="button" class="btn" style="padding:4px 10px; font-size:12px;" data-action="resume-item-draft" data-id="' + d.id + '">Resume</button>' +
+            '<button type="button" class="btn primary" style="padding:4px 10px; font-size:12px;" data-action="convert-item-draft" data-id="' + d.id + '">Convert to product</button>' +
+            '<button type="button" class="btn" style="padding:4px 10px; font-size:12px; color:#dc3545;" data-action="delete-item-draft" data-id="' + d.id + '">Delete</button>' +
+            '</div></div>';
+    }).join('');
+}
+
+async function resumeItemDraft(draftId) {
+    try {
+        const res = await apiFetch('/drafts/items/' + draftId);
+        const d = res.data || res;
+        if (!d) return;
+        currentItemDraftId = d.id;
+        showSection('addItem');
+        document.getElementById('product-id').value = d.productId || '';
+        document.getElementById('item-url').value = d.itemUrl || '';
+        document.getElementById('product-name').value = d.productName || '';
+        const typeEl = document.getElementById('type');
+        if (typeEl) typeEl.value = d.type || '';
+        document.getElementById('price').value = d.price != null ? d.price : '';
+        document.getElementById('gst').value = d.gst != null ? d.gst : '';
+        document.getElementById('description').value = d.description || '';
+        updateCompatFieldsVisibility('type', 'compatFieldsContainer');
+        loadItemDrafts(true);
+    } catch (e) {
+        console.warn('Resume product draft failed:', e);
+        alert('Failed to load draft.');
+    }
+}
+
+async function convertItemDraft(draftId) {
+    try {
+        await apiFetch('/drafts/items/' + draftId + '/convert', { method: 'POST' });
+        if (currentItemDraftId === draftId) currentItemDraftId = null;
+        loadItemDrafts(true);
+        alert('Product created from draft successfully.');
+        renderItemsList();
+        loadAddProductDynamicData();
+    } catch (e) {
+        alert(e.message || 'Failed to convert draft.');
+    }
+}
+
+async function deleteItemDraft(draftId) {
+    if (!confirm('Delete this draft?')) return;
+    try {
+        await apiFetch('/drafts/items/' + draftId, { method: 'DELETE' });
+        if (currentItemDraftId === draftId) currentItemDraftId = null;
+        loadItemDrafts(true);
+    } catch (e) {
+        console.warn('Delete draft failed:', e);
+    }
+}
+
+function saveDraftWithKeepalive() {
+    if (currentSectionId === 'createQuotation') {
+        const payload = buildQuotationDraftPayload();
+        if (payload) {
+            fetch(API_BASE + '/drafts/quotations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), credentials: 'include', keepalive: true }).catch(function() {});
+        }
+    }
+    if (currentSectionId === 'addItem') {
+        const payload = buildItemDraftPayload();
+        if (payload) {
+            fetch(API_BASE + '/drafts/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), credentials: 'include', keepalive: true }).catch(function() {});
+        }
+    }
+}
+
+function scheduleQuotationDraftSave() {
+    if (draftQuotationDebounceId) clearTimeout(draftQuotationDebounceId);
+    draftQuotationDebounceId = setTimeout(function() {
+        draftQuotationDebounceId = null;
+        if (currentSectionId === 'createQuotation') saveQuotationDraftToServer().then(function() { loadQuotationDrafts(); });
+    }, DRAFT_DEBOUNCE_MS);
+}
+
+function scheduleItemDraftSave() {
+    if (draftItemDebounceId) clearTimeout(draftItemDebounceId);
+    draftItemDebounceId = setTimeout(function() {
+        draftItemDebounceId = null;
+        if (currentSectionId === 'addItem') saveItemDraftToServer().then(function() { loadItemDrafts(); });
+    }, DRAFT_DEBOUNCE_MS);
+}
+
+(function setupDraftDebounceListeners() {
+    var qIds = ['cust-name', 'phone-number', 'cust-email', 'cust-address', 'discount-percent'];
+    qIds.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) { el.addEventListener('input', scheduleQuotationDraftSave); el.addEventListener('change', scheduleQuotationDraftSave); }
+    });
+    var itemIds = ['product-id', 'item-url', 'product-name', 'type', 'price', 'gst', 'description'];
+    itemIds.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) { el.addEventListener('input', scheduleItemDraftSave); el.addEventListener('change', scheduleItemDraftSave); }
+    });
+})();
+
+document.addEventListener('visibilitychange', function() { if (document.visibilityState === 'hidden') saveDraftWithKeepalive(); });
+window.addEventListener('beforeunload', function() { saveDraftWithKeepalive(); });
+
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-action][data-id]');
+    if (btn) {
+        var action = btn.getAttribute('data-action');
+        var id = parseInt(btn.getAttribute('data-id'), 10);
+        if (action === 'resume-quotation-draft') { resumeQuotationDraft(id); return; }
+        if (action === 'convert-quotation-draft') { convertQuotationDraft(id); return; }
+        if (action === 'delete-quotation-draft') { deleteQuotationDraft(id); return; }
+        if (action === 'resume-item-draft') { resumeItemDraft(id); return; }
+        if (action === 'convert-item-draft') { convertItemDraft(id); return; }
+        if (action === 'delete-item-draft') { deleteItemDraft(id); return; }
+    }
+});
+
 function showSection(sectionId) {
+    currentSectionId = sectionId || '';
+    if (draftQuotationIntervalId) { clearInterval(draftQuotationIntervalId); draftQuotationIntervalId = null; }
+    if (draftQuotationDebounceId) { clearTimeout(draftQuotationDebounceId); draftQuotationDebounceId = null; }
+    if (draftItemIntervalId) { clearInterval(draftItemIntervalId); draftItemIntervalId = null; }
+    if (draftItemDebounceId) { clearTimeout(draftItemDebounceId); draftItemDebounceId = null; }
     // When leaving Customers section, refresh search bars and reset pagination
     const prevSection = Array.from(document.querySelectorAll('.content-section')).find(s => s.style.display !== 'none');
     if (prevSection && prevSection.id === 'viewCustomers') {
@@ -4212,14 +4564,17 @@ function showSection(sectionId) {
         handleItemEditReset();
         updateCompatFieldsVisibility('type', 'compatFieldsContainer');
         loadAddProductDynamicData();
+        loadItemDrafts();
+        draftItemIntervalId = setInterval(function() { saveItemDraftToServer(); loadItemDrafts(); }, DRAFT_AUTO_SAVE_MS);
     }
     if (sectionId === 'itemsList') renderItemsList();
+    if (sectionId === 'itemDrafts') loadItemDrafts(true);
     if (sectionId === 'createQuotation') {
-        // Initialize Create Quotation section
         renderQuotationTypeFilters(window.cachedItems);
         renderAvailableItemsForQuotation('', '', window.cachedItems);
         renderQuotationItems();
         updateGrandTotal();
+        loadQuotationDrafts();
         const createBtn = document.getElementById('createQuotationBtn');
         if (currentEditQuotationId) {
             if (createBtn) createBtn.textContent = 'Edit Quotation';
@@ -4235,8 +4590,10 @@ function showSection(sectionId) {
             if (sectionTitle) sectionTitle.textContent = 'Create Quotation';
             const cancelEditBtn = document.getElementById('cancelEditInCreateSectionBtn');
             if (cancelEditBtn) cancelEditBtn.style.display = 'none';
+            draftQuotationIntervalId = setInterval(function() { saveQuotationDraftToServer(); loadQuotationDrafts(); }, DRAFT_AUTO_SAVE_MS);
         }
     }
+    if (sectionId === 'quotationDrafts') loadQuotationDrafts(true);
     if (sectionId === 'viewHistory') renderHistoryList();
     if (sectionId === 'viewLogs') renderLogsList();
     if (sectionId === 'viewCustomers') {
