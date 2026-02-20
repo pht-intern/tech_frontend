@@ -370,14 +370,33 @@ async function loadAddProductDynamicData() {
     }
 }
 
+async function populateEditProductTypeDropdown(items) {
+    const typeSelect = document.getElementById('edit-type');
+    if (!typeSelect) return;
+    try {
+        const settings = await getSettings();
+        const savedOrder = Array.isArray(settings.quotationItemTypeOrder) ? settings.quotationItemTypeOrder.slice() : [];
+        const productTypesList = Array.isArray(settings.productTypes) ? settings.productTypes.slice() : [];
+        const arr = Array.isArray(items) ? items : (items && items.data) || [];
+        const typesFromItems = [...new Set(arr.map(function (item) { return item.type; }).filter(Boolean))].map(function (t) { return String(t).toLowerCase().trim(); });
+        const order = mergeQuotationOrderWithAllTypes(savedOrder, productTypesList, typesFromItems).filter(function (t) { return t !== 'all'; });
+        typeSelect.innerHTML = '<option value="">Select Product Type</option>';
+        order.forEach(function (t) {
+            typeSelect.appendChild(new Option(String(t).toUpperCase(), t));
+        });
+    } catch (e) {
+        console.error('Failed to load edit product type dropdown:', e);
+        typeSelect.innerHTML = '<option value="">Select Product Type</option>';
+    }
+}
+
 async function populateAddProductTypeDropdown(items) {
     const typeSelect = document.getElementById('type');
     if (!typeSelect) return;
     try {
         const settings = await getSettings();
-        const savedOrder = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
-            ? settings.quotationItemTypeOrder
-            : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+        // Type dropdown: only from database (settings) and existing items (API)
+        const savedOrder = Array.isArray(settings.quotationItemTypeOrder) ? settings.quotationItemTypeOrder.slice() : [];
         const productTypesList = Array.isArray(settings.productTypes) ? settings.productTypes.slice() : [];
         const arr = Array.isArray(items) ? items : (items && items.data) || [];
         const typesFromItems = [...new Set(arr.map(function (item) { return item.type; }).filter(Boolean))];
@@ -846,11 +865,14 @@ async function editItem(productId) {
         const item = items.find(i => i.productId === productId);
 
         if (item) {
+            await populateEditProductTypeDropdown(items);
             // Populate modal form fields
             document.getElementById('edit-product-id').value = item.productId;
             document.getElementById('edit-item-url').value = item.itemUrl || '';
             document.getElementById('edit-product-name').value = item.productName || '';
-            document.getElementById('edit-type').value = item.type || '';
+            const editTypeEl = document.getElementById('edit-type');
+            editTypeEl.value = (item.type || '').toLowerCase().trim();
+            if (!editTypeEl.value && item.type) editTypeEl.value = item.type;
             document.getElementById('edit-price').value = item.price || '';
             document.getElementById('edit-description').value = item.description || '';
             
@@ -2698,29 +2720,8 @@ async function generateQuotationHtml(quotation, options = {}) {
         console.warn('Failed to fetch temp items, using original items:', error);
     }
     
-    // ALWAYS recalculate totals from items array (using temp table data if available)
-    // This ensures downloaded quotation uses updated values from temp table, not items table
-    const newSubTotal = items.reduce((sum, item) => {
-        const itemPrice = parseFloat(item.price || 0);
-        const itemQuantity = parseInt(item.quantity || 1);
-        return sum + (itemPrice * itemQuantity);
-    }, 0);
-    const newDiscountAmount = (newSubTotal * discountPercent) / 100;
-    const newTotalAfterDiscount = newSubTotal - newDiscountAmount;
-    const newTotalGstAmount = items.reduce((sum, item) => {
-        const itemPrice = parseFloat(item.price || 0);
-        const itemQuantity = parseInt(item.quantity || 1);
-        const itemGstRate = parseFloat(item.gstRate || 0) / 100;
-        return sum + (itemPrice * itemQuantity * itemGstRate);
-    }, 0);
-    const newGrandTotal = newTotalAfterDiscount + newTotalGstAmount;
-    
-    // Update totals with recalculated values
-    subTotal = newSubTotal;
-    discountAmount = newDiscountAmount;
-    totalAfterDiscount = newTotalAfterDiscount;
-    totalGstAmount = newTotalGstAmount;
-    grandTotal = newGrandTotal;
+    // Use stored totals for footer; only the Amount column (per row) is calculated (Unit Price × Qty)
+    grandTotal = parseFloat(quotation.grandTotal || quotation.totalAmount || quotation.total) || grandTotal;
     
     // Ensure quotation ID and date are available
     const quotationId = quotation.quotationId || quotation.id || 'N/A';
@@ -2868,8 +2869,8 @@ async function generateQuotationHtml(quotation, options = {}) {
                         </thead>
                         <tbody>
                             ${itemsForTable.length > 0 ? itemsForTable.map((item, idx) => {
-                                const itemPrice = parseFloat(item.price || 0);
-                                const itemQuantity = parseInt(item.quantity || 1);
+                                const itemPrice = parseFloat(item.price || item.unitPrice || 0);
+                                const itemQuantity = parseInt(item.quantity || item.qty || 1, 10);
                                 const itemTotal = itemPrice * itemQuantity;
                                 const linkUrl = (item.itemUrl || item.url || '').trim();
                                 const linkCell = linkUrl ? `<a href="${linkUrl}" style="color:${theme.primary};text-decoration:none;" title="${linkUrl}"><i class="fas fa-link" style="font-size:12px;"></i></a>` : '—';

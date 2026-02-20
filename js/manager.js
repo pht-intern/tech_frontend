@@ -456,14 +456,43 @@ async function loadAddProductDynamicData() {
     }
 }
 
+async function populateEditProductTypeDropdown(items) {
+    const typeSelect = document.getElementById('edit-type');
+    if (!typeSelect) return;
+    try {
+        const settings = await getSettings();
+        const savedOrder = Array.isArray(settings.quotationItemTypeOrder) ? settings.quotationItemTypeOrder.slice() : [];
+        const productTypesList = Array.isArray(settings.productTypes) ? settings.productTypes.slice() : [];
+        const arr = Array.isArray(items) ? items : (items && items.data) || [];
+        const typesFromItems = [...new Set(arr.map(function (item) { return item.type; }).filter(Boolean))].map(function (t) { return String(t).toLowerCase().trim(); });
+        const seen = new Set();
+        const order = [];
+        function add(v) {
+            const t = String(v).toLowerCase().trim();
+            if (!t || t === 'all' || seen.has(t)) return;
+            seen.add(t);
+            order.push(t);
+        }
+        (savedOrder || []).forEach(add);
+        (productTypesList || []).forEach(add);
+        (typesFromItems || []).forEach(add);
+        typeSelect.innerHTML = '<option value="">Select Product Type</option>';
+        order.forEach(function (t) {
+            typeSelect.appendChild(new Option(String(t).toUpperCase(), t));
+        });
+    } catch (e) {
+        console.error('Failed to load edit product type dropdown:', e);
+        typeSelect.innerHTML = '<option value="">Select Product Type</option>';
+    }
+}
+
 async function populateAddProductTypeDropdown(items) {
     const typeSelect = document.getElementById('type');
     if (!typeSelect) return;
     try {
         const settings = await getSettings();
-        const savedOrder = Array.isArray(settings.quotationItemTypeOrder) && settings.quotationItemTypeOrder.length > 0
-            ? settings.quotationItemTypeOrder.slice()
-            : DEFAULT_QUOTATION_ITEM_TYPE_ORDER.slice();
+        // Type dropdown: only from database (settings) and existing items (API)
+        const savedOrder = Array.isArray(settings.quotationItemTypeOrder) ? settings.quotationItemTypeOrder.slice() : [];
         const productTypesList = Array.isArray(settings.productTypes) ? settings.productTypes.slice() : [];
         const arr = Array.isArray(items) ? items : (items && items.data) || [];
         const typesFromItems = [...new Set(arr.map(function (item) { return item.type; }).filter(Boolean))].map(function (t) { return String(t).toLowerCase().trim(); });
@@ -896,11 +925,14 @@ async function editItem(productId) {
         const item = items.find(i => i.productId === productId);
 
         if (item) {
+            await populateEditProductTypeDropdown(items);
             // Populate modal form fields
             document.getElementById('edit-product-id').value = item.productId;
             document.getElementById('edit-item-url').value = item.itemUrl || '';
             document.getElementById('edit-product-name').value = item.productName || '';
-            document.getElementById('edit-type').value = item.type || '';
+            const editTypeEl = document.getElementById('edit-type');
+            editTypeEl.value = (item.type || '').toLowerCase().trim();
+            if (!editTypeEl.value && item.type) editTypeEl.value = item.type;
             document.getElementById('edit-price').value = item.price || '';
             document.getElementById('edit-description').value = item.description || '';
             
@@ -2636,16 +2668,8 @@ async function generateQuotationHtml(quotation, options = {}) {
             return getQuotationCategorySortIndex(a.type, displayOrder) - getQuotationCategorySortIndex(b.type, displayOrder);
         });
     }
-    const newSubTotal = items.reduce((sum, item) => { const itemPrice = parseFloat(item.price || 0); const itemQuantity = parseInt(item.quantity || 1); return sum + (itemPrice * itemQuantity); }, 0);
-    const newDiscountAmount = (newSubTotal * discountPercent) / 100;
-    const newTotalAfterDiscount = newSubTotal - newDiscountAmount;
-    const newTotalGstAmount = items.reduce((sum, item) => { const itemPrice = parseFloat(item.price || 0); const itemQuantity = parseInt(item.quantity || 1); const itemGstRate = parseFloat(item.gstRate || 0) / 100; return sum + (itemPrice * itemQuantity * itemGstRate); }, 0);
-    const newGrandTotal = newTotalAfterDiscount + newTotalGstAmount;
-    subTotal = newSubTotal;
-    discountAmount = newDiscountAmount;
-    totalAfterDiscount = newTotalAfterDiscount;
-    totalGstAmount = newTotalGstAmount;
-    grandTotal = newGrandTotal;
+    // Use stored totals for footer; only the Amount column (per row) is calculated (Unit Price × Qty)
+    grandTotal = parseFloat(quotation.grandTotal || quotation.totalAmount || quotation.total) || grandTotal;
     const quotationId = quotation.quotationId || quotation.id || 'N/A';
     const dateCreated = quotation.dateCreated || new Date().toLocaleDateString('en-IN');
 
@@ -2693,7 +2717,7 @@ async function generateQuotationHtml(quotation, options = {}) {
                     ${headerLogoHtml}${headerCustomerImageHtml}
                     ${showHeaderSection ? `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; margin-top: 120px;"><div><div style="font-size: ${pdfSizeTertiary}px; font-weight: 600; color: ${theme.primary}; margin-top: 8px; margin-bottom: 4px;">Advance InfoTech</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyAddress}</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyEmail}</div><div style="font-size: ${pdfSizeTertiary}px; color: #6b7280;">${companyPhone}</div></div><div style="flex: 1; text-align: center;"><h1 style="margin: 0; font-size: ${pdfSizePrimary}px; font-weight: 600; color: ${theme.primary}; letter-spacing: -0.02em; font-family: ${pdfFontPrimary};">Quotation</h1></div><div style="width: 200px;"></div></div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div>${(function() { const line1 = [customer?.name, customer?.phone, customer?.email].filter(Boolean); const addr = customer?.address; if (!line1.length && !addr) return ''; return `<div style="font-size: ${pdfSizeTertiary}px; font-weight: 600; color: ${theme.primary}; margin-bottom: 4px;">Quotation to</div><div style="font-size: ${pdfSizeTertiary}px; color: #374151; "><span style="font-weight: 600;">${line1.map((part, i) => (i ? ' <span style="font-weight: 700; margin: 0 0.35em;">|</span> ' : '') + part).join('')}</span>${addr ? '<br><span style="font-weight: 600;">' + addr + '</span>' : ''}</div>`; })()}</div><div style="text-align: right;"><div style="font-size: ${pdfSizeTertiary}px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;">Date</div><div style="font-size: ${pdfSizeTertiary}px;">${dateCreated}</div></div></div>` : ''}
-                    <table class="q-table"><thead><tr><th>S.No</th><th>Type</th><th>Description</th><th style="width:52px;font-size:11px;">Link</th><th class="text-right">Unit Price</th><th class="text-right">Qty</th><th class="text-right">Amount</th></tr></thead><tbody>${itemsForTable.length > 0 ? itemsForTable.map((item, idx) => { const itemPrice = parseFloat(item.price || 0); const itemQuantity = parseInt(item.quantity || 1); const itemTotal = itemPrice * itemQuantity; const linkUrl = (item.itemUrl || item.url || '').trim(); const linkCell = linkUrl ? `<a href="${linkUrl}" style="color:${theme.primary};text-decoration:none;" title="${linkUrl}"><i class="fas fa-link" style="font-size:12px;"></i></a>` : '—'; return `<tr><td>${snoOffset + idx + 1}</td><td>${item.type || 'N/A'}</td><td>${item.productName || 'N/A'}</td><td style="text-align:center;">${linkCell}</td><td class="text-right">${formatRupee(itemPrice)}</td><td class="text-right">${itemQuantity}</td><td class="text-right">${formatRupee(itemTotal)}</td></tr>`; }).join('') : '<tr><td colspan="7" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}</tbody></table>
+                    <table class="q-table"><thead><tr><th>S.No</th><th>Type</th><th>Description</th><th style="width:52px;font-size:11px;">Link</th><th class="text-right">Unit Price</th><th class="text-right">Qty</th><th class="text-right">Amount</th></tr></thead><tbody>${itemsForTable.length > 0 ? itemsForTable.map((item, idx) => { const itemPrice = parseFloat(item.price || item.unitPrice || 0); const itemQuantity = parseInt(item.quantity || item.qty || 1, 10); const itemTotal = itemPrice * itemQuantity; const linkUrl = (item.itemUrl || item.url || '').trim(); const linkCell = linkUrl ? `<a href="${linkUrl}" style="color:${theme.primary};text-decoration:none;" title="${linkUrl}"><i class="fas fa-link" style="font-size:12px;"></i></a>` : '—'; return `<tr><td>${snoOffset + idx + 1}</td><td>${item.type || 'N/A'}</td><td>${item.productName || 'N/A'}</td><td style="text-align:center;">${linkCell}</td><td class="text-right">${formatRupee(itemPrice)}</td><td class="text-right">${itemQuantity}</td><td class="text-right">${formatRupee(itemTotal)}</td></tr>`; }).join('') : '<tr><td colspan="7" style="text-align: center; padding: 24px; color: #9ca3af;">No items</td></tr>'}</tbody></table>
                     ${showTotals ? `<div style="margin-top: 24px; text-align: right; padding-bottom: 24px; border-bottom: 1px solid ${theme.border};"><div style="display: inline-block; width: 260px; text-align: right;"><div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: ${pdfSizeTertiary}px;"><span style="color: #6b7280;">Subtotal (excl). GST)</span><span>${formatRupee(totalAfterDiscount)}</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; margin-top: 8px; border-top: 2px solid ${theme.primary}; font-size: ${pdfSizeTertiary + 2}px; font-weight: 600;"><span>Total</span><span>${formatRupee(grandTotal)}</span></div></div></div>` : ''}
                     ${showFooterSection ? `<div style="position: absolute; bottom: 48px; left: 56px; right: 56px;"><hr style="border: none; border-top: 1px solid ${theme.border}; margin: 0 0 12px 0;"><div style="font-size: ${pdfSizeTertiary}px; line-height: 1.4; color: #5c5c5c; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;"><div style="white-space: nowrap;">Free <span style="color: ${theme.primary}">Pan-India shipping</span> available, 100% genuine parts with proper GST invoice, and direct brand/manufacturer warranty on all components.</div><div style="white-space: nowrap;">Includes <span style="color: ${theme.primary}">3-year</span> technical call support <span style="color: ${theme.accent}">(Monday to Saturday, 12 PM–7 PM)</span> and Windows 11 Pro installation with lifetime license support.</div><div style="white-space: nowrap;">Prices valid for <span style="color: ${theme.primary}">limited time</span> due to frequent market changes in GPU/RAM/SSD.</div></div></div>` : ''}
                 </div>
@@ -3017,7 +3041,7 @@ async function renderHistoryList() {
         actionsCell.innerHTML = `
                     <button class="btn primary" style="padding: 5px 8px; margin-right: 5px;" onclick="fetchQuotationAndGeneratePdf('${quoteId}')" title="Download PDF"><i class="fas fa-download"></i></button>
                     <button class="btn secondary" style="padding: 5px 8px; margin-right: 5px;" onclick="viewQuotationDetails('${quoteId}')" title="View"><i class="fas fa-eye"></i></button>
-                    <button class="btn" style="padding: 5px 8px;" onclick="cloneQuotation('${quoteId}')" title="Edit"><i class="fas fa-edit"></i></button>
+                    <button class="btn" style="padding: 5px 8px;" onclick="editQuotationInCreateSection('${quoteId}')" title="Edit"><i class="fas fa-edit"></i></button>
                 `;
     });
 }
