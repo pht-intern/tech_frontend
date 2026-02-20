@@ -2847,7 +2847,7 @@ async function generateQuotationHtml(quotation, options = {}) {
             `;
         }).join('');
         return (getCustomFontsCssForPdf() ? getCustomFontsCssForPdf() + '\n' : '') + `
-                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
+                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px ${showFooterSection ? '120px' : '48px'} 56px; position: relative; color: #1f2937; box-sizing: border-box;">
                     <style>.theme-border { border-color: ${theme.border} !important; }</style>
                     ${headerLogoHtml}
                     ${headerCustomerImageHtml}
@@ -2871,10 +2871,13 @@ async function generateQuotationHtml(quotation, options = {}) {
                         ${imagesGridHtml}
                     </div>
                     ${showFooterSection ? `
-                    <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: ${pdfSizeTertiary}px; text-align: center; line-height: 1.7; color: #5c5c5c;">
-                        <div>Free <span style="color: ${theme.primary}">Pan-India shipping</span> available, 100% genuine parts with proper GST invoice, and direct brand/manufacturer warranty on all components.</div>
-                        <div>Includes <span style="color: ${theme.primary}">3-year</span> technical call support <span style="color: ${theme.accent}">(Monday to Saturday, 12 PM–7 PM)</span> and Windows 11 Pro installation with lifetime license support.</div>
-                        <div>Prices valid for <span style="color: ${theme.primary}">limited time</span> due to frequent market changes in GPU/RAM/SSD.</div>
+                    <div style="position: absolute; bottom: 48px; left: 56px; right: 56px;">
+                        <hr style="border: none; border-top: 1px solid ${theme.border}; margin: 0 0 12px 0;">
+                        <div style="font-size: ${pdfSizeTertiary}px; line-height: 1.4; color: #5c5c5c; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                            <div style="white-space: nowrap;">Free <span style="color: ${theme.primary}">Pan-India shipping</span> available, 100% genuine parts with proper GST invoice, and direct brand/manufacturer warranty on all components.</div>
+                            <div style="white-space: nowrap;">Includes <span style="color: ${theme.primary}">3-year</span> technical call support <span style="color: ${theme.accent}">(Monday to Saturday, 12 PM–7 PM)</span> and Windows 11 Pro installation with lifetime license support.</div>
+                            <div style="white-space: nowrap;">Prices valid for <span style="color: ${theme.primary}">limited time</span> due to frequent market changes in GPU/RAM/SSD.</div>
+                        </div>
                     </div>
                     ` : ''}
                 </div>
@@ -2882,7 +2885,7 @@ async function generateQuotationHtml(quotation, options = {}) {
     }
 
     return (getCustomFontsCssForPdf() ? getCustomFontsCssForPdf() + '\n' : '') + `
-                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px; position: relative; color: #1f2937; box-sizing: border-box;">
+                <div style="width: 800px; min-height: 1123px; margin: 0; background: ${theme.pastelBg}; font-family: ${pdfFontTertiary}; padding: 48px 56px ${showFooterSection ? '120px' : '48px'} 56px; position: relative; color: #1f2937; box-sizing: border-box;">
                     <style>
                         .q-table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: ${pdfSizeSecondary}px; font-family: ${pdfFontSecondary}; }
                         .q-table th { text-align: left; padding: 14px 12px; border-bottom: 2px solid ${theme.primary}; color: ${theme.secondary}; font-weight: 600; }
@@ -2959,11 +2962,13 @@ async function generateQuotationHtml(quotation, options = {}) {
                         </div>
                     </div>` : ''}
                     ${showFooterSection ? `
-                    <div style="position: absolute; bottom: 48px; left: 56px; right: 56px; font-size: ${pdfSizeTertiary}px; text-align: center; line-height: 1.7; color: #5c5c5c;">
-                        ${pageNumFooter ? `<div style="margin-bottom: 8px; font-weight: 600;">${pageNumFooter}</div>` : ''}
-                        <div>Free <span style="color: ${theme.primary}">Pan-India shipping</span> available, 100% genuine parts with proper GST invoice, and direct brand/manufacturer warranty on all components.</div>
-                        <div>Includes <span style="color: ${theme.primary}">3-year</span> technical call support <span style="color: ${theme.accent}">(Monday to Saturday, 12 PM–7 PM)</span> and Windows 11 Pro installation with lifetime license support.</div>
-                        <div>Prices valid for <span style="color: ${theme.primary}">limited time</span> due to frequent market changes in GPU/RAM/SSD.</div>
+                    <div style="position: absolute; bottom: 48px; left: 56px; right: 56px;">
+                        <hr style="border: none; border-top: 1px solid ${theme.border}; margin: 0 0 12px 0;">
+                        <div style="font-size: ${pdfSizeTertiary}px; line-height: 1.4; color: #5c5c5c; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                            <div style="white-space: nowrap;">Free <span style="color: ${theme.primary}">Pan-India shipping</span> available, 100% genuine parts with proper GST invoice, and direct brand/manufacturer warranty on all components.</div>
+                            <div style="white-space: nowrap;">Includes <span style="color: ${theme.primary}">3-year</span> technical call support <span style="color: ${theme.accent}">(Monday to Saturday, 12 PM–7 PM)</span> and Windows 11 Pro installation with lifetime license support.</div>
+                            <div style="white-space: nowrap;">Prices valid for <span style="color: ${theme.primary}">limited time</span> due to frequent market changes in GPU/RAM/SSD.</div>
+                        </div>
                     </div>
                     ` : ''}
                 </div>
